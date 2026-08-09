@@ -22,8 +22,9 @@ import pytest
 from ose.interfaces import NavigationEstimator
 from ose.resource.air_data import AirDataParameters
 from ose.resource.air_data import AirDataSensor as AirDataSensorImpl
-from ose.resource.gnss import GnssParameters, GnssReceiver
+from ose.resource.gnss import GnssReceiver
 from ose.resource.imu import Imu
+from ose.resource.reference_configs.reference_gnss import STANDARD as GNSS_STANDARD
 from ose.resource.reference_configs.reference_imu import TACTICAL_GRADE
 from ose.resource.reference_configs.reference_vehicle import reference_fighter
 from ose.resource.vehicle import Disturbance, VehicleCommand, VehicleState, step_rk4
@@ -45,7 +46,7 @@ def _build_components(initial_state, seed=0):
     away afterwards, that corrupts the initial guess handed to the
     estimator -- a scenario-setup detail, not a component."""
     imu = Imu(TACTICAL_GRADE, np.random.default_rng(seed), reference_fighter())
-    gnss = GnssReceiver(GnssParameters(), rng=np.random.default_rng(seed + 1))
+    gnss = GnssReceiver(GNSS_STANDARD, rng=np.random.default_rng(seed + 1))
     air = AirDataSensorImpl(AirDataParameters(), rng=np.random.default_rng(seed + 2))
 
     rng_init = np.random.default_rng(seed + 100)

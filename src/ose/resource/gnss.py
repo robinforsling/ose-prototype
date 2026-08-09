@@ -26,10 +26,14 @@ from ose.resource.vehicle import Disturbance, VehicleState
 
 @dataclass
 class GnssParameters:
-    gnss_rate_hz: float = 1.0
-    gnss_position_sigma_m: float = 3.0
-    gnss_velocity_sigma_mps: float = 0.15
-    gnss_velocity_enabled: bool = True
+    """Shape only, no defaults -- a receiver grade is a choice, not a
+    universal, so it belongs in a named reference config
+    (resource/reference_configs/reference_gnss.py), not baked in here."""
+
+    gnss_rate_hz: float
+    gnss_position_sigma_m: float
+    gnss_velocity_sigma_mps: float
+    gnss_velocity_enabled: bool
 
 
 class GnssReceiver:
@@ -37,10 +41,10 @@ class GnssReceiver:
 
     def __init__(
         self,
-        parameters: GnssParameters | None = None,
+        parameters: GnssParameters,
         rng: np.random.Generator | None = None,
     ) -> None:
-        self.par = parameters or GnssParameters()
+        self.par = parameters
         self.rng = rng or np.random.default_rng(0)
         self._t_last = -math.inf
         self._available = True

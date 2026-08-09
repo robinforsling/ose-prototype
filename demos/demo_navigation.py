@@ -28,8 +28,9 @@ import numpy as np
 
 from ose.resource.air_data import AirDataParameters
 from ose.resource.air_data import AirDataSensor as AirDataSensorImpl
-from ose.resource.gnss import GnssParameters, GnssReceiver
+from ose.resource.gnss import GnssReceiver
 from ose.resource.imu import Imu
+from ose.resource.reference_configs.reference_gnss import STANDARD as GNSS_STANDARD
 from ose.resource.reference_configs.reference_imu import TACTICAL_GRADE
 from ose.resource.reference_configs.reference_vehicle import reference_fighter
 from ose.resource.vehicle import Disturbance, VehicleCommand, VehicleState, step_rk4
@@ -70,7 +71,7 @@ def run():
     )
 
     imu = Imu(TACTICAL_GRADE, np.random.default_rng(imu_seed), vehicle)
-    gnss = GnssReceiver(GnssParameters(), rng=np.random.default_rng(gnss_seed))
+    gnss = GnssReceiver(GNSS_STANDARD, rng=np.random.default_rng(gnss_seed))
     air = AirDataSensorImpl(AirDataParameters(), rng=np.random.default_rng(air_seed))
 
     # The initial guess handed to the estimator: truth corrupted by an

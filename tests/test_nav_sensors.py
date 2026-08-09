@@ -5,6 +5,7 @@ sigma is honest -- the property the whole split exists to make checkable, per
 docs/refactor-navigation-split.md and the testing philosophy in CLAUDE.md.
 """
 
+import dataclasses
 import math
 
 import numpy as np
@@ -13,8 +14,9 @@ import pytest
 from ose import interfaces
 from ose.resource.air_data import AirDataParameters
 from ose.resource.air_data import AirDataSensor as AirDataSensorImpl
-from ose.resource.gnss import GnssParameters, GnssReceiver
+from ose.resource.gnss import GnssReceiver
 from ose.resource.imu import Imu
+from ose.resource.reference_configs.reference_gnss import STANDARD as GNSS_STANDARD
 from ose.resource.reference_configs.reference_imu import TACTICAL_GRADE
 from ose.resource.reference_configs.reference_vehicle import reference_fighter
 from ose.resource.vehicle import Disturbance, VehicleCommand, VehicleState
@@ -42,7 +44,7 @@ def _scenario():
 
 def test_sensors_satisfy_their_protocols(vehicle):
     imu = Imu(TACTICAL_GRADE, np.random.default_rng(0), vehicle)
-    gnss = GnssReceiver(GnssParameters(), rng=np.random.default_rng(0))
+    gnss = GnssReceiver(GNSS_STANDARD, rng=np.random.default_rng(0))
     air = AirDataSensorImpl(AirDataParameters(), rng=np.random.default_rng(0))
     assert isinstance(imu, interfaces.InertialSensor)
     assert isinstance(gnss, interfaces.PositioningSensor)
@@ -56,7 +58,7 @@ def test_sensors_satisfy_their_protocols(vehicle):
 def test_valid_time_equals_time_requested(vehicle):
     _, state, command, dist = _scenario()
     imu = Imu(TACTICAL_GRADE, np.random.default_rng(0), vehicle)
-    gnss = GnssReceiver(GnssParameters(), rng=np.random.default_rng(0))
+    gnss = GnssReceiver(GNSS_STANDARD, rng=np.random.default_rng(0))
     air = AirDataSensorImpl(AirDataParameters(), rng=np.random.default_rng(0))
 
     assert imu.sample(12.5, 0.02, state, command, dist).valid_time_s == 12.5
@@ -132,7 +134,7 @@ def test_imu_bias_reaches_gauss_markov_steady_state(vehicle):
 # --------------------------------------------------------------------------
 
 def test_gnss_returns_none_while_denied_and_fix_once_restored():
-    gnss = GnssReceiver(GnssParameters(), rng=np.random.default_rng(0))
+    gnss = GnssReceiver(GNSS_STANDARD, rng=np.random.default_rng(0))
     state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
     dist = Disturbance()
 
@@ -146,7 +148,7 @@ def test_gnss_returns_none_while_denied_and_fix_once_restored():
 
 
 def test_gnss_fix_declares_configured_sigma():
-    par = GnssParameters(gnss_position_sigma_m=7.0, gnss_velocity_sigma_mps=0.3)
+    par = dataclasses.replace(GNSS_STANDARD, gnss_position_sigma_m=7.0, gnss_velocity_sigma_mps=0.3)
     gnss = GnssReceiver(par, rng=np.random.default_rng(0))
     fix = gnss.sample(0.0, VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0), Disturbance())
     assert fix.position_sigma_m == 7.0
@@ -154,7 +156,7 @@ def test_gnss_fix_declares_configured_sigma():
 
 
 def test_gnss_position_noise_std_matches_declared_sigma():
-    par = GnssParameters(gnss_position_sigma_m=3.0)
+    par = GNSS_STANDARD
     gnss = GnssReceiver(par, rng=np.random.default_rng(4))
     state = VehicleState(1000.0, -500.0, math.radians(15.0), 250.0, 16000.0)
     dist = Disturbance(wind_x_mps=12.0, wind_y_mps=-18.0)
@@ -170,7 +172,7 @@ def test_gnss_position_noise_std_matches_declared_sigma():
 
 
 def test_gnss_velocity_disabled_omits_velocity():
-    par = GnssParameters(gnss_velocity_enabled=False)
+    par = dataclasses.replace(GNSS_STANDARD, gnss_velocity_enabled=False)
     gnss = GnssReceiver(par, rng=np.random.default_rng(0))
     fix = gnss.sample(0.0, VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0), Disturbance())
     assert fix.velocity_mps is None
