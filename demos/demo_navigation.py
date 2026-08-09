@@ -29,7 +29,8 @@ import numpy as np
 from ose.resource.air_data import AirDataParameters
 from ose.resource.air_data import AirDataSensor as AirDataSensorImpl
 from ose.resource.gnss import GnssParameters, GnssReceiver
-from ose.resource.imu import Imu, ImuParameters
+from ose.resource.imu import Imu
+from ose.resource.reference_configs.reference_imu import TACTICAL_GRADE
 from ose.resource.reference_configs.reference_vehicle import reference_fighter
 from ose.resource.vehicle import Disturbance, VehicleCommand, VehicleState, step_rk4
 from ose.subsystem.navigation_state_estimator import InitialUncertainty, InsGnssEstimator
@@ -68,7 +69,7 @@ def run():
         wind_x_mps=float(TRUE_WIND[0]), wind_y_mps=float(TRUE_WIND[1])
     )
 
-    imu = Imu(ImuParameters(), np.random.default_rng(imu_seed), vehicle)
+    imu = Imu(TACTICAL_GRADE, np.random.default_rng(imu_seed), vehicle)
     gnss = GnssReceiver(GnssParameters(), rng=np.random.default_rng(gnss_seed))
     air = AirDataSensorImpl(AirDataParameters(), rng=np.random.default_rng(air_seed))
 

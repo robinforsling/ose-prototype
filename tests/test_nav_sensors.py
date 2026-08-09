@@ -14,7 +14,8 @@ from ose import interfaces
 from ose.resource.air_data import AirDataParameters
 from ose.resource.air_data import AirDataSensor as AirDataSensorImpl
 from ose.resource.gnss import GnssParameters, GnssReceiver
-from ose.resource.imu import Imu, ImuParameters
+from ose.resource.imu import Imu
+from ose.resource.reference_configs.reference_imu import TACTICAL_GRADE
 from ose.resource.reference_configs.reference_vehicle import reference_fighter
 from ose.resource.vehicle import Disturbance, VehicleCommand, VehicleState
 
@@ -40,7 +41,7 @@ def _scenario():
 # --------------------------------------------------------------------------
 
 def test_sensors_satisfy_their_protocols(vehicle):
-    imu = Imu(ImuParameters(), np.random.default_rng(0), vehicle)
+    imu = Imu(TACTICAL_GRADE, np.random.default_rng(0), vehicle)
     gnss = GnssReceiver(GnssParameters(), rng=np.random.default_rng(0))
     air = AirDataSensorImpl(AirDataParameters(), rng=np.random.default_rng(0))
     assert isinstance(imu, interfaces.InertialSensor)
@@ -54,7 +55,7 @@ def test_sensors_satisfy_their_protocols(vehicle):
 
 def test_valid_time_equals_time_requested(vehicle):
     _, state, command, dist = _scenario()
-    imu = Imu(ImuParameters(), np.random.default_rng(0), vehicle)
+    imu = Imu(TACTICAL_GRADE, np.random.default_rng(0), vehicle)
     gnss = GnssReceiver(GnssParameters(), rng=np.random.default_rng(0))
     air = AirDataSensorImpl(AirDataParameters(), rng=np.random.default_rng(0))
 
@@ -71,7 +72,7 @@ def test_valid_time_equals_time_requested(vehicle):
 def imu_draws():
     """Many draws at a fixed flight condition, holding truth constant."""
     vehicle, state, command, dist = _scenario()
-    par = ImuParameters()
+    par = TACTICAL_GRADE
     rng = np.random.default_rng(1)
     imu = Imu(par, rng, vehicle)
     f_true = imu.true_specific_force(state, command, dist)
@@ -105,7 +106,7 @@ def test_imu_std_matches_declared_sigma(imu_draws):
 
 
 def test_imu_bias_reaches_gauss_markov_steady_state(vehicle):
-    par = ImuParameters(gyro_bias_sigma=5.0e-6, gyro_bias_tau_s=3600.0)
+    par = TACTICAL_GRADE
     rng = np.random.default_rng(3)
     imu = Imu(par, rng, vehicle)
     state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)

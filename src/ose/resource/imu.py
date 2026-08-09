@@ -24,14 +24,16 @@ from ose.resource.vehicle import Disturbance, Vehicle2D, VehicleCommand, Vehicle
 
 @dataclass
 class ImuParameters:
-    """Tactical-grade defaults."""
+    """Shape only, no defaults -- a sensor grade (tactical, consumer, ...) is
+    a choice, not a universal, so it belongs in a named reference config
+    (resource/reference_configs/reference_imu.py), not baked in here."""
 
-    accel_noise_density: float = 1.0e-3      # [m/s^2 / sqrt(Hz)]
-    accel_bias_sigma: float = 1.0e-3         # steady-state bias sigma [m/s^2]
-    accel_bias_tau_s: float = 3600.0
-    gyro_noise_density: float = 3.0e-5       # [rad/s / sqrt(Hz)]
-    gyro_bias_sigma: float = 5.0e-6          # [rad/s]
-    gyro_bias_tau_s: float = 3600.0
+    accel_noise_density: float      # [m/s^2 / sqrt(Hz)]
+    accel_bias_sigma: float         # steady-state bias sigma [m/s^2]
+    accel_bias_tau_s: float
+    gyro_noise_density: float       # [rad/s / sqrt(Hz)]
+    gyro_bias_sigma: float          # [rad/s]
+    gyro_bias_tau_s: float
 
 
 class Imu:
