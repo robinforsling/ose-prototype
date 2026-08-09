@@ -77,14 +77,18 @@ Implemented: the baseline vehicle model; three resource-layer navigation
 sensors (`Imu`, `GnssReceiver`, `AirDataSensor`) and the resource-layer
 black-box `IntegratedNavUnit`; the subsystem-layer `InsGnssEstimator`, an
 error-state Kalman filter fed by the sensors' published measurements (ADR
-0009); a resource-layer `Clock`; and the subsystem-layer `TimeEstimator`, a
+0009); a resource-layer `Clock`; the subsystem-layer `TimeEstimator`, a
 dead-reckoning-only estimator of the platform clock's offset and drift, with
-no correction source yet (ADR 0010).
+no correction source yet (ADR 0010); and the subsystem-layer
+`VehicleGuidance`, a heading/speed-hold controller that enforces the
+vehicle's admissible sets before publishing a command, the first real
+consumer of `Vehicle2D.project_command()` and the first real producer of
+`vehicle.command.v1` (ADR 0011).
 
 Not yet implemented: the registry, the binder, the descriptor validator, the
 simulation core itself, and every component type other than vehicle,
-navigation, and the platform clock. The composition specification describes
-the intended format; nothing consumes it yet.
+navigation, the platform clock, and vehicle guidance. The composition
+specification describes the intended format; nothing consumes it yet.
 
 ## Repository layout
 

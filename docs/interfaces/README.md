@@ -21,6 +21,7 @@ renaming one is not, and requires a version increment.
 | `sensing.airdata.v1` | resource to subsystem | Airspeed, with declared uncertainty. | **implemented** |
 | `sensing.clock.v1` | resource to subsystem | The platform clock's own elapsed-time reading, with declared uncertainty. | **implemented** |
 | `platform.time.v1` | subsystem to above | Platform's belief about its own clock: accumulated reading, drift, covariance. | **implemented** |
+| `guidance.setpoint.v1` | single-ship to subsystem | Commanded heading and speed. Stand-in for `planning.action.v1` until single-ship exists. | **implemented** |
 | `sensing.detections.v1` | resource to subsystem | Time-stamped detections with measurement uncertainty. | planned |
 | `sensing.control.v1` | subsystem to resource | Sensor tasking: pointing, mode, priority. | planned |
 | `comms.message.v1` | bidirectional | Addressed transport with loss and latency applied. | planned |
@@ -40,6 +41,11 @@ per second, positive right.
 
 The vehicle declares admissible sets but does not enforce them. A command
 outside `U(x, lambda)` is integrated as given. See ADR 0006.
+
+`VehicleGuidance` (subsystem layer) is the first real producer of this
+interface: it projects its raw command onto the vehicle's admissible sets
+via `project_command()` before publishing it, and reports any clipping via
+`Saturation` rather than swallowing it. See ADR 0011.
 
 ### `vehicle.state.v1`
 
@@ -113,6 +119,20 @@ correct it with yet. The covariance is the actual product of this component:
 a calibrated, honestly growing bound on how far it may have diverged from
 true elapsed time. It never shrinks, by construction, until a correction
 source exists. See ADR 0010.
+
+### `guidance.setpoint.v1`
+
+`HeadingSpeedSetpoint(psi_cmd_rad, v_cmd_mps)`, consumed by any component
+satisfying `VehicleGuidance` (`command(t_s, setpoint, own_state, mass_kg) ->
+(VehicleCommand, Saturation)`). Today the only implementation is
+`VehicleGuidance` (subsystem layer, `subsystem/vehicle_guidance.py`), a
+proportional heading/speed-hold law whose raw command is projected onto the
+vehicle's admissible sets before publication.
+
+`command()` dispatches on setpoint type, mirroring `NavigationEstimator.
+ingest()`: a planned waypoint-pursuit mode is a new type and a new branch,
+not a protocol change. `mass_kg` is a plain caller-supplied parameter, not
+derived from `own_state` -- no component estimates mass yet. See ADR 0011.
 
 ## What every interface file must state
 

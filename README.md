@@ -9,11 +9,13 @@ The emphasis is integration, not fidelity.
 
 **Status: early.** The baseline vehicle model; three resource-layer navigation
 sensors (IMU, GNSS, air data), a resource-layer black-box integrated nav unit,
-and a subsystem-layer INS/GNSS estimator; and a resource-layer clock with a
+and a subsystem-layer INS/GNSS estimator; a resource-layer clock with a
 dead-reckoning-only subsystem-layer time estimator (no correction source
-exists yet) are implemented and tested. The simulation core, the service
-registry, the composition binder, and every other component type are
-described in `docs/` but not yet built.
+exists yet); and a subsystem-layer vehicle guidance component that enforces
+the vehicle's admissible sets before publishing a command, are implemented
+and tested. The simulation core, the service registry, the composition
+binder, and every other component type are described in `docs/` but not yet
+built.
 
 All parameter values in this repository are fictional and plausible. They are not
 claims about any real system.
@@ -51,6 +53,8 @@ src/ose/resource/integrated_navigation_unit.py    black-box integrated nav unit
 src/ose/resource/clock.py                         platform clock model
 src/ose/subsystem/navigation_state_estimator.py   INS/GNSS error-state Kalman filter
 src/ose/subsystem/time_state_estimator.py         dead-reckoning platform clock estimator
+src/ose/subsystem/vehicle_guidance.py             heading/speed-hold guidance, enforces admissibility
+src/ose/subsystem/reference_configs/              reference configs for subsystem components
 docs/                                             scope, concepts, architecture, tooling
 docs/adr/                                         architecture decision records
 docs/interfaces/                                  interface catalogue

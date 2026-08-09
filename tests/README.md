@@ -46,6 +46,15 @@ boundary, and replay determinism for the estimator, plus that
 never decreases — there is no correction source yet, so nothing should ever
 look more confident than dead reckoning warrants.
 
+`test_vehicle_guidance.py` (ADR 0011) is where enforcement is finally
+exercised: `test_vehicle.py`'s two tests above check that the vehicle
+itself does *not* clip an inadmissible command; `test_reports_saturation_
+when_setpoint_exceeds_envelope` checks that guidance does, and that the
+clipping comes back as a visible `Saturation` finding rather than being
+absorbed silently. Also checks the truth boundary (guidance only ever
+touches `OwnStateEstimate`) and closed-loop convergence to a commanded
+heading and speed.
+
 ## Why consistency is tested rather than eyeballed
 
 The INS/GNSS filter shipped with a one-step misalignment between the mechanised
