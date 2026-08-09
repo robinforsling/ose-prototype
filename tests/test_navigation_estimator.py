@@ -31,7 +31,7 @@ from ose.resource.vehicle import (
     reference_fighter,
     step_rk4,
 )
-from ose.subsystem.navigation import GnssFix, InitialUncertainty, InsGnssEstimator
+from ose.subsystem.navigation_state_estimator import GnssFix, InitialUncertainty, InsGnssEstimator
 
 DT = 0.05
 INITIAL = InitialUncertainty()
@@ -116,7 +116,10 @@ def vehicle():
 
 def test_estimator_cannot_see_truth():
     """Blunt by design: fails loudly if truth is reintroduced for convenience."""
-    path = Path(__file__).resolve().parents[1] / "src" / "ose" / "subsystem" / "navigation.py"
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "src" / "ose" / "subsystem" / "navigation_state_estimator.py"
+    )
     tree = ast.parse(path.read_text())
 
     for node in ast.walk(tree):
