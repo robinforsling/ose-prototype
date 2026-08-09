@@ -1,5 +1,6 @@
 """
-Exercises the baseline vehicle model and produces two figures:
+Exercises the baseline vehicle model and produces two figures in plots/,
+alongside this script:
 
   1. vehicle_envelope.png -- the turn performance envelope (a doghouse plot),
      instantaneous and sustained turn rate against airspeed.
@@ -12,6 +13,7 @@ Run with:  python demo_vehicle.py
 from __future__ import annotations
 
 import math
+from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
@@ -24,6 +26,8 @@ from ose.resource.vehicle import (
     reference_fighter,
     step_rk4,
 )
+
+PLOTS_DIR = Path(__file__).resolve().parent / "plots"
 
 
 def print_capability_report(vehicle, mass_kg: float) -> None:
@@ -59,7 +63,7 @@ def print_capability_report(vehicle, mass_kg: float) -> None:
     )
 
 
-def plot_envelope(vehicle, mass_kg: float, path: str) -> None:
+def plot_envelope(vehicle, mass_kg: float, path: Path) -> None:
     speeds = np.linspace(60.0, vehicle.lam.v_max_mps, 500)
     inst, sust, stall_mask = [], [], []
 
@@ -149,7 +153,7 @@ def simulate(vehicle, dt: float = 0.02):
     return out
 
 
-def plot_trajectory(log, path: str) -> None:
+def plot_trajectory(log, path: Path) -> None:
     fig = plt.figure(figsize=(11.5, 5.5))
     gs = fig.add_gridspec(3, 2, width_ratios=[1.15, 1.0], hspace=0.35, wspace=0.25)
 
@@ -201,9 +205,13 @@ def main() -> None:
 
     print_capability_report(vehicle, mass_kg=16000.0)
 
-    plot_envelope(vehicle, 16000.0, "vehicle_envelope.png")
+    PLOTS_DIR.mkdir(exist_ok=True)
+    envelope_path = PLOTS_DIR / "vehicle_envelope.png"
+    trajectory_path = PLOTS_DIR / "vehicle_trajectory.png"
+
+    plot_envelope(vehicle, 16000.0, envelope_path)
     log = simulate(vehicle)
-    plot_trajectory(log, "vehicle_trajectory.png")
+    plot_trajectory(log, trajectory_path)
 
     print(
         f"\nManoeuvre summary"
@@ -213,7 +221,7 @@ def main() -> None:
         f"\n  fuel burned       : {log['mass'][0] - log['mass'][-1]:6.0f} kg"
         f"\n  envelope events   : {len(log['_violations'])}"
     )
-    print("\nWrote vehicle_envelope.png and vehicle_trajectory.png")
+    print(f"\nWrote {envelope_path} and {trajectory_path}")
 
 
 if __name__ == "__main__":

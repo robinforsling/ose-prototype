@@ -4,9 +4,12 @@ Run from the repository root with the package installed (`pip install -e .`).
 
 | Demo | Produces | Runtime |
 |---|---|---|
-| `demo_vehicle.py` | `vehicle_envelope.png`, `vehicle_trajectory.png` | ~5 s |
-| `demo_navigation.py` | `navigation_errors.png` | ~30–60 s |
+| `demo_vehicle.py` | `plots/vehicle_envelope.png`, `plots/vehicle_trajectory.png` | ~5 s |
+| `demo_navigation.py` | `plots/navigation_errors.png` | ~30–60 s |
 | `integration_demo.py` | printed tables only | ~2 s |
+
+Figures are written to `demos/plots/`, alongside the scripts, regardless of
+which directory you run them from. `demos/plots/` is gitignored.
 
 ## What each one shows
 

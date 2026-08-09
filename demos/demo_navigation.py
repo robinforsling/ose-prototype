@@ -7,7 +7,8 @@ docs/refactor-navigation-split.md: corrections at t, then the published
 estimate for t, then prediction to t + dt.
 
 The vehicle flies a profile with straight and turning segments in a steady
-wind. GNSS is denied between t = 150 s and t = 300 s. Produces:
+wind. GNSS is denied between t = 150 s and t = 300 s. Produces, in plots/
+alongside this script:
 
   navigation_errors.png   estimation errors against their 3-sigma bounds,
                           and the wind estimate converging on truth.
@@ -18,6 +19,7 @@ Run with:  python demo_navigation.py
 from __future__ import annotations
 
 import math
+from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
@@ -42,6 +44,7 @@ T_END = 480.0
 OUTAGE = (150.0, 300.0)
 TRUE_WIND = np.array([12.0, -18.0])          # north, east [m/s]
 RUN_SEED = 20260808
+PLOTS_DIR = Path(__file__).resolve().parent / "plots"
 
 
 def guidance(t: float, vehicle, state: VehicleState) -> VehicleCommand:
@@ -135,7 +138,7 @@ def run():
     return {k: np.array(v) for k, v in log.items()}, gnss.n_fixes
 
 
-def plot(log, path: str) -> None:
+def plot(log, path: Path) -> None:
     t = log["t"]
     fig, axes = plt.subplots(4, 1, figsize=(10.0, 10.5), sharex=True)
 
@@ -210,8 +213,10 @@ def main() -> None:
         f"[{TRUE_WIND[0]:6.2f}, {TRUE_WIND[1]:6.2f}] m/s"
     )
 
-    plot(log, "navigation_errors.png")
-    print("\nWrote navigation_errors.png")
+    PLOTS_DIR.mkdir(exist_ok=True)
+    errors_path = PLOTS_DIR / "navigation_errors.png"
+    plot(log, errors_path)
+    print(f"\nWrote {errors_path}")
 
 
 if __name__ == "__main__":

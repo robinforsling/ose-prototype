@@ -1,6 +1,9 @@
-# Generated demo output (regenerate with python demos/*.py); does not affect
-# docs/vehicle/vehicle_model.pdf, which is a tracked, versioned deliverable.
-*.png
+# Generated demo/test output (regenerate with python demos/*.py). Scoped to
+# these two trees, not a blanket *.png, so an intentionally-committed image
+# elsewhere (e.g. a figure added to docs/) is never silently swallowed. Does
+# not affect docs/vehicle/vehicle_model.pdf, a tracked, versioned deliverable.
+demos/**/*.png
+tests/**/*.png
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
