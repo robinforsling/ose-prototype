@@ -1,0 +1,847 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{bm}
+\usepackage{geometry}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{cleveref}
+
+\geometry{margin=2.6cm}
+
+\newtheorem{remark}{Remark}
+\newtheorem{assumption}{Assumption}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Xset}{\mathcal{X}}
+\newcommand{\Uset}{\mathcal{U}}
+\newcommand{\Qset}{\mathcal{Q}}
+\newcommand{\Sset}{\mathcal{S}}
+\newcommand{\vecx}{\bm{x}}
+\newcommand{\vecu}{\bm{u}}
+\newcommand{\vecw}{\bm{w}}
+\newcommand{\vecc}{\bm{c}}
+\newcommand{\vectheta}{\bm{\theta}}
+\newcommand{\veceta}{\bm{\eta}}
+\newcommand{\veclambda}{\bm{\lambda}}
+\newcommand{\vecf}{\bm{f}}
+\newcommand{\vecg}{\bm{g}}
+\newcommand{\matG}{\bm{G}}
+
+\title{Two Dimensional Vehicle Model}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Overview}
+
+The vehicle model is described by three complementary parts:
+
+\begin{enumerate}
+  \item a \emph{dynamics model}, which describes how the vehicle state evolves;
+  \item a \emph{constraints model}, which defines admissible states and motion
+        commands; and
+  \item a \emph{capability model}, which describes what the vehicle can
+        currently achieve.
+\end{enumerate}
+
+The separation is deliberate. The dynamics model is what the simulation core
+integrates. The constraints model is a \emph{declaration} of the region in which
+the dynamics model is claimed to be valid. The capability model is the
+component's external interface: it answers questions about achievable motion
+without requiring the dynamics to be integrated forward, and it is what guidance,
+motion planning, and mission objective management consume.
+
+The model is first introduced without discrete operating modes. A second
+formulation then extends the model with two propulsion modes, nominal and boost.
+
+\section{Conventions}
+\label{sec:conventions}
+
+\paragraph{Frame.}
+A planar projection of the standard North\,--\,East\,--\,Down frame is used.
+The coordinate $p_x$ is measured towards north and $p_y$ towards east, both in
+metres. The vertical axis is suppressed; the vehicle is assumed to operate at
+constant altitude.
+
+\paragraph{Heading.}
+The heading $\psi$ is measured clockwise from north, that is, from the positive
+$p_x$ axis towards the positive $p_y$ axis. This is the conventional aviation
+sense and is retained in preference to the mathematical convention.
+
+\paragraph{Turn rate.}
+The turn rate $\omega = \dot\psi$ is positive for a right turn, corresponding to
+a positive bank angle $\varphi$.
+
+\paragraph{Airspeed.}
+The state $v$ is \emph{airspeed}. Wind enters the position kinematics only.
+Consequently $\psi$ is an air relative heading, and the ground track differs from
+$\psi$ whenever the wind is non zero. This distinction is retained because the
+aerodynamic model is a function of airspeed while any external observer of the
+vehicle measures ground referenced motion.
+
+\paragraph{Units.}
+SI base units throughout. Angles are in radians.
+
+\section{Baseline Vehicle Model}
+
+\subsection{Dynamics model}
+
+The baseline continuous time dynamics are written as
+\begin{equation}
+  \dot{\vecx} = \vecf(\vecx, \vecu, \vectheta, \veceta) + \matG(\vecx)\vecw .
+  \label{eq:baseline-dynamics}
+\end{equation}
+
+The state is
+\begin{equation}
+  \vecx = \begin{bmatrix} p_x & p_y & \psi & v & m \end{bmatrix}^{T} \in \R^{5},
+\end{equation}
+where $p_x$ and $p_y$ are position coordinates, $\psi$ is heading, $v$ is
+airspeed, and $m$ is total vehicle mass.
+
+The continuous motion command is
+\begin{equation}
+  \vecu = \begin{bmatrix} T & \omega \end{bmatrix}^{T} \in \R^{2},
+\end{equation}
+where $T$ is thrust and $\omega$ is turn rate.
+
+The vehicle parameter vector is
+\begin{equation}
+  \vectheta = \begin{bmatrix} c_p & c_i & c_\ell & c_{\mathrm{TSFC}} \end{bmatrix}^{T},
+  \label{eq:theta}
+\end{equation}
+where $c_p$ is the parasite drag parameter, $c_i$ is the induced drag parameter,
+$c_\ell$ is the maximum lift parameter, and $c_{\mathrm{TSFC}}$ is the thrust
+specific fuel consumption parameter.
+
+The environmental parameter vector is
+\begin{equation}
+  \veceta = \begin{bmatrix} g & \rho \end{bmatrix}^{T},
+\end{equation}
+where $g$ is gravitational acceleration and $\rho$ is air density.
+
+\subsubsection{Aerodynamic model}
+
+The drag model follows the conventional parabolic drag polar
+\cite{nasa-drag,nasa-induced},
+\begin{equation}
+  C_D = C_{D_0} + k C_L^2, \qquad k = \frac{1}{\pi e A\!R},
+\end{equation}
+where $C_D$ is total drag coefficient, $C_{D_0}$ is zero lift drag coefficient,
+$C_L$ is lift coefficient, $A\!R$ is wing aspect ratio, and $e$ is the Oswald
+efficiency factor.
+
+Dynamic pressure is $\tfrac{1}{2}\rho v^2$, and lift and drag are written as
+\begin{equation}
+  L = \tfrac{1}{2}\rho v^{2} S C_L, \qquad
+  D = \tfrac{1}{2}\rho v^{2} S C_D,
+  \label{eq:lift-drag}
+\end{equation}
+where $S$ is the wing reference area \cite{nasa-lift}.
+
+\paragraph{Parasite drag.}
+The parasite drag is
+\begin{equation}
+  D_p = \tfrac{1}{2}\rho S C_{D_0} v^{2} .
+\end{equation}
+Defining
+\begin{equation}
+  c_p := \tfrac{1}{2} S C_{D_0},
+  \label{eq:cp}
+\end{equation}
+gives
+\begin{equation}
+  D_p = \rho c_p v^{2} .
+\end{equation}
+
+\paragraph{Induced drag.}
+For induced drag, substitution of $C_L$ from \cref{eq:lift-drag} gives
+\begin{equation}
+  D_i = \frac{2kL^{2}}{\rho S v^{2}} .
+\end{equation}
+In straight, steady, level flight $L = mg$, giving
+\begin{equation}
+  D_{i,0} = \frac{2k(mg)^{2}}{\rho S v^{2}} .
+\end{equation}
+Using $k = 1/(\pi e A\!R)$ and defining
+\begin{equation}
+  c_i := \frac{2g^{2}}{\pi e A\!R\, S},
+  \label{eq:ci}
+\end{equation}
+the baseline induced drag becomes
+\begin{equation}
+  D_{i,0} = \frac{c_i}{\rho}\,\frac{m^{2}}{v^{2}} .
+\end{equation}
+
+\paragraph{Maximum lift.}
+The largest lift the vehicle can generate at a given airspeed follows from
+\cref{eq:lift-drag} evaluated at the maximum lift coefficient $C_{L,\max}$.
+Defining
+\begin{equation}
+  c_\ell := \tfrac{1}{2} S C_{L,\max},
+  \label{eq:cl}
+\end{equation}
+in direct analogy with \cref{eq:cp}, gives
+\begin{equation}
+  L_{\max}(v) = \rho c_\ell v^{2} .
+  \label{eq:lmax}
+\end{equation}
+
+\begin{remark}
+The three lumped parameters $c_p$, $c_i$ and $c_\ell$ absorb the geometry
+$S$, $C_{D_0}$, $e$, $A\!R$ and $C_{L,\max}$, so that a vehicle may be specified
+either by the lumped parameters directly or by the underlying geometry.
+\end{remark}
+
+\subsubsection{Coordinated turn}
+
+During a coordinated level turn with bank angle $\varphi$, the vertical
+component of lift balances weight,
+\begin{equation}
+  L\cos\varphi = mg,
+\end{equation}
+so the load factor is
+\begin{equation}
+  n = \frac{L}{mg} = \frac{1}{\cos\varphi} .
+  \label{eq:load-factor-def}
+\end{equation}
+The horizontal lift component provides the centripetal force,
+\begin{equation}
+  L\sin\varphi = \frac{mv^{2}}{R},
+\end{equation}
+where $R$ is turn radius. Since $\omega = v/R$,
+\begin{equation}
+  \omega = \frac{g\tan\varphi}{v},
+  \label{eq:omega-phi}
+\end{equation}
+and consequently
+\begin{equation}
+  n^{2} = 1 + \left(\frac{v\omega}{g}\right)^{2} .
+  \label{eq:n-omega}
+\end{equation}
+The sign convention of \cref{sec:conventions} is consistent with
+\cref{eq:omega-phi}: a positive bank angle produces a positive turn rate and
+hence a right turn.
+
+\subsubsection{Total drag}
+
+Because induced drag is proportional to $L^{2}$, it scales with $n^{2}$. Using
+\cref{eq:n-omega}, the total drag is
+\begin{equation}
+  D(v, m, \omega; \vectheta, \veceta)
+  = \rho c_p v^{2}
+  + \frac{c_i}{\rho}\,\frac{m^{2}}{v^{2}}
+    \left[ 1 + \left(\frac{v\omega}{g}\right)^{2} \right] .
+  \label{eq:drag}
+\end{equation}
+It is convenient to name the induced drag coefficient at unit load factor,
+\begin{equation}
+  A(v,m) := \frac{c_i m^{2}}{\rho v^{2}},
+  \label{eq:A}
+\end{equation}
+so that \cref{eq:drag} may be written compactly as
+\begin{equation}
+  D = \rho c_p v^{2} + A(v,m)\left[1 + \left(\frac{v\omega}{g}\right)^{2}\right].
+  \label{eq:drag-compact}
+\end{equation}
+
+\subsubsection{Nominal dynamics}
+
+The nominal dynamics function is
+\begin{equation}
+  \vecf(\vecx, \vecu, \vectheta, \veceta) =
+  \begin{bmatrix}
+    v\cos\psi \\[2pt]
+    v\sin\psi \\[2pt]
+    \omega \\[2pt]
+    \dfrac{T - D(v, m, \omega; \vectheta, \veceta)}{m} \\[8pt]
+    -c_{\mathrm{TSFC}} T
+  \end{bmatrix}.
+  \label{eq:f-nominal}
+\end{equation}
+
+\begin{remark}
+Under the convention of \cref{sec:conventions}, with $p_x$ towards north and
+$\psi$ clockwise from north, the position kinematics retain the same algebraic
+form as under the mathematical convention. Only the interpretation of the axes
+and the sign of $\omega$ differ.
+\end{remark}
+
+A compact disturbance vector is
+\begin{equation}
+  \vecw = \begin{bmatrix} w_x & w_y & w_\psi & F_v \end{bmatrix}^{T},
+\end{equation}
+where $w_x$ and $w_y$ are wind velocity components, $w_\psi$ is a turn rate
+disturbance, and $F_v$ is a signed longitudinal disturbance force.
+
+The disturbance matrix is
+\begin{equation}
+  \matG(\vecx) =
+  \begin{bmatrix}
+    1 & 0 & 0 & 0 \\
+    0 & 1 & 0 & 0 \\
+    0 & 0 & 1 & 0 \\
+    0 & 0 & 0 & \tfrac{1}{m} \\
+    0 & 0 & 0 & 0
+  \end{bmatrix}.
+\end{equation}
+
+The complete baseline dynamics are therefore
+\begin{align}
+  \dot p_x &= v\cos\psi + w_x, \\
+  \dot p_y &= v\sin\psi + w_y, \\
+  \dot\psi &= \omega + w_\psi, \\
+  \dot v   &= \frac{T - D(v, m, \omega; \vectheta, \veceta) + F_v}{m}, \\
+  \dot m   &= -c_{\mathrm{TSFC}} T .
+\end{align}
+
+\subsection{Constraints model}
+
+The baseline constraint parameters are collected in
+\begin{equation}
+  \veclambda = \begin{bmatrix}
+    T_{\min} & T_{\max} & n_{\max} & \omega_{\mathrm{cap}} &
+    v_{\min} & v_{\max} & m_{\mathrm{dry}}
+  \end{bmatrix}^{T},
+  \label{eq:lambda}
+\end{equation}
+where $n_{\max}$ is the structural load factor limit and $\omega_{\mathrm{cap}}$
+is an absolute turn rate bound representing roll and control authority.
+
+\subsubsection{Turn rate limit}
+
+The turn rate is not bounded by a constant. Two distinct limits act, and the
+binding one depends on the operating point.
+
+The \emph{lift limited} load factor follows from \cref{eq:lmax} and
+\cref{eq:load-factor-def},
+\begin{equation}
+  n_\ell(v, m) = \frac{L_{\max}(v)}{mg} = \frac{\rho c_\ell v^{2}}{mg},
+  \label{eq:n-lift}
+\end{equation}
+and the available load factor is the smaller of the lift limit and the
+structural limit,
+\begin{equation}
+  n_{\mathrm{av}}(v, m) = \min\{\, n_{\max},\; n_\ell(v, m) \,\}.
+  \label{eq:n-available}
+\end{equation}
+Inverting \cref{eq:n-omega} gives the corresponding turn rate bound,
+\begin{equation}
+  \omega_{\max}(v, m) =
+  \begin{cases}
+    \min\left\{ \omega_{\mathrm{cap}},\;
+      \dfrac{g}{v}\sqrt{n_{\mathrm{av}}^{2}(v,m) - 1} \right\},
+      & n_{\mathrm{av}}(v,m) > 1, \\[10pt]
+    0, & \text{otherwise.}
+  \end{cases}
+  \label{eq:omega-max}
+\end{equation}
+
+\begin{remark}
+The lift limit dominates at low airspeed and the structural limit at high
+airspeed. The crossover, where $n_\ell(v,m) = n_{\max}$, is the corner speed
+defined in \cref{eq:v-corner}, at which the instantaneous turn rate attains its
+maximum. A constant turn rate bound would imply an unbounded load factor as
+airspeed increases and would permit turns the wing cannot support at low
+airspeed.
+\end{remark}
+
+\subsubsection{Admissible sets}
+
+The admissible input set is
+\begin{equation}
+  \Uset(\vecx, \veclambda) = \left\{
+    \vecu \in \R^{2} : T_{\min} \le T \le T_{\max},\;
+    |\omega| \le \omega_{\max}(v, m)
+  \right\}.
+  \label{eq:U}
+\end{equation}
+The admissible state set is
+\begin{equation}
+  \Xset(\veclambda) = \left\{
+    \vecx \in \R^{5} : v_{\mathrm{s}}(m,1) \le v \le v_{\max},\;
+    v \ge v_{\min},\; m \ge m_{\mathrm{dry}}
+  \right\},
+  \label{eq:X}
+\end{equation}
+where $v_{\mathrm{s}}$ is the stall speed defined in \cref{eq:v-stall}.
+
+\begin{remark}[Enforcement is delegated]
+\label{rem:enforcement}
+The constraints model \emph{declares} the region in which the dynamics model is
+claimed to be valid. It does not specify what occurs when a command or a state
+lies outside that region, and the vehicle model performs no projection,
+saturation or clamping of its own.
+
+Responsibility for respecting $\Uset$ and $\Xset$ lies with the guidance and
+motion planning logic, possibly in combination with a runtime assurance
+mechanism interposed between the planner and the vehicle. Placing enforcement in
+the vehicle would conceal control design faults, would make the enforcement
+policy an unstated property of the vehicle rather than an explicit design
+decision, and would prevent different enforcement strategies from being compared
+against the same vehicle.
+
+Outside $\Uset$ and $\Xset$ the dynamics remain integrable but the model is not
+claimed to be a faithful representation of the vehicle.
+\end{remark}
+
+\begin{remark}
+The input set $\Uset$ is state dependent, since $\omega_{\max}$ is a function of
+airspeed and mass. The vehicle exposes $\omega_{\max}(v,m)$ through the
+capability model, so that guidance logic may evaluate the bound at the current
+operating point without reproducing the aerodynamic model.
+\end{remark}
+
+\subsection{Capability model}
+
+The capability model is written generally as
+\begin{equation}
+  \vecc = \vecg(\vecx, \vectheta, \veceta, \veclambda, \vecw).
+  \label{eq:capability-general}
+\end{equation}
+
+A capability vector, evaluated at a specified turn rate $\omega$, is
+\begin{equation}
+  \vecc = \begin{bmatrix}
+    T_{\mathrm{av}} & T_{\mathrm{req}} &
+    a_{\max} & a_{\min} &
+    n_{\mathrm{av}} & \omega_{\mathrm{av}} & \omega_{\mathrm{sus}} & R_{\min} &
+    v_{\mathrm{s}} & v_{\mathrm{c}} &
+    m_{\mathrm{fuel}} & t_{\mathrm{end}} & r_{\mathrm{sp}}
+  \end{bmatrix}^{T}.
+  \label{eq:c}
+\end{equation}
+
+\paragraph{Thrust.}
+The available thrust is
+\begin{equation}
+  T_{\mathrm{av}} =
+  \begin{cases}
+    T_{\max}, & m > m_{\mathrm{dry}}, \\
+    0, & m \le m_{\mathrm{dry}} .
+  \end{cases}
+\end{equation}
+The thrust required to hold the current airspeed at the specified turn rate is
+\begin{equation}
+  T_{\mathrm{req}}(v, m, \omega) = D(v, m, \omega; \vectheta, \veceta).
+  \label{eq:t-req}
+\end{equation}
+
+\paragraph{Longitudinal acceleration.}
+For a specified turn rate $\omega$, the instantaneous maximum and minimum
+longitudinal accelerations are
+\begin{align}
+  a_{\max} &= \frac{T_{\mathrm{av}} - D(v, m, \omega; \vectheta, \veceta) + F_v}{m}, \\
+  a_{\min} &= \frac{T_{\min} - D(v, m, \omega; \vectheta, \veceta) + F_v}{m}.
+\end{align}
+
+\paragraph{Instantaneous turn performance.}
+The available load factor $n_{\mathrm{av}}$ is given by \cref{eq:n-available} and
+the available turn rate by
+\begin{equation}
+  \omega_{\mathrm{av}}(v, m) = \omega_{\max}(v, m),
+\end{equation}
+with the corresponding minimum turn radius
+\begin{equation}
+  R_{\min} = \frac{v}{\omega_{\mathrm{av}}}, \qquad \omega_{\mathrm{av}} > 0 .
+\end{equation}
+
+\paragraph{Sustained turn performance.}
+The available turn rate is instantaneous: holding it in general requires drag to
+exceed available thrust, so airspeed decays. The \emph{sustained} turn rate is
+the largest turn rate at which thrust and drag balance, so that $\dot v = 0$ in
+the absence of disturbance. Setting $T_{\mathrm{av}} = D(v, m, \omega)$ in
+\cref{eq:drag-compact} and solving for $\omega$ gives the closed form
+\begin{equation}
+  \omega_{\mathrm{sus}}(v, m) =
+  \min\left\{
+    \omega_{\mathrm{av}}(v,m),\;
+    \frac{g}{v}
+    \sqrt{\frac{T_{\mathrm{av}} - \rho c_p v^{2} - A(v,m)}{A(v,m)}}
+  \right\},
+  \label{eq:omega-sustained}
+\end{equation}
+defined whenever $T_{\mathrm{av}} > \rho c_p v^{2} + A(v,m)$, and zero otherwise.
+The condition for a non zero sustained turn rate is precisely the condition that
+the vehicle can maintain wings level flight at the given airspeed.
+
+\begin{remark}
+The interval $[\omega_{\mathrm{sus}}, \omega_{\mathrm{av}}]$ is the region in
+which the vehicle may turn only by expending kinetic energy. The width of this
+interval is the quantity a motion planner trades against, and is therefore
+exposed explicitly rather than left to be inferred.
+\end{remark}
+
+\paragraph{Characteristic speeds.}
+The stall speed at load factor $n$ follows from inverting \cref{eq:n-lift},
+\begin{equation}
+  v_{\mathrm{s}}(m, n) = \sqrt{\frac{n m g}{\rho c_\ell}},
+  \label{eq:v-stall}
+\end{equation}
+and the corner speed, at which the lift and structural limits coincide and the
+instantaneous turn rate is maximised, is
+\begin{equation}
+  v_{\mathrm{c}}(m) = v_{\mathrm{s}}(m, 1)\sqrt{n_{\max}}
+  = \sqrt{\frac{n_{\max} m g}{\rho c_\ell}} .
+  \label{eq:v-corner}
+\end{equation}
+
+\paragraph{Fuel and endurance.}
+Remaining fuel mass is
+\begin{equation}
+  m_{\mathrm{fuel}} = \max\{m - m_{\mathrm{dry}},\, 0\} .
+\end{equation}
+At the thrust required for steady flight, an instantaneous endurance estimate is
+\begin{equation}
+  t_{\mathrm{end}} = \frac{m_{\mathrm{fuel}}}{c_{\mathrm{TSFC}} T_{\mathrm{req}}},
+  \qquad T_{\mathrm{req}} > 0,
+  \label{eq:endurance}
+\end{equation}
+and the corresponding specific range, that is, distance flown per unit mass of
+fuel, is
+\begin{equation}
+  r_{\mathrm{sp}} = \frac{v}{c_{\mathrm{TSFC}} T_{\mathrm{req}}} .
+  \label{eq:specific-range}
+\end{equation}
+
+\begin{remark}
+The speed for maximum endurance minimises $T_{\mathrm{req}}(v,m,0)$ and the
+speed for maximum range maximises $v / T_{\mathrm{req}}(v,m,0)$. Both follow from
+\cref{eq:drag} by differentiation and are available to mission objective
+management as derived quantities.
+\end{remark}
+
+\begin{remark}[True and believed capability]
+\label{rem:true-believed}
+Evaluating \cref{eq:capability-general} requires the disturbance $\vecw$, which
+is a property of the environment and is not observable by the vehicle. Two
+distinct evaluations are therefore meaningful:
+\begin{equation}
+  \vecc = \vecg(\vecx, \vectheta, \veceta, \veclambda, \vecw),
+  \qquad
+  \hat{\vecc} = \vecg(\hat{\vecx}, \vectheta, \veceta, \veclambda, \hat{\vecw}),
+\end{equation}
+where $\hat{\vecx}$ and $\hat{\vecw}$ denote estimates. The former is the true
+capability and is available only to the simulation. The latter is the capability
+the vehicle believes it has, and is what guidance and planning must use. The
+discrepancy between the two is a property of the estimation problem and is
+intentionally preserved rather than removed.
+\end{remark}
+
+\section{Vehicle Model with Nominal and Boost Modes}
+
+\subsection{Mode dependent dynamics}
+
+The vehicle is extended with the discrete propulsion mode
+\begin{equation}
+  q \in \Qset, \qquad \Qset = \{\mathrm{nom},\, \mathrm{boost}\} .
+\end{equation}
+
+The continuous motion command is unchanged. The continuous state is augmented
+with a scalar \emph{thermal state} $s$, introduced in
+\cref{sec:mode-switching}, which accumulates while boost is engaged:
+\begin{equation}
+  \vecx = \begin{bmatrix} p_x & p_y & \psi & v & m & s \end{bmatrix}^{T},
+  \qquad
+  \vecu = \begin{bmatrix} T & \omega \end{bmatrix}^{T} .
+\end{equation}
+
+The switched dynamics are written as
+\begin{equation}
+  \dot{\vecx} = \vecf_q(\vecx, \vecu, \vectheta, \veceta) + \matG(\vecx)\vecw,
+  \qquad q \in \Qset .
+\end{equation}
+
+The parameter vector becomes
+\begin{equation}
+  \vectheta = \begin{bmatrix}
+    c_p & c_i & c_\ell &
+    c^{\mathrm{nom}}_{\mathrm{TSFC}} & c^{\mathrm{boost}}_{\mathrm{TSFC}} &
+    \tau_{\mathrm{h}} & \tau_{\mathrm{c}}
+  \end{bmatrix}^{T},
+\end{equation}
+with
+\begin{equation}
+  c^{\mathrm{boost}}_{\mathrm{TSFC}} > c^{\mathrm{nom}}_{\mathrm{TSFC}},
+\end{equation}
+where $\tau_{\mathrm{h}}$ and $\tau_{\mathrm{c}}$ are the thermal accumulation
+and recovery time constants.
+
+The mode dependent fuel consumption parameter is
+\begin{equation}
+  c_{\mathrm{TSFC},q} =
+  \begin{cases}
+    c^{\mathrm{nom}}_{\mathrm{TSFC}}, & q = \mathrm{nom}, \\
+    c^{\mathrm{boost}}_{\mathrm{TSFC}}, & q = \mathrm{boost},
+  \end{cases}
+\end{equation}
+and the mode dependent dynamics are
+\begin{equation}
+  \vecf_q =
+  \begin{bmatrix}
+    v\cos\psi \\[2pt]
+    v\sin\psi \\[2pt]
+    \omega \\[2pt]
+    \dfrac{T - D(v, m, \omega; \vectheta, \veceta)}{m} \\[8pt]
+    -c_{\mathrm{TSFC},q} T \\[4pt]
+    \sigma_q(s)
+  \end{bmatrix},
+  \qquad
+  \sigma_q(s) =
+  \begin{cases}
+    \dfrac{1}{\tau_{\mathrm{h}}}, & q = \mathrm{boost}, \\[8pt]
+    -\dfrac{s}{\tau_{\mathrm{c}}}, & q = \mathrm{nom} .
+  \end{cases}
+  \label{eq:f-mode}
+\end{equation}
+
+The drag model and the disturbance model are unchanged. Boost mode increases
+fuel consumption per unit thrust and, through the constraints model, permits a
+larger thrust command.
+
+\subsection{Mode dependent constraints model}
+
+The constraint parameters are extended with mode dependent propulsion limits:
+\begin{equation}
+  \veclambda = \begin{bmatrix}
+    T_{\min} & T^{\mathrm{nom}}_{\max} & T^{\mathrm{boost}}_{\max} &
+    n_{\max} & \omega_{\mathrm{cap}} &
+    v_{\min} & v^{\mathrm{nom}}_{\max} & v^{\mathrm{boost}}_{\max} &
+    m_{\mathrm{dry}} & m_{\mathrm{res}} & s_{\max}
+  \end{bmatrix}^{T},
+\end{equation}
+with
+\begin{equation}
+  T^{\mathrm{boost}}_{\max} > T^{\mathrm{nom}}_{\max},
+  \qquad
+  v^{\mathrm{boost}}_{\max} > v^{\mathrm{nom}}_{\max},
+\end{equation}
+where $m_{\mathrm{res}}$ is a fuel reserve below which boost is inhibited and
+$s_{\max}$ is the thermal limit.
+
+The mode dependent input set is
+\begin{equation}
+  \Uset_q(\vecx, \veclambda) = \left\{
+    \vecu : T_{\min} \le T \le T^{q}_{\max},\;
+    |\omega| \le \omega_{\max}(v, m)
+  \right\},
+\end{equation}
+and the mode dependent state set is
+\begin{equation}
+  \Xset_q(\veclambda) = \left\{
+    \vecx : v_{\mathrm{s}}(m,1) \le v \le v^{q}_{\max},\;
+    v \ge v_{\min},\;
+    m \ge m_{\mathrm{dry}},\;
+    0 \le s \le s_{\max}
+  \right\}.
+\end{equation}
+
+\begin{remark}[The turn rate bound is mode independent]
+\label{rem:mode-independent-turn}
+The bound $\omega_{\max}(v,m)$ of \cref{eq:omega-max} does not carry a mode
+index. The instantaneous turn rate is limited by available lift and by structural
+strength, neither of which is affected by propulsion setting. An earlier
+formulation in which $\omega^{\mathrm{boost}}_{\max} > \omega^{\mathrm{nom}}_{\max}$
+is not consistent with the aerodynamic model.
+
+Boost nonetheless improves turn performance, but it does so through the
+\emph{sustained} turn rate \cref{eq:omega-sustained}, which depends on available
+thrust and is therefore mode dependent. This is the physically correct channel:
+boost does not allow a tighter turn, it allows a given turn to be held without
+losing airspeed.
+\end{remark}
+
+\subsection{Mode switching constraints}
+\label{sec:mode-switching}
+
+The mode is a discrete control input, but transitions between modes are not
+assumed to be unrestricted. Let $q$ denote the current mode and $q^{+}$ the mode
+after a switching decision. Admissible transitions are described by
+\begin{equation}
+  q^{+} \in \Sset_q(\vecx, \veclambda) \subseteq \Qset .
+  \label{eq:switching-abstract}
+\end{equation}
+
+A concrete instantiation sufficient for the present model is
+\begin{equation}
+  \Sset_{q}(\vecx, \veclambda) =
+  \begin{cases}
+    \{\mathrm{nom}, \mathrm{boost}\},
+      & q = \mathrm{nom},\;
+        s < s_{\max},\;
+        m > m_{\mathrm{dry}} + m_{\mathrm{res}},\;
+        t - t_{q} \ge \Delta t_{\mathrm{dwell}}, \\[4pt]
+    \{\mathrm{nom}, \mathrm{boost}\},
+      & q = \mathrm{boost},\;
+        s < s_{\max},\;
+        m > m_{\mathrm{dry}} + m_{\mathrm{res}},\;
+        t - t_{q} \ge \Delta t_{\mathrm{dwell}}, \\[4pt]
+    \{\mathrm{nom}\},
+      & \text{otherwise,}
+  \end{cases}
+  \label{eq:switching-concrete}
+\end{equation}
+where $t_q$ is the time of the most recent mode transition and
+$\Delta t_{\mathrm{dwell}}$ is a minimum dwell time.
+
+Three distinct effects are captured. The thermal state $s$, evolving according to
+\cref{eq:f-mode}, limits the duration of continuous boost and imposes a recovery
+period afterwards. The fuel reserve $m_{\mathrm{res}}$ prevents boost from being
+selected when the remaining fuel is committed to recovery. The dwell time
+$\Delta t_{\mathrm{dwell}}$ prevents chattering, which is otherwise a hazard both
+for the planner and for numerical integration of the switched system.
+
+\begin{remark}
+\Cref{eq:switching-concrete} is one instantiation of the abstract relation
+\cref{eq:switching-abstract} and is not intended to be exhaustive. Further
+restrictions related to engine condition, operating point, or externally imposed
+rules of engagement may be introduced without altering the structure of the
+model, provided they are expressible as a function of $\vecx$ and $\veclambda$.
+\end{remark}
+
+\subsection{Mode dependent capability model}
+
+The capability model becomes
+\begin{equation}
+  \vecc = \vecg_q(\vecx, \vectheta, \veceta, \veclambda, \vecw),
+\end{equation}
+with the following quantities acquiring a mode index.
+
+The currently available thrust is
+\begin{equation}
+  T_{\mathrm{av},q} =
+  \begin{cases}
+    T^{\mathrm{nom}}_{\max}, & q = \mathrm{nom},\; m > m_{\mathrm{dry}}, \\
+    T^{\mathrm{boost}}_{\max}, & q = \mathrm{boost},\; m > m_{\mathrm{dry}}, \\
+    0, & m \le m_{\mathrm{dry}} .
+  \end{cases}
+\end{equation}
+The maximum longitudinal acceleration follows as
+\begin{equation}
+  a_{\max,q} = \frac{T_{\mathrm{av},q} - D(v, m, \omega; \vectheta, \veceta) + F_v}{m},
+\end{equation}
+and the sustained turn rate from \cref{eq:omega-sustained} evaluated with
+$T_{\mathrm{av},q}$,
+\begin{equation}
+  \omega_{\mathrm{sus},q}(v, m) =
+  \min\left\{
+    \omega_{\mathrm{av}}(v,m),\;
+    \frac{g}{v}
+    \sqrt{\frac{T_{\mathrm{av},q} - \rho c_p v^{2} - A(v,m)}{A(v,m)}}
+  \right\}.
+\end{equation}
+By \cref{rem:mode-independent-turn}, the instantaneous quantities
+$n_{\mathrm{av}}$, $\omega_{\mathrm{av}}$, $R_{\min}$, $v_{\mathrm{s}}$ and
+$v_{\mathrm{c}}$ are mode independent.
+
+The endurance estimate becomes
+\begin{equation}
+  t_{\mathrm{end},q} =
+  \frac{m_{\mathrm{fuel}}}{c_{\mathrm{TSFC},q} T_{\mathrm{req}}},
+  \qquad T_{\mathrm{req}} > 0 .
+\end{equation}
+
+The capability model also exposes whether boost is currently selectable, and for
+how long it could be held,
+\begin{equation}
+  c_{\mathrm{boost}} =
+  \begin{cases}
+    1, & \mathrm{boost} \in \Sset_q(\vecx, \veclambda), \\
+    0, & \mathrm{boost} \notin \Sset_q(\vecx, \veclambda),
+  \end{cases}
+  \qquad
+  t_{\mathrm{boost}} = \tau_{\mathrm{h}}\,(s_{\max} - s),
+  \label{eq:boost-available}
+\end{equation}
+where $t_{\mathrm{boost}}$ is the time remaining before the thermal limit is
+reached at continuous boost. Both quantities are required by mission objective
+management, which must reason about whether a boost committed now remains
+available later.
+
+\section{Compact Summary}
+
+The baseline model is
+\begin{equation}
+  \begin{aligned}
+    \dot{\vecx} &= \vecf(\vecx, \vecu, \vectheta, \veceta) + \matG(\vecx)\vecw, \\
+    \vecx &\in \Xset(\veclambda), \\
+    \vecu &\in \Uset(\vecx, \veclambda), \\
+    \vecc &= \vecg(\vecx, \vectheta, \veceta, \veclambda, \vecw).
+  \end{aligned}
+\end{equation}
+
+The mode dependent extension is
+\begin{equation}
+  \begin{aligned}
+    \dot{\vecx} &= \vecf_q(\vecx, \vecu, \vectheta, \veceta) + \matG(\vecx)\vecw,
+      \qquad q \in \Qset, \\
+    \vecx &\in \Xset_q(\veclambda), \\
+    \vecu &\in \Uset_q(\vecx, \veclambda), \\
+    q^{+} &\in \Sset_q(\vecx, \veclambda), \\
+    \vecc &= \vecg_q(\vecx, \vectheta, \veceta, \veclambda, \vecw).
+  \end{aligned}
+\end{equation}
+
+In both cases the membership relations are declarations of validity rather than
+enforced projections, in the sense of \cref{rem:enforcement}.
+
+\section{Assumptions and Limitations}
+
+The model assumes a planar point mass vehicle, a coordinated steady level turn,
+negligible sideslip, negligible altitude change, negligible roll transients,
+instantaneous adjustment of lift, and validity of the parabolic drag polar within
+the considered operating region. The coordinated turn relations are standard
+results in aircraft flight mechanics \cite{faa-phak}.
+
+Several consequences follow from the planar assumption and are recorded
+explicitly:
+
+\begin{enumerate}
+  \item Potential energy is absent. Manoeuvres that trade altitude for airspeed,
+        or the converse, cannot be represented, and the energy state of the
+        vehicle is fully described by airspeed.
+  \item Air density $\rho$ is a fixed environmental parameter rather than a
+        function of altitude, so the model describes a single flight level.
+  \item Thrust specific fuel consumption is constant within a mode, whereas in
+        practice it depends on airspeed and altitude.
+  \item Turn rate and thrust are commanded directly, so roll response and engine
+        spool dynamics are absent. A first order lag on either command,
+        $\dot\omega = (\omega_{\mathrm{c}} - \omega)/\tau_\omega$ and
+        $\dot T = (T_{\mathrm{c}} - T)/\tau_T$, may be introduced by augmenting
+        the state without altering the remainder of the model.
+  \item The induced drag model degrades as airspeed approaches the stall speed
+        \cref{eq:v-stall}, and the model is not claimed to be valid below it.
+\end{enumerate}
+
+\begin{thebibliography}{9}
+
+\bibitem{nasa-drag}
+NASA Glenn Research Center,
+\emph{Drag Coefficient}, Beginner's Guide to Aeronautics.
+\url{https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/drag-coefficient/}
+
+\bibitem{nasa-induced}
+NASA Glenn Research Center,
+\emph{Induced Drag Coefficient}, Beginner's Guide to Aeronautics.
+\url{https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/induced-drag-coefficient/}
+
+\bibitem{nasa-lift}
+NASA Glenn Research Center,
+\emph{Lift Equation}, Beginner's Guide to Aeronautics.
+\url{https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/lift-equation/}
+
+\bibitem{faa-phak}
+Federal Aviation Administration,
+\emph{Pilot's Handbook of Aeronautical Knowledge}, FAA-H-8083-25C,
+Chapter 5: Aerodynamics of Flight, 2023.
+\url{https://www.faa.gov/sites/faa.gov/files/07_phak_ch5_0.pdf}
+
+\end{thebibliography}
+
+\end{document}
