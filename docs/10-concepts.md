@@ -53,6 +53,29 @@ what guidance and planning must use. The discrepancy is preserved deliberately.
 
 See ADR 0008.
 
+## Measurement records
+
+Every record a sensor publishes -- `ImuMeasurement`, `GnssFix`,
+`AirDataMeasurement`, and any aiding source added later -- carries two things
+non-negotiably:
+
+**Its own `valid_time_s`.** The time the measurement refers to, not the time
+it was delivered. A consumer that mechanises or forms a residual against the
+wrong timestamp gets a systematic, correlated error that is invisible in the
+common case and only appears under manoeuvre. This is not hypothetical: a
+one-step misalignment of exactly this kind produced a filter thirty times
+overconfident while looking perfect in straight flight.
+
+**Its own declared uncertainty.** A consumer uses the sigma travelling with
+the measurement, never a separately configured value describing the same
+sensor. This is what lets a sensor's declared accuracy and its true error
+statistics diverge -- realistic when a sensor is miscalibrated or degraded,
+and impossible to express if the same number configures both the corruption
+and the correction.
+
+See ADR 0009 for the navigation split that established this pattern, and
+`docs/interfaces/README.md` for the current catalogue of measurement records.
+
 ## Capability model
 
 Every component publishes a machine-readable statement of what it can currently

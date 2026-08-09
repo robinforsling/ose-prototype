@@ -61,7 +61,12 @@ See ADR 0008.
 
 ## Current state
 
-Implemented: the baseline vehicle model and two navigation systems, with tests.
+Implemented: the baseline vehicle model; three resource-layer navigation
+sensors (`Imu`, `GnssReceiver`, `AirDataSensor`) and the resource-layer
+black-box `IntegratedNavUnit`; and the first subsystem-layer component,
+`InsGnssEstimator`, an error-state Kalman filter fed by the sensors' published
+measurements. See ADR 0009 for how and why navigation is split across two
+layers.
 
 Not yet implemented: the registry, the binder, the descriptor validator, the
 simulation core itself, and every component type other than vehicle and
@@ -72,7 +77,9 @@ consumes it yet.
 
 ```
 src/ose/interfaces.py        contracts only
+src/ose/frames.py            rotation utilities, no dependencies
 src/ose/resource/            resource-layer components
+src/ose/subsystem/           subsystem-layer components
 docs/                        scope, concepts, architecture, interfaces
 docs/adr/                    architecture decision records
 docs/vehicle/                the vehicle model document, LaTeX and PDF
@@ -80,5 +87,5 @@ demos/                       runnable demonstrations
 tests/                       pinning and consistency tests
 ```
 
-Layer packages `subsystem/`, `single_ship/`, and `multi_ship/` are added as
-siblings of `resource/` when they acquire their first component.
+Layer packages `single_ship/` and `multi_ship/` are added as siblings of
+`resource/` when they acquire their first component.

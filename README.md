@@ -7,10 +7,11 @@ first implementing everything around it.
 
 The emphasis is integration, not fidelity.
 
-**Status: early. Two components exist.** The baseline vehicle model and two
-navigation systems are implemented and tested. The simulation core, the service
-registry, the composition binder, and every other component type are described in
-`docs/` but not yet built.
+**Status: early.** The baseline vehicle model, three resource-layer navigation
+sensors (IMU, GNSS, air data), a resource-layer black-box integrated nav unit,
+and a subsystem-layer INS/GNSS estimator are implemented and tested. The
+simulation core, the service registry, the composition binder, and every other
+component type are described in `docs/` but not yet built.
 
 All parameter values in this repository are fictional and plausible. They are not
 claims about any real system.
@@ -34,15 +35,20 @@ Full setup notes, including direnv and troubleshooting, are in
 ## Layout
 
 ```
-src/ose/interfaces.py          contracts only, no implementations
-src/ose/resource/vehicle.py    baseline 2D vehicle model
-src/ose/resource/navigation.py additive-noise and INS/GNSS navigation
-docs/                          scope, concepts, architecture, tooling
-docs/adr/                      architecture decision records
-docs/interfaces/               interface catalogue
-docs/vehicle/                  vehicle model document, LaTeX and PDF
-demos/                         runnable demonstrations
-tests/                         pinning and consistency tests
+src/ose/interfaces.py                             contracts only, no implementations
+src/ose/frames.py                                 rotation utilities, no dependencies
+src/ose/resource/vehicle.py                       baseline 2D vehicle model
+src/ose/resource/imu.py                           IMU sensor model
+src/ose/resource/gnss.py                          GNSS receiver model
+src/ose/resource/air_data.py                      air data sensor model
+src/ose/resource/integrated_nav.py                black-box integrated nav unit
+src/ose/subsystem/navigation_state_estimator.py   INS/GNSS error-state Kalman filter
+docs/                                             scope, concepts, architecture, tooling
+docs/adr/                                         architecture decision records
+docs/interfaces/                                  interface catalogue
+docs/vehicle/                                     vehicle model document, LaTeX and PDF
+demos/                                            runnable demonstrations
+tests/                                            pinning and consistency tests
 ```
 
 ## Where to start reading

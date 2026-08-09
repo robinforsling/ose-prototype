@@ -13,6 +13,7 @@ means writing a new record that references the old one, never editing it.
 | [0006](0006-constraint-enforcement-outside-the-vehicle.md) | Constraint enforcement lies outside the vehicle | accepted |
 | [0007](0007-planar-two-dimensional-modelling.md) | Planar two-dimensional modelling | accepted |
 | [0008](0008-truth-perception-boundary.md) | Only the resource layer may read ground truth | accepted |
+| [0009](0009-navigation-split-across-layers.md) | Split navigation across the resource and subsystem layers | accepted |
 
 ## Template
 
