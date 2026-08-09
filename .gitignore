@@ -1,3 +1,7 @@
+# Generated demo output (regenerate with python demos/*.py); does not affect
+# docs/vehicle/vehicle_model.pdf, which is a tracked, versioned deliverable.
+*.png
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
