@@ -3,8 +3,8 @@ Exercises the INS/GNSS navigation estimator against the vehicle model.
 
 Constructs the four components explicitly -- Imu, GnssReceiver, AirDataSensor,
 InsGnssEstimator -- and drives them through the ordering contract described in
-docs/refactor-navigation-split.md: corrections at t, then the published
-estimate for t, then prediction to t + dt.
+ADR 0009: corrections at t, then the published estimate for t, then
+prediction to t + dt.
 
 The vehicle flies a profile with straight and turning segments in a steady
 wind. GNSS is denied between t = 150 s and t = 300 s. Produces, in plots/

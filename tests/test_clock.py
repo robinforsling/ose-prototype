@@ -1,7 +1,7 @@
 """Tests for the resource-layer clock.
 
-Mirrors the pattern established for Imu (docs/refactor-navigation-split.md,
-ADR 0009): declared elapsed_sigma_s covers only the white-noise part, and
+Mirrors the pattern established for Imu (ADR 0009): declared
+elapsed_sigma_s covers only the white-noise part, and
 the drift's Gauss-Markov behaviour is the resource's own true dynamics, not
 something it declares.
 """

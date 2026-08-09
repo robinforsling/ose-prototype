@@ -2,7 +2,7 @@
 
 Each sensor declares its own accuracy; these tests check that the declared
 sigma is honest -- the property the whole split exists to make checkable, per
-docs/refactor-navigation-split.md and the testing philosophy in CLAUDE.md.
+ADR 0009 and the testing philosophy in CLAUDE.md.
 """
 
 import dataclasses

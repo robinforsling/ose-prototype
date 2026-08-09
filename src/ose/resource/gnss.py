@@ -6,9 +6,9 @@ access nothing above this layer has. Publishes GnssFix, which carries no
 truth. See ADR 0008.
 
 Rate-limiting is the caller's responsibility -- sample() is expected to be
-called only when due, per the ordering contract in
-docs/refactor-navigation-split.md. due() is offered as a convenience so the
-rate parameter does not have to be reached for from outside. Denial is a
+called only when due, per the ordering contract in ADR 0009. due() is
+offered as a convenience so the rate parameter does not have to be reached
+for from outside. Denial is a
 property of the receiver itself: set_gnss_available controls whether sample()
 returns a fix or None, independent of timing.
 """

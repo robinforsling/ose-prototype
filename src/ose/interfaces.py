@@ -76,7 +76,7 @@ class TimeEstimate:
 # Every record carries valid_time_s -- the time the measurement refers to,
 # not the time it was delivered -- and its own declared uncertainty. The
 # estimator uses the sigma travelling with the measurement, never a
-# separately configured value. See docs/refactor-navigation-split.md.
+# separately configured value. See ADR 0009.
 # ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
