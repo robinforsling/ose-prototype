@@ -14,7 +14,7 @@ from typing import Protocol, runtime_checkable
 
 import numpy as np
 
-from ose.resource.vehicle import Disturbance, VehicleCommand, VehicleState
+from ose.resource.vehicle import Disturbance, Saturation, VehicleCommand, VehicleState
 
 
 @dataclass
@@ -121,6 +121,21 @@ class ClockMeasurement:
 
 
 # ---------------------------------------------------------------------------
+# Guidance setpoints
+#
+# Stand in for planning.action.v1 until the single-ship layer's action
+# planner exists. VehicleGuidance.command() dispatches on setpoint type, the
+# same reason ingest() does: a further mode (e.g. waypoint pursuit) can be
+# added as a new type without changing the protocol.
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class HeadingSpeedSetpoint:
+    psi_cmd_rad: float
+    v_cmd_mps: float
+
+
+# ---------------------------------------------------------------------------
 # Sensor and estimator protocols
 # ---------------------------------------------------------------------------
 
@@ -179,3 +194,20 @@ class TimeEstimator(Protocol):
 
     def ingest(self, measurement) -> None: ...
     def estimate(self, t_s: float) -> TimeEstimate: ...
+
+
+@runtime_checkable
+class VehicleGuidance(Protocol):
+    """`command` dispatches on setpoint type -- today only
+    HeadingSpeedSetpoint, later also a waypoint mode -- the same reasoning
+    as `ingest`. Unknown setpoint types raise TypeError.
+
+    mass_kg is a plain parameter, not sourced from own_state: no component
+    estimates mass yet (no vehicle-system/fuel-accounting component exists),
+    so this is today's acknowledged simplification rather than truth read
+    through the back door.
+    """
+
+    def command(
+        self, t_s: float, setpoint, own_state: OwnStateEstimate, mass_kg: float
+    ) -> tuple[VehicleCommand, Saturation]: ...
