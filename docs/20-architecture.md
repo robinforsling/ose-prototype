@@ -38,6 +38,18 @@ truth. The GUI edits it, the scenario builder generates it, Monte Carlo
 transforms it, a lab is one with stubs substituted. Nothing in the toolchain
 holds state that is not expressible in it. See `40-composition-spec.md`.
 
+**Code declares shape; data supplies values.** Component logic is Python (ADR
+0002); parameter values are data, authored in YAML -- the capability
+descriptor for defaults and bounds shipped with the component, the
+composition spec for what a specific scenario overrides them to. See
+`40-composition-spec.md` §4. The registry, the binder, and the descriptor
+validator do not exist yet, so today every component's Python dataclass
+defaults (`VehicleParameters`, `ImuParameters`, ...) stand in as that data;
+`reference_fighter()`-style helpers are test and demo fixtures, not evidence
+that a real configuration belongs in source. The moment a value needs to
+differ per scenario rather than per component type, it belongs in a
+descriptor or a spec, not in a Python default.
+
 **Service orientation as a pattern, not a deployment.** Components register
 against a typed in-process registry and are resolved synchronously. Network
 transports, brokers, and runtime discovery are excluded: they introduce
