@@ -63,15 +63,16 @@ See ADR 0008.
 
 Implemented: the baseline vehicle model; three resource-layer navigation
 sensors (`Imu`, `GnssReceiver`, `AirDataSensor`) and the resource-layer
-black-box `IntegratedNavUnit`; and the first subsystem-layer component,
-`InsGnssEstimator`, an error-state Kalman filter fed by the sensors' published
-measurements. See ADR 0009 for how and why navigation is split across two
-layers.
+black-box `IntegratedNavUnit`; the subsystem-layer `InsGnssEstimator`, an
+error-state Kalman filter fed by the sensors' published measurements (ADR
+0009); a resource-layer `Clock`; and the subsystem-layer `TimeEstimator`, a
+dead-reckoning-only estimator of the platform clock's offset and drift, with
+no correction source yet (ADR 0010).
 
 Not yet implemented: the registry, the binder, the descriptor validator, the
-simulation core itself, and every component type other than vehicle and
-navigation. The composition specification describes the intended format; nothing
-consumes it yet.
+simulation core itself, and every component type other than vehicle,
+navigation, and the platform clock. The composition specification describes
+the intended format; nothing consumes it yet.
 
 ## Repository layout
 

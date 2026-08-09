@@ -56,8 +56,8 @@ See ADR 0008.
 ## Measurement records
 
 Every record a sensor publishes -- `ImuMeasurement`, `GnssFix`,
-`AirDataMeasurement`, and any aiding source added later -- carries two things
-non-negotiably:
+`AirDataMeasurement`, `ClockMeasurement`, and any aiding source added later --
+carries two things non-negotiably:
 
 **Its own `valid_time_s`.** The time the measurement refers to, not the time
 it was delivered. A consumer that mechanises or forms a residual against the
@@ -73,7 +73,8 @@ statistics diverge -- realistic when a sensor is miscalibrated or degraded,
 and impossible to express if the same number configures both the corruption
 and the correction.
 
-See ADR 0009 for the navigation split that established this pattern, and
+See ADR 0009 for the navigation split that established this pattern and ADR
+0010 for its second application to the platform clock, and
 `docs/interfaces/README.md` for the current catalogue of measurement records.
 
 ## Capability model
