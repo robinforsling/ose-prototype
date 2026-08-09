@@ -1,9 +1,9 @@
 """Tests for the time estimator.
 
 The important one is test_offset_uncertainty_is_consistent -- the same NEES
-argument as test_filter_is_consistent in test_navigation_estimator.py. This
-component makes no correction, but the covariance it reports is still a
-real claim: that platform_time_s lies within a few offset_sigma_s of true
+argument as test_filter_is_consistent in test_navigation_state_estimator.py.
+This component makes no correction, but the covariance it reports is still
+a real claim: that platform_time_s lies within a few offset_sigma_s of true
 elapsed time. An overconfident clock estimate is exactly as dangerous as an
 overconfident nav filter -- anything downstream that trusts a tight bound
 around a badly-drifted clock will silently misinterpret timestamps.

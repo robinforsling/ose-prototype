@@ -62,8 +62,8 @@ given estimate from its shape alone:
 
 The covariance is part of the contract, not an optional extra. A consumer that
 ignores it is choosing to, and a producer that supplies an inconsistent one
-corrupts everything downstream. `tests/test_navigation_estimator.py` checks
-consistency by NEES for exactly this reason.
+corrupts everything downstream. `tests/test_navigation_state_estimator.py`
+checks consistency by NEES for exactly this reason.
 
 ### `sensing.imu.v1`
 

@@ -46,7 +46,7 @@ src/ose/resource/reference_configs/               reference configs for resource
 src/ose/resource/imu.py                           IMU sensor model
 src/ose/resource/gnss.py                          GNSS receiver model
 src/ose/resource/air_data.py                      air data sensor model
-src/ose/resource/integrated_nav.py                black-box integrated nav unit
+src/ose/resource/integrated_navigation_unit.py    black-box integrated nav unit
 src/ose/resource/clock.py                         platform clock model
 src/ose/subsystem/navigation_state_estimator.py   INS/GNSS error-state Kalman filter
 src/ose/subsystem/time_state_estimator.py         dead-reckoning platform clock estimator

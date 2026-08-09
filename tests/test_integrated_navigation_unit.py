@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 from ose.interfaces import OwnStateSource
-from ose.resource.integrated_nav import IntegratedNavParameters, IntegratedNavUnit
+from ose.resource.integrated_navigation_unit import IntegratedNavParameters, IntegratedNavUnit
 from ose.resource.vehicle import Disturbance, VehicleState
 
 

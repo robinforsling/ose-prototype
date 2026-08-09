@@ -6,8 +6,8 @@ data.
 Subsystem-layer: purely cyber. This module must not import anything from
 ose.resource, and no public method may take a parameter whose name begins
 with true_ -- see test_estimator_cannot_see_truth in
-tests/test_navigation_estimator.py, which checks both by parsing this file
-with ast. The estimator is a pure function of the measurement stream it is
+tests/test_navigation_state_estimator.py, which checks both by parsing this
+file with ast. The estimator is a pure function of the measurement stream it is
 fed through ingest(); see test_replay_determinism for what that buys.
 
 Reproduces the behaviour that matters: error growth during GNSS outage,

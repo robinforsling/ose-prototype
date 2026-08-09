@@ -21,20 +21,22 @@ the separation in ADR 0006 has been broken.
 
 Navigation is split across four files, one per component (ADR 0009):
 
-`test_nav_sensors.py` checks that each resource-layer sensor's declared sigma
-is honest — sample mean and standard deviation against many draws — plus the
-IMU bias's Gauss-Markov steady state and GNSS denial/restoration.
+`test_navigation_sensors.py` checks that each resource-layer sensor's
+declared sigma is honest — sample mean and standard deviation against many
+draws — plus the IMU bias's Gauss-Markov steady state and GNSS
+denial/restoration.
 
-`test_navigation_estimator.py` checks the subsystem-layer filter: NEES
+`test_navigation_state_estimator.py` checks the subsystem-layer filter: NEES
 consistency across several seeds, that the published covariance is positive
 semi-definite, the observability structure (heading variance must not shrink
 before the first turn, and must collapse during it), `ast`-parses the module
 to confirm it cannot see truth, and replays a recorded measurement stream
 into a fresh estimator to confirm it is a pure function of that stream.
 
-`test_integrated_nav.py` checks the resource-layer black-box stand-in:
-protocol conformance and that its declared uncertainty is honest, nothing
-about navigation performance (see its docstring and ADR 0009 for why).
+`test_integrated_navigation_unit.py` checks the resource-layer black-box
+stand-in: protocol conformance and that its declared uncertainty is honest,
+nothing about navigation performance (see its docstring and ADR 0009 for
+why).
 
 `test_clock.py` and `test_time_estimator.py` are the same pattern applied to
 the platform clock (ADR 0010): declared sigma honesty and the drift's
