@@ -49,6 +49,27 @@ class OwnStateEstimate:
         return math.sqrt(max(self.covariance[0, 0] + self.covariance[1, 1], 0.0))
 
 
+@dataclass
+class TimeEstimate:
+    """The platform's belief about its own clock.
+
+    platform_time_s is the running total of the clock's own (corrupted)
+    readings -- there is no correction source yet to pull it toward true
+    elapsed time, so it is reported as-is. The covariance is the actual
+    product of this component today: a calibrated, honestly growing bound
+    on how far platform_time_s may have diverged from true elapsed time.
+    """
+
+    t_s: float
+    platform_time_s: float
+    drift_rate: float                # estimated fractional frequency offset
+    covariance: np.ndarray           # 2x2, over [offset_s, drift_rate]
+
+    @property
+    def offset_sigma_s(self) -> float:
+        return math.sqrt(max(self.covariance[0, 0], 0.0))
+
+
 # ---------------------------------------------------------------------------
 # Measurement records
 #
@@ -147,3 +168,14 @@ class OwnStateSource(Protocol):
     """Anything publishing vehicle.state.v1, whatever layer it sits in."""
 
     def estimate(self, t_s: float) -> OwnStateEstimate: ...
+
+
+@runtime_checkable
+class TimeEstimator(Protocol):
+    """`ingest` dispatches on measurement type, mirroring NavigationEstimator,
+    so a future correction source (a second clock, a time-sync message) can
+    be added without changing the protocol. Unknown types raise TypeError.
+    """
+
+    def ingest(self, measurement) -> None: ...
+    def estimate(self, t_s: float) -> TimeEstimate: ...
