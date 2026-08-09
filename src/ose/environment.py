@@ -9,13 +9,12 @@ either (contrast Disturbance, which does): g and rho are fixed simulation
 constants in this project's scope, not something estimated from noisy
 sensors, so there is nothing being hidden from anyone.
 
-Environment declares shape only, no default values -- the same rule as
+Shape only: no default values and no named constants, the same rule as
 VehicleParameters and Constraints in vehicle.py, and for the same reason.
-A specific reference point (e.g. sea-level ISA) is reference-config data,
-not shape, so it lives in reference_configs/reference_environment.py, not
-here. G_STANDARD and RHO_SEA_LEVEL_ISA are the exception: standardised
-physical constants, not scenario choices, so they stay alongside the shape
-they parameterise.
+Specific values -- including standard gravity and ISA sea-level density --
+are reference-config data, not shape, however standardised or universal
+they are, and belong in reference_configs/reference_environment.py, not
+here.
 
 A full altitude-varying atmosphere model is explicitly out of scope --
 constant altitude, per docs/00-scope.md's "Explicitly out of scope" list --
@@ -26,9 +25,6 @@ first, not just a bigger Environment.
 from __future__ import annotations
 
 from dataclasses import dataclass
-
-G_STANDARD = 9.80665        # standard gravity, ISA                [m/s^2]
-RHO_SEA_LEVEL_ISA = 1.225   # ISA sea-level air density             [kg/m^3]
 
 
 @dataclass(frozen=True)

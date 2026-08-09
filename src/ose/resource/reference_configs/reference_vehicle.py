@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from ose.reference_configs.reference_environment import ISA_SEA_LEVEL
+from ose.reference_configs.reference_environment import G_STANDARD, ISA_SEA_LEVEL
 from ose.resource.vehicle import Constraints, Vehicle2D, VehicleParameters
 
 
@@ -18,6 +18,7 @@ def reference_fighter() -> Vehicle2D:
         aspect_ratio=3.0,
         cl_max=1.20,
         tsfc_kg_per_N_s=2.5e-5,
+        g=G_STANDARD,
     )
     lam = Constraints(
         thrust_min_N=5.0e3,

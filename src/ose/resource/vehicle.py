@@ -40,7 +40,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from ose.environment import Environment, G_STANDARD
+from ose.environment import Environment
 
 
 # --------------------------------------------------------------------------
@@ -65,11 +65,15 @@ class VehicleParameters:
         aspect_ratio: float,
         cl_max: float,
         tsfc_kg_per_N_s: float,
-        g: float = G_STANDARD,
+        g: float,
     ) -> "VehicleParameters":
         """Build the lumped parameters from conventional aerodynamic geometry.
 
         Useful when a contributor knows S, C_D0, e, AR rather than c_p, c_i.
+        g is the gravitational acceleration used to derive the induced drag
+        parameter; callers supply it explicitly (e.g. from a reference
+        environment) rather than relying on an implicit standard-gravity
+        default here, per the shape/data split in ose/environment.py.
         """
         return cls(
             c_p=0.5 * wing_area_m2 * cd0,
