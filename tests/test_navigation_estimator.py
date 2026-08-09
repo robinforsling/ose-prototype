@@ -20,10 +20,10 @@ import numpy as np
 import pytest
 
 from ose.interfaces import NavigationEstimator
-from ose.resource.air_data import AirDataParameters
 from ose.resource.air_data import AirDataSensor as AirDataSensorImpl
 from ose.resource.gnss import GnssReceiver
 from ose.resource.imu import Imu
+from ose.resource.reference_configs.reference_air_data import STANDARD as AIR_DATA_STANDARD
 from ose.resource.reference_configs.reference_gnss import STANDARD as GNSS_STANDARD
 from ose.resource.reference_configs.reference_imu import TACTICAL_GRADE
 from ose.resource.reference_configs.reference_vehicle import reference_fighter
@@ -47,7 +47,7 @@ def _build_components(initial_state, seed=0):
     estimator -- a scenario-setup detail, not a component."""
     imu = Imu(TACTICAL_GRADE, np.random.default_rng(seed), reference_fighter())
     gnss = GnssReceiver(GNSS_STANDARD, rng=np.random.default_rng(seed + 1))
-    air = AirDataSensorImpl(AirDataParameters(), rng=np.random.default_rng(seed + 2))
+    air = AirDataSensorImpl(AIR_DATA_STANDARD, rng=np.random.default_rng(seed + 2))
 
     rng_init = np.random.default_rng(seed + 100)
     psi0 = initial_state.psi_rad + float(rng_init.normal(0.0, INITIAL.heading_sigma_rad))

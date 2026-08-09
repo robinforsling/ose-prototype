@@ -26,8 +26,12 @@ from ose.resource.vehicle import VehicleState
 
 @dataclass
 class AirDataParameters:
-    air_data_rate_hz: float = 10.0
-    air_data_sigma_mps: float = 1.0
+    """Shape only, no defaults -- a sensor grade is a choice, not a
+    universal, so it belongs in a named reference config
+    (resource/reference_configs/reference_air_data.py), not baked in here."""
+
+    air_data_rate_hz: float
+    air_data_sigma_mps: float
 
 
 class AirDataSensor:
@@ -35,10 +39,10 @@ class AirDataSensor:
 
     def __init__(
         self,
-        parameters: AirDataParameters | None = None,
+        parameters: AirDataParameters,
         rng: np.random.Generator | None = None,
     ) -> None:
-        self.par = parameters or AirDataParameters()
+        self.par = parameters
         self.rng = rng or np.random.default_rng(0)
         self._t_last = -math.inf
 

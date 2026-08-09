@@ -12,10 +12,10 @@ import numpy as np
 import pytest
 
 from ose import interfaces
-from ose.resource.air_data import AirDataParameters
 from ose.resource.air_data import AirDataSensor as AirDataSensorImpl
 from ose.resource.gnss import GnssReceiver
 from ose.resource.imu import Imu
+from ose.resource.reference_configs.reference_air_data import STANDARD as AIR_DATA_STANDARD
 from ose.resource.reference_configs.reference_gnss import STANDARD as GNSS_STANDARD
 from ose.resource.reference_configs.reference_imu import TACTICAL_GRADE
 from ose.resource.reference_configs.reference_vehicle import reference_fighter
@@ -45,7 +45,7 @@ def _scenario():
 def test_sensors_satisfy_their_protocols(vehicle):
     imu = Imu(TACTICAL_GRADE, np.random.default_rng(0), vehicle)
     gnss = GnssReceiver(GNSS_STANDARD, rng=np.random.default_rng(0))
-    air = AirDataSensorImpl(AirDataParameters(), rng=np.random.default_rng(0))
+    air = AirDataSensorImpl(AIR_DATA_STANDARD, rng=np.random.default_rng(0))
     assert isinstance(imu, interfaces.InertialSensor)
     assert isinstance(gnss, interfaces.PositioningSensor)
     assert isinstance(air, interfaces.AirDataSensor)
@@ -59,7 +59,7 @@ def test_valid_time_equals_time_requested(vehicle):
     _, state, command, dist = _scenario()
     imu = Imu(TACTICAL_GRADE, np.random.default_rng(0), vehicle)
     gnss = GnssReceiver(GNSS_STANDARD, rng=np.random.default_rng(0))
-    air = AirDataSensorImpl(AirDataParameters(), rng=np.random.default_rng(0))
+    air = AirDataSensorImpl(AIR_DATA_STANDARD, rng=np.random.default_rng(0))
 
     assert imu.sample(12.5, 0.02, state, command, dist).valid_time_s == 12.5
     assert gnss.sample(12.5, state, dist).valid_time_s == 12.5
@@ -184,14 +184,14 @@ def test_gnss_velocity_disabled_omits_velocity():
 # --------------------------------------------------------------------------
 
 def test_air_data_declares_configured_sigma():
-    par = AirDataParameters(air_data_sigma_mps=2.0)
+    par = dataclasses.replace(AIR_DATA_STANDARD, air_data_sigma_mps=2.0)
     air = AirDataSensorImpl(par, rng=np.random.default_rng(0))
     m = air.sample(0.0, VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0))
     assert m.airspeed_sigma_mps == 2.0
 
 
 def test_air_data_noise_std_matches_declared_sigma():
-    par = AirDataParameters(air_data_sigma_mps=1.0)
+    par = AIR_DATA_STANDARD
     air = AirDataSensorImpl(par, rng=np.random.default_rng(5))
     state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
 
