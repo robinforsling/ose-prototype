@@ -59,12 +59,13 @@ def test_induced_drag_scales_with_load_factor_squared(vehicle, state):
 
 def test_stall_speed_closed_form(vehicle):
     """v_s = sqrt(n m g / (rho c_l)); at v_s the lift-limited load factor is n."""
-    m, n = 16000.0, 3.0
-    v_s = vehicle.v_stall_mps(m, n)
-    assert v_s == pytest.approx(
-        math.sqrt(n * m * vehicle.eta.g / (vehicle.eta.rho * vehicle.theta.c_l))
-    )
-    assert vehicle.lift_limited_load_factor(v_s, m) == pytest.approx(n, rel=1e-12)
+    m = 16000.0
+    for n in (2.0, 3.0, 4.0):
+        v_s = vehicle.v_stall_mps(m, n)
+        assert v_s == pytest.approx(
+            math.sqrt(n * m * vehicle.eta.g / (vehicle.eta.rho * vehicle.theta.c_l))
+        )
+        assert vehicle.lift_limited_load_factor(v_s, m) == pytest.approx(n, rel=1e-12)
 
 
 def test_corner_speed_maximises_instantaneous_turn_rate(vehicle):

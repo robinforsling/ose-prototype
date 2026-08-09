@@ -57,6 +57,8 @@ def print_capability_report(vehicle, mass_kg: float) -> None:
     c = vehicle.capability(state)
     print(
         f"\n  stall speed (1 g) : {c.v_stall_mps:6.1f} m/s"
+        f"\n  stall speed (2 g) : {vehicle.v_stall_mps(mass_kg, 2.0):6.1f} m/s"
+        f"\n  stall speed (4 g) : {vehicle.v_stall_mps(mass_kg, 4.0):6.1f} m/s"
         f"\n  corner speed      : {c.v_corner_mps:6.1f} m/s"
         f"\n  fuel remaining    : {c.fuel_mass_kg:6.0f} kg"
         f"\n  endurance at 250  : {c.endurance_s / 60.0:6.1f} min"
