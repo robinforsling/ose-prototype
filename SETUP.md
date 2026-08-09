@@ -108,6 +108,7 @@ __pycache__/
 | `ModuleNotFoundError: No module named 'numpy'` | venv not activated, or dependencies not installed. |
 | `error: externally-managed-environment` | Installing outside a venv. Create one. |
 | `deactivate: command not found` | The venv was not active to begin with. |
+| `pytest` fails during collection with `ModuleNotFoundError: No module named 'yaml'`, traceback through `launch_testing`/`launch` | A ROS installation's `PYTHONPATH` (e.g. `/opt/ros/humble/...`) is set in the shell. pytest auto-discovers *any* `pytest11` plugin visible on `sys.path`, including ROS's `launch_testing` and `launch_ros`, regardless of venv activation -- activating a venv does not clear `PYTHONPATH`. Already worked around in `pyproject.toml` (`addopts` disables both plugins by name), so this should not recur; if it does elsewhere, `unset PYTHONPATH` before running `pytest` or `python`. |
 
 ## LaTeX
 

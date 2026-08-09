@@ -18,3 +18,10 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+# Disables two ROS pytest11 plugins (launch_testing, launch_ros) that pytest
+# auto-discovers whenever a ROS PYTHONPATH is set, even inside this project's
+# venv -- they import 'launch', which needs PyYAML, which this project does
+# not depend on, and crash collection before any test runs. Harmless to
+# disable on machines without ROS: `-p no:X` is a no-op if X was never
+# registered.
+addopts = "-p no:launch_testing -p no:launch_ros"
