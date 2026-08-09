@@ -6,6 +6,7 @@ Run from the repository root with the package installed (`pip install -e .`).
 |---|---|---|
 | `demo_vehicle.py` | `plots/vehicle_envelope.png`, `plots/vehicle_trajectory.png` | ~5 s |
 | `demo_navigation.py` | `plots/navigation_errors.png` | ~30–60 s |
+| `demo_vehicle_guidance.py` | `plots/vehicle_guidance.png` | ~5 s |
 | `demo_discretization.py` | printed tables only | ~2 s |
 
 Figures are written to `demos/plots/`, alongside the scripts, regardless of
@@ -25,6 +26,14 @@ physics rather than implementation: heading uncertainty stays flat until the
 first turn, because heading is unobservable from GNSS position without lateral
 specific force; and the wind estimate does the same, because separating its two
 components requires heading diversity.
+
+**`demo_vehicle_guidance.py`** — closed-loop heading/speed-hold guidance
+against a perfect state estimate (isolating guidance's own behaviour from
+navigation error). A moderate setpoint change converges cleanly; a much
+larger heading change saturates the turn rate at first -- visibly, both in
+the shaded region and in requested-vs-delivered traces -- rather than being
+silently clipped, then recovers as the heading error shrinks back within
+capability.
 
 **`demo_discretization.py`** — one untouched `derivative()` consumed by
 fixed-step RK4, an adaptive solver, and a numerically-linearised zero-order-hold
