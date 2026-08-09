@@ -25,6 +25,34 @@ differs from heading whenever wind is non-zero. Any external observer of a
 platform measures ground-referenced motion; the platform's own aerodynamics
 depend on airspeed. Conflating the two is a recurring source of error.
 
+## Vehicle geometry
+
+**Point-mass dynamics.** Position, heading and speed are propagated as a
+point: the equations of motion carry no physical extent. The vehicle still
+has an orientation, `psi` -- point-mass is not the same claim as
+orientation-less. Airspeed direction relative to `psi` drives drag and lift,
+and `psi` is what a mounted sensor's or communicator's own pointing is
+expressed relative to.
+
+**Circular extent, for anything that needs one.** Collision avoidance and
+similar proximity checks need a footprint the point-mass dynamics do not
+provide. For that, and only for that, the vehicle is represented as a circle
+of a fixed radius centred on the point-mass position. A circle needs no
+orientation of its own -- unlike a real airframe outline, it looks the same
+from every angle, so no assumption beyond `psi` is required to place it.
+This is a placeholder for eventual proximity and collision-avoidance work,
+not a claim about actual airframe shape; see `docs/00-scope.md` for the
+surrounding fidelity exclusions (high-fidelity aerodynamics, 6-DoF dynamics).
+
+**Mounting orientation.** Sensors, communicators, and effectors attach to
+the vehicle at a station (`docs/40-composition-spec.md`) with their own
+fixed orientation relative to the vehicle body frame. A component's absolute
+pointing is therefore `psi` plus its mounting offset; nothing in the
+resource layer computes pointing independent of the vehicle's own
+orientation. The composition-spec station schema does not yet carry a
+mounting-orientation field -- this states the assumption ahead of that
+implementation, not a description of it.
+
 ## Layers
 
 Composition proceeds bottom-up. A layer may bind to the layer below it and to
