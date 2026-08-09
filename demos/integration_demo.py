@@ -22,13 +22,8 @@ import numpy as np
 from scipy.integrate import solve_ivp
 from scipy.linalg import expm
 
-from ose.resource.vehicle import (
-    NO_DISTURBANCE,
-    VehicleCommand,
-    VehicleState,
-    reference_fighter,
-    step_rk4,
-)
+from ose.resource.reference_configs.reference_vehicle import reference_fighter
+from ose.resource.vehicle import NO_DISTURBANCE, VehicleCommand, VehicleState, step_rk4
 
 N_STATE = 5
 N_INPUT = 2

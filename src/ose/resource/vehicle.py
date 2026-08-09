@@ -40,7 +40,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-G_STANDARD = 9.80665
+from ose.environment import Environment, G_STANDARD
 
 
 # --------------------------------------------------------------------------
@@ -77,14 +77,6 @@ class VehicleParameters:
             c_l=0.5 * wing_area_m2 * cl_max,
             c_tsfc=tsfc_kg_per_N_s,
         )
-
-
-@dataclass(frozen=True)
-class Environment:
-    """eta: environmental parameters."""
-
-    g: float = G_STANDARD       # gravitational acceleration      [m/s^2]
-    rho: float = 1.225          # air density                     [kg/m^3]
 
 
 @dataclass(frozen=True)
@@ -207,11 +199,11 @@ class Vehicle2D:
         self,
         parameters: VehicleParameters,
         constraints: Constraints,
-        environment: Environment | None = None,
+        environment: Environment,
     ) -> None:
         self.theta = parameters
         self.lam = constraints
-        self.eta = environment or Environment()
+        self.eta = environment
 
     # ---------------- aerodynamics ----------------
 
@@ -495,29 +487,3 @@ def step_rk4(
     x_next[2] = math.remainder(x_next[2], 2.0 * math.pi)   # wrap heading only
 
     return VehicleState.from_array(x_next)
-
-
-# --------------------------------------------------------------------------
-# A reference configuration, for tests and demonstrations
-# --------------------------------------------------------------------------
-
-def reference_fighter() -> Vehicle2D:
-    """Generic fighter-like configuration. Plausible, not a real aircraft."""
-    theta = VehicleParameters.from_geometry(
-        wing_area_m2=38.0,
-        cd0=0.022,
-        oswald_e=0.80,
-        aspect_ratio=3.0,
-        cl_max=1.20,
-        tsfc_kg_per_N_s=2.5e-5,
-    )
-    lam = Constraints(
-        thrust_min_N=5.0e3,
-        thrust_max_N=130.0e3,
-        n_structural=9.0,
-        omega_max_rad_s=math.radians(30.0),
-        v_min_mps=90.0,
-        v_max_mps=600.0,
-        mass_dry_kg=12000.0,
-    )
-    return Vehicle2D(theta, lam)

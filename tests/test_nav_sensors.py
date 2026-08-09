@@ -15,7 +15,8 @@ from ose.resource.air_data import AirDataParameters
 from ose.resource.air_data import AirDataSensor as AirDataSensorImpl
 from ose.resource.gnss import GnssParameters, GnssReceiver
 from ose.resource.imu import Imu, ImuParameters
-from ose.resource.vehicle import Disturbance, VehicleCommand, VehicleState, reference_fighter
+from ose.resource.reference_configs.reference_vehicle import reference_fighter
+from ose.resource.vehicle import Disturbance, VehicleCommand, VehicleState
 
 
 @pytest.fixture

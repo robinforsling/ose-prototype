@@ -91,6 +91,7 @@ the intended format; nothing consumes it yet.
 ```
 src/ose/interfaces.py        contracts only
 src/ose/frames.py            rotation utilities, no dependencies
+src/ose/environment.py       environmental parameters (g, rho), no dependencies
 src/ose/resource/            resource-layer components
 src/ose/subsystem/           subsystem-layer components
 docs/                        scope, concepts, architecture, interfaces

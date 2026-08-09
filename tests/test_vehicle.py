@@ -10,12 +10,12 @@ import math
 import numpy as np
 import pytest
 
+from ose.resource.reference_configs.reference_vehicle import reference_fighter
 from ose.resource.vehicle import (
     NO_DISTURBANCE,
     Disturbance,
     VehicleCommand,
     VehicleState,
-    reference_fighter,
     step_rk4,
 )
 
