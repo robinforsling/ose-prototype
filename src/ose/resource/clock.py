@@ -37,12 +37,14 @@ from ose.interfaces import ClockMeasurement
 
 @dataclass
 class ClockParameters:
-    """Illustrative defaults loosely in the range of a disciplined but not
-    laboratory-grade oscillator. Fictional, per CLAUDE.md."""
+    """Shape only, no defaults -- an oscillator grade (crystal, disciplined,
+    laboratory, ...) is a choice, not a universal, so it belongs in a named
+    reference config (resource/reference_configs/reference_clock.py), not
+    baked in here."""
 
-    drift_sigma: float = 1.0e-9        # steady-state fractional frequency offset [s/s]
-    drift_tau_s: float = 3600.0        # correlation time of the drift
-    white_noise_sigma_s: float = 1.0e-8  # per-reading timing jitter [s]
+    drift_sigma: float          # steady-state fractional frequency offset [s/s]
+    drift_tau_s: float          # correlation time of the drift
+    white_noise_sigma_s: float  # per-reading timing jitter [s]
 
 
 class Clock:
@@ -55,10 +57,10 @@ class Clock:
 
     def __init__(
         self,
-        parameters: ClockParameters | None = None,
+        parameters: ClockParameters,
         rng: np.random.Generator | None = None,
     ) -> None:
-        self.par = parameters or ClockParameters()
+        self.par = parameters
         self.rng = rng or np.random.default_rng(0)
         self.drift = float(self.rng.normal(0.0, self.par.drift_sigma))
 

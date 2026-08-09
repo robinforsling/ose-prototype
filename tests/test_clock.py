@@ -6,28 +6,30 @@ the drift's Gauss-Markov behaviour is the resource's own true dynamics, not
 something it declares.
 """
 
+import dataclasses
 import math
 
 import numpy as np
 import pytest
 
 from ose import interfaces
-from ose.resource.clock import Clock, ClockParameters
+from ose.resource.clock import Clock
+from ose.resource.reference_configs.reference_clock import STANDARD
 
 
 def test_satisfies_clock_sensor_protocol():
-    clock = Clock(rng=np.random.default_rng(0))
+    clock = Clock(STANDARD, rng=np.random.default_rng(0))
     assert isinstance(clock, interfaces.ClockSensor)
 
 
 def test_valid_time_equals_time_requested():
-    clock = Clock(rng=np.random.default_rng(0))
+    clock = Clock(STANDARD, rng=np.random.default_rng(0))
     m = clock.sample(12.5, 0.05)
     assert m.valid_time_s == 12.5
 
 
 def test_declared_sigma_matches_configured_white_noise():
-    par = ClockParameters(white_noise_sigma_s=2.0e-7)
+    par = dataclasses.replace(STANDARD, white_noise_sigma_s=2.0e-7)
     clock = Clock(par, rng=np.random.default_rng(0))
     m = clock.sample(0.0, 0.05)
     assert m.elapsed_sigma_s == 2.0e-7
@@ -41,7 +43,7 @@ def test_declared_sigma_matches_configured_white_noise():
 def clock_draws():
     """Many draws at a fixed dt, reading the drift back out after each call
     so the residual isolates the white-noise term."""
-    par = ClockParameters()
+    par = STANDARD
     rng = np.random.default_rng(1)
     clock = Clock(par, rng)
 
@@ -68,7 +70,7 @@ def test_clock_std_matches_declared_sigma(clock_draws):
 
 
 def test_drift_reaches_gauss_markov_steady_state():
-    par = ClockParameters(drift_sigma=1.0e-6, drift_tau_s=3600.0)
+    par = dataclasses.replace(STANDARD, drift_sigma=1.0e-6)
     clock = Clock(par, rng=np.random.default_rng(3))
 
     dt = 20.0
@@ -88,7 +90,7 @@ def test_drift_reaches_gauss_markov_steady_state():
 def test_drift_accumulates_a_systematic_offset_over_many_samples():
     """A biased drift should show up as a persistent sign, not average out --
     the whole point of modelling it separately from the white-noise term."""
-    par = ClockParameters(drift_sigma=1.0e-6, drift_tau_s=3600.0, white_noise_sigma_s=1.0e-9)
+    par = dataclasses.replace(STANDARD, drift_sigma=1.0e-6, white_noise_sigma_s=1.0e-9)
     clock = Clock(par, rng=np.random.default_rng(5))
     clock.drift = 1.0e-6                # force a known, fixed-for-this-test drift
 

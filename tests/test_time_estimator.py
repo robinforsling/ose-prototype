@@ -22,7 +22,8 @@ import pytest
 
 from ose import interfaces
 from ose.interfaces import ClockMeasurement
-from ose.resource.clock import Clock, ClockParameters
+from ose.resource.clock import Clock
+from ose.resource.reference_configs.reference_clock import STANDARD
 from ose.subsystem.time_state_estimator import TimeEstimator, TimeEstimatorParameters
 
 
@@ -77,7 +78,7 @@ def test_ingesting_unknown_type_raises_type_error():
 # --------------------------------------------------------------------------
 
 def test_replay_determinism():
-    clock = Clock(rng=np.random.default_rng(9))
+    clock = Clock(STANDARD, rng=np.random.default_rng(9))
     live = TimeEstimator()
     record = []
     live_results = []
@@ -111,7 +112,7 @@ def test_replay_determinism():
 def test_platform_time_is_the_running_sum_of_readings():
     """No correction exists, so the point estimate is exactly the
     accumulated readings -- nothing is filtered out of the mean."""
-    clock = Clock(rng=np.random.default_rng(2))
+    clock = Clock(STANDARD, rng=np.random.default_rng(2))
     estimator = TimeEstimator()
 
     dt = 0.1
@@ -128,7 +129,7 @@ def test_platform_time_is_the_running_sum_of_readings():
 
 def test_uncertainty_grows_monotonically():
     """Dead reckoning only: nothing ever shrinks offset_sigma_s."""
-    clock = Clock(rng=np.random.default_rng(4))
+    clock = Clock(STANDARD, rng=np.random.default_rng(4))
     estimator = TimeEstimator()
 
     dt = 1.0
@@ -153,7 +154,7 @@ def test_offset_uncertainty_is_consistent(seed):
     which only this test tracks -- the estimator never sees it. NEES far
     above one means the reported offset_sigma_s cannot be trusted.
     """
-    clock = Clock(ClockParameters(), rng=np.random.default_rng(seed))
+    clock = Clock(STANDARD, rng=np.random.default_rng(seed))
     estimator = TimeEstimator(TimeEstimatorParameters())
 
     dt = 1.0
