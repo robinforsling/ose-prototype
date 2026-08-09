@@ -120,6 +120,17 @@ class ClockMeasurement:
     elapsed_sigma_s: float    # declared; covers the white-noise term only
 
 
+@dataclass(frozen=True)
+class FuelMeasurement:
+    """A direct reading of remaining fuel mass, not an integrated one --
+    unlike Imu/Clock there is no drift term here, just additive white
+    noise."""
+
+    valid_time_s: float
+    fuel_remaining_kg: float
+    fuel_remaining_sigma_kg: float    # declared
+
+
 # ---------------------------------------------------------------------------
 # Guidance setpoints
 #
@@ -166,6 +177,11 @@ class AirDataSensor(Protocol):
 @runtime_checkable
 class ClockSensor(Protocol):
     def sample(self, t_s: float, dt_s: float) -> ClockMeasurement: ...
+
+
+@runtime_checkable
+class FuelSensor(Protocol):
+    def sample(self, t_s: float, true_state: VehicleState) -> FuelMeasurement: ...
 
 
 @runtime_checkable
