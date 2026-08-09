@@ -49,33 +49,6 @@ class OwnStateEstimate:
         return math.sqrt(max(self.covariance[0, 0] + self.covariance[1, 1], 0.0))
 
 
-@runtime_checkable
-class NavigationSystem(Protocol):
-    """Interface every navigation implementation satisfies.
-
-    Superseded by the sensor/estimator split below (see
-    ADR 0009-navigation-split-across-layers.md) and retained only until
-    ose.resource.navigation is deleted.
-    """
-
-    def update(
-        self,
-        t_s: float,
-        dt_s: float,
-        true_state: VehicleState,
-        true_command: VehicleCommand,
-        true_disturbance: Disturbance,
-    ) -> OwnStateEstimate:
-        """Advance one step and return the current estimate.
-
-        The true arguments are supplied by the simulation core. An
-        implementation may use them only to generate corrupted measurements;
-        passing truth through unmodified would defeat the purpose of the
-        component.
-        """
-        ...
-
-
 # ---------------------------------------------------------------------------
 # Measurement records
 #
@@ -154,5 +127,3 @@ class OwnStateSource(Protocol):
     """Anything publishing vehicle.state.v1, whatever layer it sits in."""
 
     def estimate(self, t_s: float) -> OwnStateEstimate: ...
-
-
