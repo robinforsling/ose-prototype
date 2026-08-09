@@ -33,9 +33,14 @@ from ose.resource.vehicle import Disturbance, VehicleState
 
 @dataclass
 class IntegratedNavParameters:
-    position_sigma_m: float = 15.0
-    heading_sigma_rad: float = math.radians(0.5)
-    airspeed_sigma_mps: float = 1.5
+    """Shape only, no defaults -- an accuracy grade is a choice, not a
+    universal, so it belongs in a named reference config
+    (resource/reference_configs/reference_integrated_navigation_unit.py),
+    not baked in here."""
+
+    position_sigma_m: float
+    heading_sigma_rad: float
+    airspeed_sigma_mps: float
 
 
 class IntegratedNavUnit:
@@ -43,10 +48,10 @@ class IntegratedNavUnit:
 
     def __init__(
         self,
-        parameters: IntegratedNavParameters | None = None,
+        parameters: IntegratedNavParameters,
         rng: np.random.Generator | None = None,
     ) -> None:
-        self.par = parameters or IntegratedNavParameters()
+        self.par = parameters
         self.rng = rng or np.random.default_rng(0)
         self._last: OwnStateEstimate | None = None
 

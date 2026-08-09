@@ -12,22 +12,23 @@ import pytest
 
 from ose.interfaces import OwnStateSource
 from ose.resource.integrated_navigation_unit import IntegratedNavParameters, IntegratedNavUnit
+from ose.resource.reference_configs.reference_integrated_navigation_unit import STANDARD
 from ose.resource.vehicle import Disturbance, VehicleState
 
 
 def test_satisfies_own_state_source():
-    unit = IntegratedNavUnit(rng=np.random.default_rng(0))
+    unit = IntegratedNavUnit(STANDARD, rng=np.random.default_rng(0))
     assert isinstance(unit, OwnStateSource)
 
 
 def test_estimate_before_update_raises():
-    unit = IntegratedNavUnit(rng=np.random.default_rng(0))
+    unit = IntegratedNavUnit(STANDARD, rng=np.random.default_rng(0))
     with pytest.raises(RuntimeError):
         unit.estimate(0.0)
 
 
 def test_update_corrupts_truth():
-    unit = IntegratedNavUnit(rng=np.random.default_rng(0))
+    unit = IntegratedNavUnit(STANDARD, rng=np.random.default_rng(0))
     state = VehicleState(1000.0, -500.0, math.radians(15.0), 250.0, 16000.0)
     dist = Disturbance(wind_x_mps=12.0, wind_y_mps=-18.0)
     est = unit.update(0.0, state, dist)
@@ -35,7 +36,7 @@ def test_update_corrupts_truth():
 
 
 def test_estimate_returns_last_update():
-    unit = IntegratedNavUnit(rng=np.random.default_rng(0))
+    unit = IntegratedNavUnit(STANDARD, rng=np.random.default_rng(0))
     state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
     dist = Disturbance()
     est = unit.update(3.0, state, dist)
