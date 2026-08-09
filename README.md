@@ -28,7 +28,7 @@ pip install -e ".[dev]"
 pytest                                # run the test suite
 python demos/demo_vehicle.py          # turn envelope and an open-loop manoeuvre
 python demos/demo_navigation.py       # INS/GNSS through a GNSS outage
-python demos/integration_demo.py      # one model, several discretisations
+python demos/demo_discretization.py   # one model, several discretisations
 ```
 
 Full setup notes, including direnv and troubleshooting, are in

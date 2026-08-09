@@ -11,7 +11,7 @@ Three consumers of the same f:
   2. adaptive high-accuracy solver              (offline reference / validation)
   3. Jacobian + zero-order-hold linearisation   (filters, MPC, digital twin)
 
-Run with:  python integration_demo.py
+Run with:  python demo_discretization.py
 """
 
 from __future__ import annotations

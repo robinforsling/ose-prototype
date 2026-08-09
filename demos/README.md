@@ -6,7 +6,7 @@ Run from the repository root with the package installed (`pip install -e .`).
 |---|---|---|
 | `demo_vehicle.py` | `plots/vehicle_envelope.png`, `plots/vehicle_trajectory.png` | ~5 s |
 | `demo_navigation.py` | `plots/navigation_errors.png` | ~30–60 s |
-| `integration_demo.py` | printed tables only | ~2 s |
+| `demo_discretization.py` | printed tables only | ~2 s |
 
 Figures are written to `demos/plots/`, alongside the scripts, regardless of
 which directory you run them from. `demos/plots/` is gitignored.
@@ -26,10 +26,10 @@ first turn, because heading is unobservable from GNSS position without lateral
 specific force; and the wind estimate does the same, because separating its two
 components requires heading diversity.
 
-**`integration_demo.py`** — one untouched `derivative()` consumed by fixed-step
-RK4, an adaptive solver, and a numerically-linearised zero-order-hold discrete
-model. Demonstrates ADR 0004: the component publishes continuous dynamics and the
-consumer chooses the discretisation.
+**`demo_discretization.py`** — one untouched `derivative()` consumed by
+fixed-step RK4, an adaptive solver, and a numerically-linearised zero-order-hold
+discrete model. Demonstrates ADR 0004: the component publishes continuous
+dynamics and the consumer chooses the discretisation.
 
 ## Changing the seed
 
