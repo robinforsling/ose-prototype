@@ -187,14 +187,33 @@ def test_vehicle_does_not_enforce_constraints(vehicle, state):
     """An inadmissible command must be integrated as given, not clipped.
 
     Enforcement belongs to guidance or to a runtime assurance layer. If this
-    test starts failing, the separation described in the model document has
-    been broken.
+    test starts failing, the separation described in ADR 0006 has been broken.
+
+    Note what the resulting motion looks like: 5 rad/s at 250 m/s implies a
+    load factor near 128, and induced drag scales with n^2, so drag reaches
+    some 36 MN against 1.3 MN of thrust and the vehicle decelerates violently.
+    That number is physically meaningless -- which is the point. Outside the
+    declared sets the model integrates faithfully but represents nothing.
     """
+    dt = 0.02
     absurd = VehicleCommand(10 * vehicle.lam.thrust_max_N, 5.0)
     assert not vehicle.admissible(state, absurd)
-    s = step_rk4(vehicle, state, absurd, 0.02)
-    assert s.psi_rad != pytest.approx(state.psi_rad)
-    assert s.v_mps > state.v_mps + 1.0      # the absurd thrust was applied
+    assert absurd.omega_rad_s > 10 * vehicle.omega_max_rad_s(state.v_mps, state.mass_kg)
+
+    s = step_rk4(vehicle, state, absurd, dt)
+
+    # The commanded turn rate was integrated verbatim rather than projected.
+    assert s.psi_rad == pytest.approx(
+        state.psi_rad + absurd.omega_rad_s * dt, rel=1e-12
+    )
+
+
+def test_inadmissible_thrust_is_applied_unclipped(vehicle, state):
+    """Separated from the turn rate, so induced drag does not mask the effect."""
+    absurd = VehicleCommand(10 * vehicle.lam.thrust_max_N, 0.0)
+    assert not vehicle.admissible(state, absurd)
+    s = step_rk4(vehicle, state, absurd, 0.05)
+    assert s.v_mps > state.v_mps + 1.0        # +3.95 m/s in practice
 
 
 def test_project_command_is_offered_not_applied(vehicle, state):

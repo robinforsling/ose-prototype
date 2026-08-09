@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "ose"
 version = "0.1.0"
 description = "Open Simulation Environment for autonomous combat aircraft systems"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = ["numpy", "scipy", "matplotlib"]
 
 [project.optional-dependencies]
@@ -17,3 +17,4 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
