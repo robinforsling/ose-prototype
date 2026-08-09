@@ -84,6 +84,21 @@ class AirDataMeasurement:
     airspeed_sigma_mps: float
 
 
+@dataclass(frozen=True)
+class ClockMeasurement:
+    """The platform clock's own reading of elapsed time, not true elapsed
+    time. There is deliberately no true-interval field here, unlike
+    ImuMeasurement.interval_s: for every other sensor the interval is
+    sampling metadata alongside separately-corrupted quantities, but for a
+    clock, elapsed time IS the corrupted quantity -- publishing the true
+    interval here would leak exactly the truth this component exists to
+    hide."""
+
+    valid_time_s: float
+    elapsed_s: float          # the platform clock's own reading of elapsed time
+    elapsed_sigma_s: float    # declared; covers the white-noise term only
+
+
 # ---------------------------------------------------------------------------
 # Sensor and estimator protocols
 # ---------------------------------------------------------------------------
@@ -110,6 +125,11 @@ class PositioningSensor(Protocol):
 @runtime_checkable
 class AirDataSensor(Protocol):
     def sample(self, t_s: float, true_state: VehicleState) -> AirDataMeasurement: ...
+
+
+@runtime_checkable
+class ClockSensor(Protocol):
+    def sample(self, t_s: float, dt_s: float) -> ClockMeasurement: ...
 
 
 @runtime_checkable
