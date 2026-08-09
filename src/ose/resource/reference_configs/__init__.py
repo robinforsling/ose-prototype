@@ -2,9 +2,11 @@
 
 Fixtures for tests and demonstrations -- fictional and plausible, per
 CLAUDE.md, not evidence that a real configuration belongs in source. One
-module per resource (reference_vehicle.py, ...) or per shared, cross-cutting
-shape used by more than one resource (reference_environment.py), each
-holding one or several named configurations.
+module per resource (reference_vehicle.py, ...), each holding one or
+several named configurations for that resource.
+
+Reference configs for shapes shared across layers (e.g. Environment) live
+in ose/reference_configs/ instead, not here -- see its package docstring.
 
 See "Code declares shape; data supplies values" in docs/20-architecture.md.
 Migrating these to real composition-spec YAML (docs/40-composition-spec.md

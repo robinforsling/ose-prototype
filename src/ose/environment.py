@@ -12,8 +12,8 @@ sensors, so there is nothing being hidden from anyone.
 Environment declares shape only, no default values -- the same rule as
 VehicleParameters and Constraints in vehicle.py, and for the same reason.
 A specific reference point (e.g. sea-level ISA) is reference-config data,
-not shape, so it lives in resource/reference_configs/reference_environment.py,
-not here. G_STANDARD and RHO_SEA_LEVEL_ISA are the exception: standardised
+not shape, so it lives in reference_configs/reference_environment.py, not
+here. G_STANDARD and RHO_SEA_LEVEL_ISA are the exception: standardised
 physical constants, not scenario choices, so they stay alongside the shape
 they parameterise.
 

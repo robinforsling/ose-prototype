@@ -40,8 +40,9 @@ Full setup notes, including direnv and troubleshooting, are in
 src/ose/interfaces.py                             contracts only, no implementations
 src/ose/frames.py                                 rotation utilities, no dependencies
 src/ose/environment.py                            environmental parameters (g, rho), no dependencies
+src/ose/reference_configs/                        reference configs for cross-layer shapes, e.g. environment
 src/ose/resource/vehicle.py                       baseline 2D vehicle model
-src/ose/resource/reference_configs/               fixture configurations, e.g. reference_vehicle.py
+src/ose/resource/reference_configs/               reference configs for resource components, e.g. reference_vehicle.py
 src/ose/resource/imu.py                           IMU sensor model
 src/ose/resource/gnss.py                          GNSS receiver model
 src/ose/resource/air_data.py                      air data sensor model

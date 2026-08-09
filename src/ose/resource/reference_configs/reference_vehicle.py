@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from ose.resource.reference_configs.reference_environment import ISA_SEA_LEVEL
+from ose.reference_configs.reference_environment import ISA_SEA_LEVEL
 from ose.resource.vehicle import Constraints, Vehicle2D, VehicleParameters
 
 
