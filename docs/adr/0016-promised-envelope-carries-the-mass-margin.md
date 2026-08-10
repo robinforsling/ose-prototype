@@ -105,14 +105,24 @@ bites and a margin that always bites are both defects and neither is visible
 from the code.
 
 **The margin is almost invisible in normal flight, and that is the honest
-result rather than a disappointment.** Three sigma of a 2 kg uncertainty
-against 15 tonnes changes nothing measurable, so no demo in this repository
-shows it doing anything dramatic. It earns its place in the cases the demos do
-not currently cover: the startup window before the gauge has spoken, a gauge
-failure where sigma grows without bound, and eventually a payload whose mass
-is poorly known or stores released mid-run. A reader should not conclude from
-the demos that the mechanism is doing work; they should conclude that the
-platform currently knows its mass well.
+result rather than a disappointment.** `demos/demo_mass_estimation.py` flies
+one trajectory with three differently-equipped platforms and measures it: the
+promise costs 0.03 per cent of the turn rate with a working gauge, 0.20 per
+cent at the end of a four-hundred-second gauge outage, and 3.84 per cent with
+no fuel gauge at all.
+
+Twenty kilograms of doubt on a fifteen-tonne aircraft is nothing, so losing
+the gauge outright barely dents what this platform can promise. The margin is
+not decoration either — four per cent of turn rate, permanently, is worth
+telling a planner about. What the demo actually demonstrates is the ratio
+rather than the number: a margin scaled by the live uncertainty stays out of
+the way when the platform knows itself and bites when it does not, with nobody
+choosing the moment. Expect it to matter far more for a light platform, a
+large fuel fraction, or a released store whose mass is unknown until confirmed.
+
+A reader should not conclude from the demo that the mechanism is idle; they
+should conclude that this platform knows its mass well, and watch the
+no-gauge trace for the case where it does not.
 
 **Three call sites still have to be right about which question they are
 asking**, though the return types now differ, which helps.
