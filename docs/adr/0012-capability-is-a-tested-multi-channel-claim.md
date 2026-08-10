@@ -93,10 +93,11 @@ rather than by what was needed, and the first real consumer duly bent it.
 `VehicleGuidance` now queries `capability()` for the turn rate it can actually
 fly, which turned up a defect in its thrust feedforward, and publishes a
 composed capability of its own (ADR 0013). That exercise showed `Capability`
-reports `v_stall_mps` but not the airframe's hard `v_min_mps`/`v_max_mps`, so
-consumers reach into `Constraints` for them -- a gap better closed in the
-record than worked around downstream. Expect further shaping as more consumers
-arrive.
+reported `v_stall_mps` but not the airframe's hard `v_min_mps`/`v_max_mps`, so
+consumers reached into `Constraints` for them; the record now carries
+`v_min_achievable_mps` and `v_max_achievable_mps` instead. Expect further
+shaping as more consumers arrive -- a capability record written before anyone
+queries it will keep being slightly wrong in ways only a consumer reveals.
 
 Explicit `units` strings are unvalidated. Nothing stops a component declaring
 `"m"` where it means `"m/s"`, and no consumer currently checks. This is weaker

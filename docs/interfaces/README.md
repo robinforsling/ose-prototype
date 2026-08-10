@@ -157,7 +157,7 @@ and the binder treats it as opaque; see `docs/40-composition-spec.md` section
 Implemented today by every resource, and by one subsystem component:
 
 - `Vehicle2D.capability(state, omega_rad_s, disturbance)` returns `Capability`,
-  a twelve-field record covering thrust, acceleration bounds, turn performance,
+  a fourteen-field record covering thrust, acceleration bounds, turn performance,
   characteristic speeds, fuel and endurance. It is a function of state, so it
   changes as fuel burns.
 - `Imu`, `GnssReceiver`, `AirDataSensor`, `Clock` and `FuelGauge` return

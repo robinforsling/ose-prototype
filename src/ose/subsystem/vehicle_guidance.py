@@ -88,11 +88,11 @@ class VehicleGuidance:
 
         return GuidanceCapability(
             max_turn_rate_rad_s=envelope.omega_available_rad_s,
-            # The speed floor is whichever binds: aerodynamic stall at this
-            # mass, or the airframe's hard minimum. Same rule the vehicle's
-            # own admissible() applies.
-            min_speed_mps=max(self.vehicle.lam.v_min_mps, envelope.v_stall_mps),
-            max_speed_mps=self.vehicle.lam.v_max_mps,
+            # Straight from the vehicle's capability. Guidance used to compose
+            # the floor itself from v_stall and Constraints, which meant a
+            # consumer reimplementing a rule the vehicle already owns.
+            min_speed_mps=envelope.v_min_achievable_mps,
+            max_speed_mps=envelope.v_max_achievable_mps,
             heading_hold_sigma_rad=math.sqrt(max(own_state.covariance[2, 2], 0.0)),
             speed_hold_sigma_mps=math.sqrt(max(own_state.covariance[3, 3], 0.0)),
         )

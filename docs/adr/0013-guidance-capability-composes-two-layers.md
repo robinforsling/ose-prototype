@@ -74,8 +74,9 @@ a heading-and-speed setpoint but will not survive a waypoint mode, where
 reachability becomes a question about time and distance and the vehicle's
 existing `can_reach()` becomes the right tool.
 
-Guidance now reads `self.vehicle.lam` directly for the hard speed limits,
-because `Capability` reports `v_stall_mps` but not the airframe's `v_min_mps`
-and `v_max_mps`. That is a gap in the vehicle's capability record showing
-through, and the cleaner fix is to add those two fields to `Capability` rather
-than have consumers reach into `Constraints`.
+Guidance initially read `self.vehicle.lam` directly for the hard speed limits,
+because `Capability` reported `v_stall_mps` but not the airframe's `v_min_mps`
+and `v_max_mps`. That gap has since been closed: `Capability` carries
+`v_min_achievable_mps` and `v_max_achievable_mps`, and the floor is composed by
+the vehicle rather than by each consumer. No subsystem component reaches into
+`Constraints` now.

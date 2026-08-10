@@ -161,8 +161,8 @@ def test_capability_reachability_comes_from_the_vehicle(vehicle, guidance):
     cap = guidance.capability(_perfect_estimate(0.0, state), state.mass_kg)
 
     assert cap.max_turn_rate_rad_s == envelope.omega_available_rad_s
-    assert cap.max_speed_mps == vehicle.lam.v_max_mps
-    assert cap.min_speed_mps == max(vehicle.lam.v_min_mps, envelope.v_stall_mps)
+    assert cap.max_speed_mps == envelope.v_max_achievable_mps
+    assert cap.min_speed_mps == envelope.v_min_achievable_mps
 
 
 def test_capability_hold_accuracy_comes_from_navigation(vehicle, guidance):

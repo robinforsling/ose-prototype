@@ -172,6 +172,15 @@ class Capability:
     fuel_mass_kg: float
     endurance_s: float
 
+    # The speed band the vehicle can actually hold right now. The floor is
+    # composed -- whichever of stall-at-this-mass and the airframe's hard
+    # minimum binds -- which is why it is reported here rather than left for
+    # each consumer to assemble from v_stall_mps and Constraints. Working it
+    # out is the same rule admissible() applies, and a consumer that
+    # reimplements it will eventually reimplement it differently.
+    v_min_achievable_mps: float     # max(hard minimum, stall at this mass)
+    v_max_achievable_mps: float     # airframe limit; not mass dependent
+
 
 @dataclass
 class Saturation:
@@ -371,7 +380,7 @@ class Vehicle2D:
         guidance layer or the analyst needs, not something to be hidden.
         """
         out: list[str] = []
-        v_floor = max(self.lam.v_min_mps, self.v_stall_mps(state.mass_kg))
+        v_floor = self.v_min_achievable_mps(state.mass_kg)
         if state.v_mps < v_floor:
             out.append(f"airspeed {state.v_mps:.1f} below floor {v_floor:.1f} m/s")
         if state.v_mps > self.lam.v_max_mps:
@@ -380,8 +389,15 @@ class Vehicle2D:
             out.append(f"mass {state.mass_kg:.0f} below dry mass")
         return out
 
+    def v_min_achievable_mps(self, mass_kg: float) -> float:
+        """Slowest speed holdable at this mass: whichever of stall and the
+        airframe's hard minimum binds. One definition, used by admissible(),
+        state_violations() and capability(), so the three cannot drift apart.
+        """
+        return max(self.lam.v_min_mps, self.v_stall_mps(mass_kg))
+
     def admissible(self, state: VehicleState, command: VehicleCommand) -> bool:
-        v_floor = max(self.lam.v_min_mps, self.v_stall_mps(state.mass_kg))
+        v_floor = self.v_min_achievable_mps(state.mass_kg)
         return (
             v_floor <= state.v_mps <= self.lam.v_max_mps
             and state.mass_kg >= self.lam.mass_dry_kg
@@ -437,6 +453,8 @@ class Vehicle2D:
             v_corner_mps=self.v_corner_mps(m),
             fuel_mass_kg=fuel,
             endurance_s=endurance,
+            v_min_achievable_mps=self.v_min_achievable_mps(m),
+            v_max_achievable_mps=self.lam.v_max_mps,
         )
 
     # ---------------- reachability helpers for the planner ----------------

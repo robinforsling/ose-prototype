@@ -247,6 +247,46 @@ def test_claimed_endurance_is_honest(vehicle, state):
     assert fuel_left < 0.01 * c.fuel_mass_kg
 
 
+def test_claimed_speed_band_agrees_with_admissibility(vehicle, state):
+    """v_min/v_max_achievable claim the band the vehicle can hold. The
+    vehicle's own admissible() is the independent authority on that, so the
+    two must agree at the boundaries -- otherwise a planner staying inside
+    the claimed band could still be flying an inadmissible state."""
+    c = vehicle.capability(state)
+    level = VehicleCommand(vehicle.thrust_required_N(state.v_mps, state.mass_kg), 0.0)
+
+    def at(v):
+        s = VehicleState(0.0, 0.0, 0.0, v, state.mass_kg)
+        return vehicle.admissible(s, VehicleCommand(level.thrust_N, 0.0))
+
+    assert at(c.v_min_achievable_mps + 1.0)
+    assert not at(c.v_min_achievable_mps - 1.0)
+    assert not at(c.v_max_achievable_mps + 1.0)
+
+
+def test_claimed_speed_floor_reports_whichever_limit_binds(vehicle):
+    """The floor is composed of two limits and must report the binding one.
+
+    Both regimes are exercised deliberately. For this airframe the hard
+    minimum of 90 m/s binds at ordinary masses, because stall is only 65-84
+    m/s there; stall does not take over until about 23 t. A test using only
+    ordinary masses would pass against an implementation that had dropped
+    the stall term entirely -- which is what a first version of this test
+    did.
+    """
+    hard_min = vehicle.lam.v_min_mps
+
+    light = vehicle.capability(VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0))
+    assert light.v_stall_mps < hard_min
+    assert light.v_min_achievable_mps == hard_min          # hard minimum binds
+
+    heavy = vehicle.capability(VehicleState(0.0, 0.0, 0.0, 250.0, 30000.0))
+    assert heavy.v_stall_mps > hard_min
+    assert heavy.v_min_achievable_mps == heavy.v_stall_mps  # stall binds
+
+    assert heavy.v_min_achievable_mps > light.v_min_achievable_mps
+
+
 def test_claimed_fuel_mass_matches_state(vehicle, state):
     c = vehicle.capability(state)
     assert c.fuel_mass_kg == pytest.approx(state.mass_kg - vehicle.lam.mass_dry_kg)
