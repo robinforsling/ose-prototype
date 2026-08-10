@@ -437,6 +437,61 @@ class GuidanceCapability:
         return self.min_speed_mps <= setpoint.v_cmd_mps <= self.max_speed_mps
 
 
+@dataclass(frozen=True)
+class PromisedEnvelope:
+    """What a platform is willing to promise, given how well it knows its own
+    mass -- published by VehicleManager.capability_bound(). See ADR 0016.
+
+    A deliberately narrower record than the vehicle's own `Capability`, and
+    the narrowing is the entire point. The margin is applied by evaluating the
+    vehicle at `mass + k*sigma`, which is conservative only for channels where
+    heavier is worse. Three groups of `Capability` fields are therefore absent
+    rather than merely unset:
+
+      fuel_mass_kg, endurance_s   ANTI-conservative. Mass uncertainty here is
+                                  fuel uncertainty, and fuel enters twice with
+                                  opposite senses: a heavier aircraft
+                                  manoeuvres worse but is carrying MORE fuel,
+                                  so adding mass reports a longer endurance
+                                  than the point estimate. Publishing that as
+                                  a bound would invite a consumer to plan a
+                                  mission it cannot fly, which is the worst
+                                  possible direction to be wrong in.
+
+      accel_max_mps2,             Non-monotone in mass -- they move both ways
+      accel_min_mps2              across the speed range, because mass enters
+                                  both the induced drag and the division by m.
+                                  No single signed margin is conservative.
+
+      thrust_required_N,          Not capabilities. A required thrust is an
+      v_corner_mps                input to a control law, which must use the
+                                  point estimate, and a characteristic speed
+                                  is neither better nor worse when it moves.
+
+    An earlier version returned the vehicle's full `Capability` from
+    `capability_bound()`. Every field was a true statement about the vehicle
+    at the margined mass, so nothing was fabricated -- but `endurance_s` was
+    674 seconds longer than the point estimate while wearing the name of a
+    bound. Truthful and dangerously misleading are not exclusive.
+
+    mass_kg and mass_margin_sigma travel with the record so a consumer can see
+    what it was evaluated at instead of inferring it from configuration.
+    """
+
+    # Manoeuvre limits. All conservative under added mass: a heavier aircraft
+    # turns no faster, pulls no more g, needs more room, and stalls no slower.
+    max_turn_rate_rad_s: float
+    sustained_turn_rate_rad_s: float
+    min_turn_radius_m: float
+    load_factor_available: float
+    min_speed_mps: float
+    max_speed_mps: float
+
+    # Provenance.
+    mass_kg: float                   # the mass this was evaluated at
+    mass_margin_sigma: float         # how many sigma above the believed mass
+
+
 @runtime_checkable
 class CapabilityModel(Protocol):
     """Answerable without integrating anything forward.

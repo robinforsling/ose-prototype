@@ -95,7 +95,12 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ose.interfaces import FuelMeasurement, MassEstimate, OwnStateEstimate
+from ose.interfaces import (
+    FuelMeasurement,
+    MassEstimate,
+    OwnStateEstimate,
+    PromisedEnvelope,
+)
 from ose.resource.vehicle import Capability, Saturation, Vehicle2D, VehicleCommand
 
 I_FUEL = 0
@@ -298,19 +303,24 @@ class VehicleManager:
             self.believed_state(own_state), omega_rad_s=omega_rad_s
         )
 
-    def capability_bound(
-        self, own_state: OwnStateEstimate, omega_rad_s: float = 0.0
-    ) -> Capability:
+    def capability_bound(self, own_state: OwnStateEstimate) -> PromisedEnvelope:
         """The envelope the platform is willing to promise, not the one it
         expects.
 
         Evaluated at mass + margin * sigma rather than at the believed mass.
-        Heavier is uniformly worse across every channel an envelope
-        publishes -- a heavier aircraft turns no faster, stalls no slower,
-        and the airframe speed limit does not move -- so adding the margin
-        narrows the claim in every direction at once and can never widen it.
-        A test asserts that, because the property is what makes a single
-        signed margin correct rather than needing a per-channel rule.
+        Adding mass is conservative for a manoeuvre limit -- a heavier
+        aircraft turns no faster, pulls no more g and stalls no slower -- so
+        a single signed margin narrows those claims in every direction at
+        once and can never widen them.
+
+        It is NOT conservative for everything the vehicle reports, which is
+        why this returns a narrower record than Capability rather than
+        forwarding it. Fuel and endurance move the wrong way, because mass
+        uncertainty here is fuel uncertainty and a heavier aircraft is
+        carrying more of it; accelerations are not monotone in mass at all.
+        See PromisedEnvelope for the full accounting. A test walks every
+        field of that record and asserts its direction, so adding one without
+        deciding which way it should move fails rather than passes.
 
         This is the only method that applies the margin, and deliberately so.
         Feedforward must use the best estimate: thrust computed for an
@@ -331,8 +341,17 @@ class VehicleManager:
         """
         sigma = math.sqrt(max(self.P[I_FUEL, I_FUEL], 0.0))
         heavier = self.mass_kg + self.par.capability_margin_sigma * sigma
-        return self.vehicle.capability(
-            own_state.as_vehicle_state(heavier), omega_rad_s=omega_rad_s
+        envelope = self.vehicle.capability(own_state.as_vehicle_state(heavier))
+
+        return PromisedEnvelope(
+            max_turn_rate_rad_s=envelope.omega_available_rad_s,
+            sustained_turn_rate_rad_s=envelope.omega_sustained_rad_s,
+            min_turn_radius_m=envelope.turn_radius_min_m,
+            load_factor_available=envelope.load_factor_available,
+            min_speed_mps=envelope.v_min_achievable_mps,
+            max_speed_mps=envelope.v_max_achievable_mps,
+            mass_kg=heavier,
+            mass_margin_sigma=self.par.capability_margin_sigma,
         )
 
     def project_command(

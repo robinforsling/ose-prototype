@@ -43,7 +43,7 @@ one thing.
 
 ## Decision
 
-`VehicleManager.capability_bound(own_state, omega_rad_s=0.0)` reports the
+`VehicleManager.capability_bound(own_state)` reports the
 envelope at `mass + capability_margin_sigma * sigma`, where sigma is the live
 fuel uncertainty from the filter. `capability()` continues to report at the
 believed mass, unchanged.
@@ -55,21 +55,43 @@ uses `capability_bound()`. Its control law and the manager's
 The rule in one line: **`capability()` for what you compute with,
 `capability_bound()` for what you promise.**
 
-Adding mass, rather than applying a per-channel rule, is sound only because
-heavier is uniformly worse across every channel an envelope publishes: a
-heavier aircraft turns no faster, stalls no slower, and the airframe speed
-limit does not move with mass at all. A single signed margin therefore narrows
-the claim in every direction at once and can never widen it.
-`test_the_bound_is_never_wider_than_the_estimate` sweeps the speed range and
-asserts it, because the binding limit changes with speed — structural at high
-speed, lift-limited at low — and the property has to hold in both regimes. If
-a future channel is anti-conservative in mass, that test fails and this
-decision needs revisiting rather than patching.
+`capability_bound()` returns a `PromisedEnvelope`, not the vehicle's
+`Capability`, and the narrowing of the record is as much the decision as the
+margin itself.
 
-`GuidanceCapability` gains `mass_margin_sigma`, so a consumer can tell a
-promised envelope from a point estimate without knowing how the platform was
-configured. The two coincide numerically once a filter has converged, which is
-exactly when a planner would be unable to tell them apart by inspection.
+Adding mass is conservative for a *manoeuvre* limit: a heavier aircraft turns
+no faster, pulls no more g, needs more room and stalls no slower. It is not
+conservative for everything the vehicle reports, and the exceptions divide
+into two kinds.
+
+**Anti-conservative.** Mass uncertainty here *is* fuel uncertainty, and fuel
+enters the capability model twice with opposite senses. A heavier aircraft
+manoeuvres worse but is carrying more fuel, so evaluating at the margined mass
+reports a *longer* endurance and a *larger* fuel quantity than the point
+estimate. Those two channels must not appear in a promise.
+
+**Non-monotone.** `accel_max_mps2` and `accel_min_mps2` move both ways across
+the speed range, because mass enters the induced drag and the division by
+mass. No single signed margin can be conservative for them.
+
+`thrust_required_N` and `v_corner_mps` are excluded for a third reason: they
+are not capabilities. A required thrust is an input to a control law, which
+must use the point estimate, and a characteristic speed is neither better nor
+worse when it moves.
+
+The remaining six channels, plus the mass and margin they were evaluated at,
+are what `PromisedEnvelope` carries. A table in the test module names the
+required direction of every field and asserts that no field lacks one, so
+adding a channel without deciding which way the margin should move it fails
+rather than silently joining the promise. A second test sweeps the speed range
+— the binding limit changes from structural to lift-limited — and asserts each
+direction holds in both regimes.
+
+`GuidanceCapability` gains `mass_margin_sigma`, and `PromisedEnvelope` carries
+both that and the mass it was evaluated at, so a consumer can tell a promise
+from a point estimate without knowing how the platform was configured. The two
+coincide numerically once a filter has converged, which is exactly when a
+planner would be unable to tell them apart by inspection.
 
 ## Consequences
 
@@ -92,15 +114,25 @@ is poorly known or stores released mid-run. A reader should not conclude from
 the demos that the mechanism is doing work; they should conclude that the
 platform currently knows its mass well.
 
-**Three call sites now have to be right about which question they are
-asking**, and the compiler cannot help. The two methods differ by one word and
-return the same type. This was weighed against introducing a distinct
-`PromisedCapability` record, which would have made the distinction
-type-checkable; that was rejected because every field would have restated the
-vehicle's own `Capability` with no added information, and the type boundary
-that actually matters already exists one layer up in `GuidanceCapability`,
-which is what a planner receives. The mitigation is four tests that pin each
-call site to the right side of the split, all four verified by sabotage.
+**Three call sites still have to be right about which question they are
+asking**, though the return types now differ, which helps.
+
+This record initially shipped with `capability_bound()` returning the
+vehicle's full `Capability`, on the reasoning that a distinct type would
+merely restate the vehicle's own fields with nothing added. That reasoning was
+wrong, and the way it was wrong is the most useful thing here. Every field
+returned *was* a true statement about the vehicle at the margined mass, so
+nothing was fabricated — and `endurance_s` came back 674 seconds longer than
+the point estimate while wearing the name of a bound. A consumer planning fuel
+against it would have planned a mission it could not fly. Truthful and
+dangerously misleading are not exclusive, and the information a narrower type
+adds is not the fields it carries but *which fields the margin is valid for*.
+
+It was found by asking what a demo of the margin would plot, before writing
+the demo. The uniform-conservatism test that was supposed to protect this
+covered only the three channels `GuidanceCapability` republishes, so it passed
+throughout — a test that checked the property on the fields that happened to
+be consumed rather than on the record actually returned.
 
 **A conservative envelope is not a safety argument.** It narrows what the
 platform promises; it does nothing to stop a control law commanding outside

@@ -167,11 +167,18 @@ environment.
 asking whether a command is admissible must not commit the platform to having
 flown it.
 
-`capability_bound()` reports the envelope at `mass + margin * sigma` -- what
-the platform will promise -- while `capability()` reports it at the believed
-mass, which is what feedforward and enforcement must use. Adding mass is
-uniformly conservative because heavier is worse in every channel an envelope
-publishes, and a test sweeps the speed range to assert it. See ADR 0016.
+`capability_bound()` reports a `PromisedEnvelope` at `mass + margin * sigma`
+-- what the platform will promise -- while `capability()` reports the vehicle's
+full `Capability` at the believed mass, which is what feedforward and
+enforcement must use.
+
+The promise is a narrower record on purpose. Adding mass is conservative for a
+manoeuvre limit but not for everything the vehicle reports: `endurance_s` and
+`fuel_mass_kg` move the *wrong* way, because mass uncertainty here is fuel
+uncertainty and a heavier aircraft carries more of it, and the accelerations
+are not monotone in mass at all. Those channels are absent rather than unset.
+A table in the tests names the required direction of every field that is
+present and fails if one is added without a direction. See ADR 0016.
 
 The manager also answers vehicle questions at that mass -- `capability()`,
 including the parametrised turn-rate form guidance feeds thrust forward on,

@@ -103,17 +103,17 @@ class VehicleGuidance:
         envelope = self.manager.capability_bound(own_state)
 
         return GuidanceCapability(
-            max_turn_rate_rad_s=envelope.omega_available_rad_s,
-            # Straight from the vehicle's capability. Guidance used to compose
-            # the floor itself from v_stall and Constraints, which meant a
-            # consumer reimplementing a rule the vehicle already owns.
-            min_speed_mps=envelope.v_min_achievable_mps,
-            max_speed_mps=envelope.v_max_achievable_mps,
+            max_turn_rate_rad_s=envelope.max_turn_rate_rad_s,
+            # Straight from the manager's promised envelope. Guidance used to
+            # compose the floor itself from v_stall and Constraints, which
+            # meant a consumer reimplementing a rule the vehicle already owns.
+            min_speed_mps=envelope.min_speed_mps,
+            max_speed_mps=envelope.max_speed_mps,
             heading_hold_sigma_rad=math.sqrt(max(own_state.covariance[2, 2], 0.0)),
             speed_hold_sigma_mps=math.sqrt(max(own_state.covariance[3, 3], 0.0)),
             # Self-describing: a consumer can tell a promised envelope from a
             # best guess without knowing how this component was configured.
-            mass_margin_sigma=self.manager.par.capability_margin_sigma,
+            mass_margin_sigma=envelope.mass_margin_sigma,
         )
 
     def command(

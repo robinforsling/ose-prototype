@@ -299,7 +299,7 @@ def test_published_capability_is_the_promised_envelope_not_the_estimate(
     cap = guidance.capability(est)
 
     assert cap.max_turn_rate_rad_s == pytest.approx(
-        manager.capability_bound(est).omega_available_rad_s
+        manager.capability_bound(est).max_turn_rate_rad_s
     )
     assert cap.max_turn_rate_rad_s < manager.capability(est).omega_available_rad_s
     # And the record says which it is, so a consumer need not know how the

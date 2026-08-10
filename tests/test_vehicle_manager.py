@@ -25,7 +25,12 @@ import numpy as np
 import pytest
 
 from ose.integration import step_rk4
-from ose.interfaces import FuelMeasurement, MassEstimate, OwnStateEstimate
+from ose.interfaces import (
+    FuelMeasurement,
+    MassEstimate,
+    OwnStateEstimate,
+    PromisedEnvelope,
+)
 from ose.resource.fuel_gauge import FuelGauge
 from ose.resource.reference_configs.reference_fuel_gauge import STANDARD as GAUGE
 from ose.resource.reference_configs.reference_vehicle import reference_fighter
@@ -466,28 +471,115 @@ def test_the_filter_beats_the_raw_gauge():
 # The promised envelope
 # --------------------------------------------------------------------------
 
-def test_the_bound_is_never_wider_than_the_estimate(vehicle, manager):
-    """The property that makes a single signed margin correct.
+# Every field of PromisedEnvelope, and which way the margin must move it.
+# "narrower" means a heavier belief must not report a better number.
+#
+# Listed here rather than checked ad hoc so that adding a field to the record
+# without deciding its direction fails the test below instead of silently
+# joining the promise. That is the failure this table exists for: the first
+# version of capability_bound() returned the vehicle's whole Capability, and
+# endurance_s rode along reporting 674 seconds MORE than the point estimate
+# while wearing the name of a bound.
+_MARGIN_DIRECTION = {
+    "max_turn_rate_rad_s": "lower",
+    "sustained_turn_rate_rad_s": "lower",
+    "min_turn_radius_m": "higher",        # needing more room is worse
+    "load_factor_available": "lower",
+    "min_speed_mps": "higher",            # a higher floor is a narrower band
+    "max_speed_mps": "lower",
+}
+_PROVENANCE = {"mass_kg", "mass_margin_sigma"}
 
-    capability_bound() adds mass rather than applying a per-channel rule,
-    and that is only sound because heavier is uniformly worse: a heavier
-    aircraft turns no faster, stalls no slower, and the airframe speed limit
-    does not move with mass at all. If any channel were anti-conservative in
-    mass the margin would widen the claim somewhere while narrowing it
-    elsewhere, and the whole approach would be wrong.
 
-    Swept across the envelope rather than checked at one point, because the
-    binding limit changes with speed -- structural at high speed, lift at low
-    -- and the property has to hold in both regimes.
+def test_every_promised_channel_has_a_declared_direction():
+    """No field joins the promise without someone deciding which way the
+    margin should move it."""
+    fields = {f.name for f in dataclasses.fields(PromisedEnvelope)}
+    undeclared = fields - set(_MARGIN_DIRECTION) - _PROVENANCE
+    assert not undeclared, (
+        f"PromisedEnvelope fields with no declared margin direction: "
+        f"{sorted(undeclared)}"
+    )
+
+
+def test_the_promise_is_never_better_than_the_estimate(vehicle, manager):
+    """The property that makes a single signed mass margin correct.
+
+    Swept across the speed range rather than checked at one point, because
+    the binding limit changes with speed -- structural at high speed, lift at
+    low -- and a channel can be conservative in one regime and not the other.
     """
     for v_mps in (100.0, 150.0, 200.0, 250.0, 300.0, 400.0, 500.0, 590.0):
         est = _estimate(v_mps=v_mps)
         point = manager.capability(est)
-        bound = manager.capability_bound(est)
+        promise = manager.capability_bound(est)
 
-        assert bound.omega_available_rad_s <= point.omega_available_rad_s + 1e-12
-        assert bound.v_min_achievable_mps >= point.v_min_achievable_mps - 1e-12
-        assert bound.v_max_achievable_mps <= point.v_max_achievable_mps + 1e-12
+        # The point-estimate equivalents, named as the vehicle names them.
+        equivalent = {
+            "max_turn_rate_rad_s": point.omega_available_rad_s,
+            "sustained_turn_rate_rad_s": point.omega_sustained_rad_s,
+            "min_turn_radius_m": point.turn_radius_min_m,
+            "load_factor_available": point.load_factor_available,
+            "min_speed_mps": point.v_min_achievable_mps,
+            "max_speed_mps": point.v_max_achievable_mps,
+        }
+        for name, direction in _MARGIN_DIRECTION.items():
+            promised, estimated = getattr(promise, name), equivalent[name]
+            if direction == "lower":
+                assert promised <= estimated + 1e-9, (
+                    f"{name} promised {promised} exceeds the estimate "
+                    f"{estimated} at {v_mps} m/s"
+                )
+            else:
+                assert promised >= estimated - 1e-9, (
+                    f"{name} promised {promised} is below the estimate "
+                    f"{estimated} at {v_mps} m/s"
+                )
+
+
+def test_the_promise_excludes_the_channels_the_margin_would_corrupt(manager):
+    """The exclusions are load-bearing, not tidiness.
+
+    Fuel and endurance are anti-conservative under added mass, because mass
+    uncertainty here IS fuel uncertainty and a heavier aircraft is carrying
+    more of it. This test asserts that they really do move the wrong way in
+    the underlying model -- so if that ever stops being true the exclusion
+    can be revisited deliberately, and if someone adds them to the promise
+    the test above fails.
+    """
+    est = _estimate()
+    point = manager.capability(est)
+    heavier = manager.vehicle.capability(
+        est.as_vehicle_state(manager.capability_bound(est).mass_kg)
+    )
+
+    # Anti-conservative: the margined mass reports MORE of both.
+    assert heavier.fuel_mass_kg > point.fuel_mass_kg
+    assert heavier.endurance_s > point.endurance_s
+
+    # And neither is reachable from the promise.
+    promised = {f.name for f in dataclasses.fields(PromisedEnvelope)}
+    assert "fuel_mass_kg" not in promised
+    assert "endurance_s" not in promised
+    # Accelerations are excluded for a different reason -- not monotone in
+    # mass at all -- so no single signed margin could be right for them.
+    assert "accel_max_mps2" not in promised
+    assert "accel_min_mps2" not in promised
+
+
+def test_the_promise_carries_its_own_provenance(vehicle, manager):
+    """A consumer must be able to see what the envelope was evaluated at
+    rather than inferring it from how the platform was configured -- the
+    numbers coincide with the point estimate once a filter has converged."""
+    est = _estimate()
+    promise = manager.capability_bound(est)
+    sigma = manager.mass(0.0).mass_sigma_kg
+
+    assert promise.mass_margin_sigma == STANDARD.capability_margin_sigma
+    assert promise.mass_kg == pytest.approx(
+        manager.mass_kg + STANDARD.capability_margin_sigma * sigma
+    )
+    assert promise.mass_kg > manager.mass_kg
 
 
 def test_the_margin_bites_only_when_the_belief_is_poor(vehicle):
@@ -505,8 +597,8 @@ def test_the_margin_bites_only_when_the_belief_is_poor(vehicle):
 
     def narrowing() -> float:
         point = manager.capability(est).omega_available_rad_s
-        bound = manager.capability_bound(est).omega_available_rad_s
-        return 1.0 - bound / point
+        promised = manager.capability_bound(est).max_turn_rate_rad_s
+        return 1.0 - promised / point
 
     before = narrowing()
     assert before > 0.02, "the margin does nothing even with a 200 kg sigma"
@@ -527,21 +619,21 @@ def test_a_zero_margin_is_the_point_estimate(vehicle):
     est = _estimate(v_mps=150.0)
     manager = VehicleManager(vehicle, _params(capability_margin_sigma=0.0))
 
-    assert manager.capability_bound(est).omega_available_rad_s == pytest.approx(
+    assert manager.capability_bound(est).max_turn_rate_rad_s == pytest.approx(
         manager.capability(est).omega_available_rad_s
     )
 
 
-def test_feedforward_and_enforcement_do_not_use_the_bound(vehicle):
+def test_feedforward_and_enforcement_do_not_use_the_promise(vehicle):
     """Only the promised envelope carries the margin.
 
     Thrust computed for an aircraft heavier than the real one is not
-    cautious, it accelerates; and clipping against the bound would report the
-    estimator's doubt as though it were the airframe's limit, which would
+    cautious, it accelerates; and clipping against the promise would report
+    the estimator's doubt as though it were the airframe's limit, which would
     make a Saturation finding mean two different things. Both must therefore
     be evaluated at the believed mass.
 
-    Run with a 200 kg sigma so the point estimate and the bound are far
+    Run with a 200 kg sigma so the point estimate and the promise are far
     enough apart for the difference to be visible.
     """
     est = _estimate(v_mps=150.0)
@@ -549,7 +641,7 @@ def test_feedforward_and_enforcement_do_not_use_the_bound(vehicle):
     believed = manager.mass_kg
 
     # Feedforward: the thrust for straight flight must be the one the
-    # believed mass needs, not the heavier bound's.
+    # believed mass needs, not the heavier promise's.
     straight = manager.capability(est, omega_rad_s=0.0)
     assert straight.thrust_required_N == pytest.approx(
         vehicle.thrust_required_N(150.0, believed, 0.0)
@@ -562,7 +654,7 @@ def test_feedforward_and_enforcement_do_not_use_the_bound(vehicle):
     # not be clipped merely because the platform is unsure of its mass.
     reachable = manager.capability(est).omega_available_rad_s
     just_inside = VehicleCommand(60_000.0, 0.999 * reachable)
-    assert just_inside.omega_rad_s > manager.capability_bound(est).omega_available_rad_s
+    assert just_inside.omega_rad_s > manager.capability_bound(est).max_turn_rate_rad_s
 
     _, sat = manager.project_command(est, just_inside)
     assert not sat.omega_clipped, (
