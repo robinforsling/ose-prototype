@@ -1,7 +1,14 @@
 # 0012. Capability is a tested, multi-channel claim
 
-Status: accepted
+Status: accepted, extended by ADR 0013
 Date: 2026-08-10
+
+The decisions below stand. ADR 0013 answers the one question this record
+deliberately left open -- whether subsystem-layer components publish capability
+models -- and the answer changed: `VehicleGuidance` publishes one, composed
+from the vehicle's envelope and navigation's uncertainty. Read the scope
+paragraph under Decision as the position at the time of writing, not as
+current state; `docs/10-concepts.md` has that.
 
 ## Context
 

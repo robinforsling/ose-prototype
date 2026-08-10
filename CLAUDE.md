@@ -98,7 +98,11 @@ If one starts failing, the change is wrong.
 
 **Record architectural decisions as ADRs** in `docs/adr/`, numbered, immutable
 once accepted, stating consequences you dislike as well as benefits. Superseding
-means writing a new record that references the old one.
+or extending means writing a new record that references the old one. The only
+edit an accepted record takes is a forward pointer in its status line, so a
+reader cannot mistake it for current state; its reasoning stays as written. An
+ADR is a dated record of why a choice was made — for how things are now, read
+`docs/10-concepts.md`, `docs/20-architecture.md` and `docs/interfaces/`.
 
 **Prefer adding fields to published records over changing them.** Adding is
 backward compatible; removing or renaming requires a version increment on the

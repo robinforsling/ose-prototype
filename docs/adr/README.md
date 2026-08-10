@@ -1,7 +1,14 @@
 # Architecture decision records
 
-One file per decision, numbered, immutable once accepted. Superseding a decision
-means writing a new record that references the old one, never editing it.
+One file per decision, numbered, immutable once accepted. Superseding or
+extending a decision means writing a new record that references the old one,
+never rewriting it.
+
+The one edit an accepted record may receive is a forward pointer in its status
+line, so that nobody reads a superseded or extended decision as current. The
+reasoning below it stays as written: an ADR is a dated record of why a choice
+was made, not a description of how things are now. For current state, read
+`docs/10-concepts.md`, `docs/20-architecture.md` and `docs/interfaces/`.
 
 | # | Decision | Status |
 |---|---|---|
@@ -16,7 +23,7 @@ means writing a new record that references the old one, never editing it.
 | [0009](0009-navigation-split-across-layers.md) | Split navigation across the resource and subsystem layers | accepted |
 | [0010](0010-platform-clock-dead-reckoning.md) | Platform clock, estimated by dead reckoning only | accepted |
 | [0011](0011-vehicle-guidance-decides-not-enforces.md) | Vehicle guidance decides what to command, not what is admissible | accepted |
-| [0012](0012-capability-is-a-tested-multi-channel-claim.md) | Capability is a tested, multi-channel claim | accepted |
+| [0012](0012-capability-is-a-tested-multi-channel-claim.md) | Capability is a tested, multi-channel claim | accepted, extended by 0013 |
 | [0013](0013-guidance-capability-composes-two-layers.md) | Guidance capability composes the vehicle's and navigation's | accepted |
 
 ## Template
@@ -24,7 +31,7 @@ means writing a new record that references the old one, never editing it.
 ```markdown
 # NNNN. Title
 
-Status: proposed | accepted | superseded by ADR-XXXX
+Status: proposed | accepted | accepted, extended by ADR-XXXX | superseded by ADR-XXXX
 Date: YYYY-MM-DD
 
 ## Context
