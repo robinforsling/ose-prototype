@@ -87,10 +87,11 @@ consumer of `Vehicle2D.project_command()` and the first real producer of
 
 Every resource-layer component answers `capability()`, a self-assessment of
 what it can currently achieve, checked by tests that integrate the dynamics
-forward and confirm it delivers what it claimed (ADR 0012). Subsystem-layer
-components do not publish capability models yet, and no consumer queries them:
-`VehicleGuidance` enforces admissibility through `project_command()` rather
-than through `capability()`.
+forward and confirm it delivers what it claimed (ADR 0012). `VehicleGuidance`
+both consumes capability -- feedforwarding thrust for the turn the vehicle can
+actually fly rather than the one its error term asked for -- and publishes one
+of its own, composed from the vehicle's envelope and the navigation covariance
+it steers on (ADR 0013). The two estimators publish none; nothing asks them.
 
 Not yet implemented: the registry, the binder, the descriptor validator, the
 simulation core itself, and every component type other than vehicle,

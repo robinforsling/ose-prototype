@@ -251,6 +251,49 @@ class SensorCapability:
         )
 
 
+@dataclass(frozen=True)
+class GuidanceCapability:
+    """What a guidance law can currently achieve.
+
+    Composed from two layers, because a control loop is bounded by both
+    the vehicle it commands and the navigation it steers on, and the two
+    bound different things:
+
+    The vehicle bounds which setpoints are *reachable at all* -- a speed
+    below stall or above the airframe limit cannot be held by any control
+    law, however good.
+
+    Navigation bounds how *tightly* a reachable setpoint can be held.
+    Guidance drives the believed state to the setpoint, so at steady state
+    the true error is the navigation error, one for one: a heading-hold
+    loop steering on an estimate with a one-degree sigma holds true heading
+    to one degree, no better, no matter what its gains are.
+
+    The hold sigmas are floors, not guarantees. They say the loop cannot do
+    better than this once settled; during a transient, or while the command
+    is saturated, the actual error is larger. A consumer wanting "will it be
+    within X right now" must look at the tracking error, not at this.
+    """
+
+    # Reachable setpoints -- from the vehicle's own capability.
+    max_turn_rate_rad_s: float
+    min_speed_mps: float
+    max_speed_mps: float
+
+    # Hold accuracy -- floored by the navigation estimate being steered on.
+    heading_hold_sigma_rad: float
+    speed_hold_sigma_mps: float
+
+    def admits(self, setpoint: HeadingSpeedSetpoint) -> bool:
+        """Whether the commanded speed is one the vehicle can hold at all.
+
+        Any heading is reachable given time -- max_turn_rate_rad_s says how
+        long, not whether -- so only speed can make a HeadingSpeedSetpoint
+        unreachable.
+        """
+        return self.min_speed_mps <= setpoint.v_cmd_mps <= self.max_speed_mps
+
+
 @runtime_checkable
 class CapabilityModel(Protocol):
     """Answerable without integrating anything forward.

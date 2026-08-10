@@ -46,6 +46,12 @@ from the same layers and the same component types as blue.
 - Ground-based air defence systems as an additional platform type.
 - Composition GUI, scenario builder, Monte Carlo runner.
 - Sensor, communicator, and effector resource components.
+- A model of what actually happens when state or control constraints are
+  violated -- departure, structural failure, engine limits -- rather than
+  today's silence. `state_violations()` already detects; nothing yet models
+  the consequence. Whatever it does physically, it must keep the violation
+  visible: degraded-but-plausible dynamics would hide a bad control law,
+  which is the failure mode ADR 0006 exists to prevent.
 
 ## Non-goals
 

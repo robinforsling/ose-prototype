@@ -136,11 +136,15 @@ metres per second of velocity, and collapsing that to one number silently drops
 part of the claim. A channel a component will not deliver is absent rather than
 present with a meaningless value. See ADR 0012.
 
-Subsystem-layer and higher components do not publish capability models today.
-Whether they should is open: the categories the composition specification
-defines envelopes for (vehicle, sensor, communicator, effector) are all
-resource-layer, and no consumer has yet needed to ask a filter or a guidance
-law what it can achieve.
+A subsystem-layer component publishes one when a consumer needs it, and its
+capability is *composed* rather than merely reported. `VehicleGuidance` is
+bounded by two layers at once: the vehicle decides which setpoints are
+reachable at all, navigation decides how tightly a reachable one can be held.
+Guidance drives the believed state onto the setpoint, so at steady state its
+true error is the navigation error, one for one -- a loop steering on a
+one-degree estimate holds true heading to one degree whatever its gains. See
+ADR 0013. The two estimators publish no capability model, because nothing
+asks them.
 
 ## Time
 

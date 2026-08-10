@@ -37,7 +37,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from ose.interfaces import HeadingSpeedSetpoint, OwnStateEstimate
+from ose.interfaces import GuidanceCapability, HeadingSpeedSetpoint, OwnStateEstimate
 from ose.resource.vehicle import Saturation, Vehicle2D, VehicleCommand
 
 
@@ -62,6 +62,40 @@ class VehicleGuidance:
     def __init__(self, vehicle: Vehicle2D, parameters: VehicleGuidanceParameters) -> None:
         self.vehicle = vehicle
         self.par = parameters
+
+    def capability(
+        self, own_state: OwnStateEstimate, mass_kg: float
+    ) -> GuidanceCapability:
+        """Compose the vehicle's capability with navigation's.
+
+        A control loop is bounded by both, and by different things: the
+        vehicle decides which setpoints are reachable at all, navigation
+        decides how tightly a reachable one can be held. Neither alone is
+        the answer, which is what makes this the first capability model in
+        the repository that is genuinely composed rather than reported.
+
+        The navigation half is read from the covariance travelling with
+        own_state rather than by querying a navigation component. That
+        follows the rule ADR 0009 set for measurements -- the consumer uses
+        the uncertainty that arrives with the data -- and it avoids
+        coupling guidance to whichever estimator happens to be installed.
+        It is also the more useful number: the covariance is what
+        navigation's uncertainty *is right now*, degraded by a GNSS outage
+        or not, where a static claim from the estimator would not be.
+        """
+        believed = own_state.as_vehicle_state(mass_kg)
+        envelope = self.vehicle.capability(believed)
+
+        return GuidanceCapability(
+            max_turn_rate_rad_s=envelope.omega_available_rad_s,
+            # The speed floor is whichever binds: aerodynamic stall at this
+            # mass, or the airframe's hard minimum. Same rule the vehicle's
+            # own admissible() applies.
+            min_speed_mps=max(self.vehicle.lam.v_min_mps, envelope.v_stall_mps),
+            max_speed_mps=self.vehicle.lam.v_max_mps,
+            heading_hold_sigma_rad=math.sqrt(max(own_state.covariance[2, 2], 0.0)),
+            speed_hold_sigma_mps=math.sqrt(max(own_state.covariance[3, 3], 0.0)),
+        )
 
     def command(
         self,

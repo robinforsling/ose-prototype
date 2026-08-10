@@ -17,6 +17,7 @@ means writing a new record that references the old one, never editing it.
 | [0010](0010-platform-clock-dead-reckoning.md) | Platform clock, estimated by dead reckoning only | accepted |
 | [0011](0011-vehicle-guidance-decides-not-enforces.md) | Vehicle guidance decides what to command, not what is admissible | accepted |
 | [0012](0012-capability-is-a-tested-multi-channel-claim.md) | Capability is a tested, multi-channel claim | accepted |
+| [0013](0013-guidance-capability-composes-two-layers.md) | Guidance capability composes the vehicle's and navigation's | accepted |
 
 ## Template
 

@@ -149,7 +149,7 @@ are the component's peer.
 and the binder treats it as opaque; see `docs/40-composition-spec.md` section
 4.1 and ADR 0012.
 
-Implemented today by the resource layer only:
+Implemented today by every resource, and by one subsystem component:
 
 - `Vehicle2D.capability(state, omega_rad_s, disturbance)` returns `Capability`,
   a twelve-field record covering thrust, acceleration bounds, turn performance,
@@ -159,6 +159,14 @@ Implemented today by the resource layer only:
   `SensorCapability`: a `rate_hz` (`None` when the sensor does not own its
   rate), a tuple of `MeasurementChannel(name, sigma, units)` -- one per quantity
   measured -- and an `available` flag that tracks denial.
+
+- `VehicleGuidance.capability(own_state, mass_kg)` returns
+  `GuidanceCapability`, the one capability model here that is *composed*
+  rather than reported: reachable setpoints come from the vehicle's
+  envelope, hold accuracy from the navigation covariance travelling with
+  `own_state`. It carries an `admits(setpoint)` predicate. Swapping in a
+  worse IMU widens the hold sigma without a line changing in guidance.
+  See ADR 0013.
 
 Accuracy is per channel because sensors are routinely multi-channel with
 different units per channel, and a single number silently drops part of the

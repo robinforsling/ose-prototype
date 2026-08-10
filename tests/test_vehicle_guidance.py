@@ -151,6 +151,101 @@ def test_feedforward_matches_the_turn_actually_commanded(vehicle, guidance):
     )
 
 
+# --------------------------------------------------------------------------
+# Capability: composed from the vehicle and from navigation
+# --------------------------------------------------------------------------
+
+def test_capability_reachability_comes_from_the_vehicle(vehicle, guidance):
+    state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
+    envelope = vehicle.capability(state)
+    cap = guidance.capability(_perfect_estimate(0.0, state), state.mass_kg)
+
+    assert cap.max_turn_rate_rad_s == envelope.omega_available_rad_s
+    assert cap.max_speed_mps == vehicle.lam.v_max_mps
+    assert cap.min_speed_mps == max(vehicle.lam.v_min_mps, envelope.v_stall_mps)
+
+
+def test_capability_hold_accuracy_comes_from_navigation(vehicle, guidance):
+    """The navigation half is read from the covariance travelling with the
+    estimate, so a degraded estimate degrades the claim."""
+    state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
+    est = _perfect_estimate(0.0, state)
+    est.covariance = np.diag([100.0, 100.0, math.radians(2.0) ** 2, 1.5**2])
+
+    cap = guidance.capability(est, state.mass_kg)
+    assert cap.heading_hold_sigma_rad == pytest.approx(math.radians(2.0))
+    assert cap.speed_hold_sigma_mps == pytest.approx(1.5)
+
+
+def test_capability_degrades_when_navigation_does(vehicle, guidance):
+    """A GNSS outage widens the covariance; the guidance claim must widen
+    with it rather than staying at its fair-weather value."""
+    state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
+
+    good = _perfect_estimate(0.0, state)
+    good.covariance = np.diag([1.0, 1.0, math.radians(0.2) ** 2, 0.3**2])
+    degraded = _perfect_estimate(0.0, state)
+    degraded.covariance = np.diag([400.0, 400.0, math.radians(3.0) ** 2, 2.0**2])
+
+    assert (
+        guidance.capability(degraded, state.mass_kg).heading_hold_sigma_rad
+        > guidance.capability(good, state.mass_kg).heading_hold_sigma_rad
+    )
+    # The vehicle half is unaffected -- the airframe does not care that the
+    # navigation solution got worse.
+    assert (
+        guidance.capability(degraded, state.mass_kg).max_turn_rate_rad_s
+        == guidance.capability(good, state.mass_kg).max_turn_rate_rad_s
+    )
+
+
+def test_admits_rejects_unholdable_speeds(vehicle, guidance):
+    state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
+    cap = guidance.capability(_perfect_estimate(0.0, state), state.mass_kg)
+
+    assert cap.admits(HeadingSpeedSetpoint(0.0, 250.0))
+    assert not cap.admits(HeadingSpeedSetpoint(0.0, cap.min_speed_mps - 10.0))
+    assert not cap.admits(HeadingSpeedSetpoint(0.0, cap.max_speed_mps + 10.0))
+    # Any heading is reachable given time; only speed can be unholdable.
+    assert cap.admits(HeadingSpeedSetpoint(math.pi, 250.0))
+
+
+@pytest.mark.parametrize("nav_heading_error_deg", [1.0, 3.0, 5.0])
+def test_claimed_hold_accuracy_is_honest(vehicle, guidance, nav_heading_error_deg):
+    """The honesty test for a composed capability, and the reason the claim
+    is worth making at all.
+
+    Guidance drives the BELIEVED heading onto the setpoint, so whatever
+    navigation is wrong by, the true heading is wrong by too. Fly it closed
+    loop against an estimate carrying a known heading error and confirm the
+    true steady-state error is what the capability claimed -- not better,
+    which would mean the claim was pessimistic and a planner was leaving
+    performance unused, and not worse, which would mean a planner trusting
+    it flies tighter than the loop can actually hold.
+    """
+    error = math.radians(nav_heading_error_deg)
+    state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
+    setpoint = HeadingSpeedSetpoint(psi_cmd_rad=math.radians(45.0), v_cmd_mps=250.0)
+
+    claimed = None
+    t, dt = 0.0, 0.05
+    while t < 90.0:
+        est = _perfect_estimate(t, state)
+        est.psi_rad = state.psi_rad + error       # navigation is off by `error`
+        est.covariance = np.diag([0.0, 0.0, error**2, 0.0])
+        if claimed is None:
+            claimed = guidance.capability(est, state.mass_kg).heading_hold_sigma_rad
+        cmd, _ = guidance.command(t, setpoint, est, state.mass_kg)
+        state = step_rk4(vehicle, state, cmd, dt)
+        t += dt
+
+    true_error = abs(
+        math.remainder(state.psi_rad - setpoint.psi_cmd_rad, 2.0 * math.pi)
+    )
+    assert claimed == pytest.approx(error)
+    assert true_error == pytest.approx(claimed, rel=0.05)
+
+
 def test_reports_saturation_when_setpoint_exceeds_envelope(vehicle, guidance):
     """A heading flip commands far more turn rate than the vehicle can
     deliver. The applied command must be clipped, and that clipping must be
