@@ -96,9 +96,17 @@ actually fly rather than the one its error term asked for -- and publishes one
 of its own, composed from the vehicle's envelope and the navigation covariance
 it steers on (ADR 0013). The two estimators publish none; nothing asks them.
 
+The first single-ship component exists: `WaypointPlanner`, publishing
+`planning.action.v1` as an `ActionSet` bundle with one field per subsystem,
+so a planner that later decides motion and sensing together can publish
+through the same record. It steers at waypoints and converts position to a
+heading command, which is why guidance never needed a waypoint setpoint --
+the planner decides where, guidance decides how.
+
 Not yet implemented: the registry, the binder, the descriptor validator, the
 simulation core itself, and every component type other than vehicle,
-navigation, the platform clock, the fuel gauge, and vehicle guidance. The
+navigation, the platform clock, the fuel gauge, vehicle guidance, and the
+action planner. The
 composition specification describes the intended format; nothing consumes it
 yet.
 

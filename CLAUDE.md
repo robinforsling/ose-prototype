@@ -134,15 +134,16 @@ depends on thrust and turn rate together and cannot isolate either.
 
 Implemented, with tests: the baseline vehicle model; navigation sensors and the
 INS/GNSS estimator; a platform clock and a dead-reckoning time estimator; a fuel
-gauge; and vehicle guidance. Integrators live in `ose/integration.py`, outside
+gauge; vehicle guidance; and a single-ship action planner following a route of
+waypoints. Integrators live in `ose/integration.py`, outside
 the components they step. Every resource publishes a `capability()`, as does
 `VehicleGuidance`, whose capability is composed from the vehicle's envelope and
 the navigation covariance it steers on.
 
 Not implemented: the simulation core, the service registry, the composition
 binder, the descriptor validator, and every component type other than the above
-— no sensors beyond navigation, no communicators, no effectors, and nothing at
-the single-ship or multi-ship layers. `docs/40-composition-spec.md` describes the
+— no sensors beyond navigation, no communicators, no effectors, no tracker or
+situation awareness, and nothing at the multi-ship layer. `docs/40-composition-spec.md` describes the
 intended specification format; nothing consumes it yet.
 
 Do not describe unimplemented parts as working, in code comments or in

@@ -1,0 +1,253 @@
+"""Tests for the single-ship action planner.
+
+The one that matters is test_flies_the_whole_route, which closes the loop
+through every layer built so far: planner decides, guidance converts to a
+command, the vehicle enforces its own sets, the integrator flies it. It is
+the first test in the repository that exercises the full stack rather than
+one component against stubs.
+
+test_route_end_publishes_no_motion pins the semantics of an absent field --
+"no new action, continue as before", never "stop" -- because that reading is
+what makes silence safe, and nothing but a test stops someone reinterpreting
+it later.
+"""
+
+import ast
+import math
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+from ose import interfaces
+from ose.integration import step_rk4
+from ose.interfaces import ActionSet, HeadingSpeedSetpoint, OwnStateEstimate
+from ose.resource.reference_configs.reference_vehicle import reference_fighter
+from ose.resource.vehicle import VehicleState
+from ose.single_ship.action_planner import (
+    Waypoint,
+    WaypointPlanner,
+    WaypointPlannerParameters,
+)
+from ose.single_ship.reference_configs.reference_action_planner import STANDARD
+from ose.subsystem.reference_configs.reference_vehicle_guidance import (
+    STANDARD as GUIDANCE_STANDARD,
+)
+from ose.subsystem.vehicle_guidance import VehicleGuidance
+
+
+def _estimate(state: VehicleState, t_s: float = 0.0) -> OwnStateEstimate:
+    v = state.v_mps * np.array([math.cos(state.psi_rad), math.sin(state.psi_rad)])
+    return OwnStateEstimate(
+        t_s=t_s,
+        p_x_m=state.p_x_m,
+        p_y_m=state.p_y_m,
+        psi_rad=state.psi_rad,
+        v_air_mps=state.v_mps,
+        ground_velocity_mps=v,
+        wind_estimate_mps=np.zeros(2),
+        covariance=np.zeros((4, 4)),
+    )
+
+
+@pytest.fixture
+def vehicle():
+    return reference_fighter()
+
+
+@pytest.fixture
+def guidance(vehicle):
+    return VehicleGuidance(vehicle, GUIDANCE_STANDARD)
+
+
+@pytest.fixture
+def state():
+    return VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
+
+
+# --------------------------------------------------------------------------
+# The truth boundary
+# --------------------------------------------------------------------------
+
+def test_planner_cannot_see_truth():
+    """Two layers above anything entitled to read truth, so the check is the
+    same one the subsystem components carry."""
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "src" / "ose" / "single_ship" / "action_planner.py"
+    )
+    tree = ast.parse(path.read_text())
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module is not None:
+            assert not node.module.startswith("ose.resource"), (
+                f"single-ship component imports from the resource layer: {node.module}"
+            )
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and not node.name.startswith("_"):
+            params = [a.arg for a in node.args.args + node.args.kwonlyargs]
+            leaked = [p for p in params if p.startswith("true_")]
+            assert not leaked, f"public method {node.name} takes truth: {leaked}"
+
+
+def test_satisfies_the_protocol():
+    planner = WaypointPlanner([Waypoint(1000.0, 0.0, 250.0)], STANDARD)
+    assert isinstance(planner, interfaces.ActionPlanner)
+
+
+# --------------------------------------------------------------------------
+# The absent-field semantics
+# --------------------------------------------------------------------------
+
+def test_route_end_publishes_no_motion(vehicle, guidance, state):
+    """An exhausted route says nothing about motion. None means continue as
+    before, so the vehicle keeps flying its last commanded heading; it does
+    not mean stop, which would have to be commanded explicitly."""
+    planner = WaypointPlanner([Waypoint(10.0, 0.0, 250.0)], STANDARD)
+    est = _estimate(state)
+    cap = guidance.capability(est, state.mass_kg)
+
+    actions = planner.plan(0.0, est, cap)      # already inside capture radius
+    assert planner.finished
+    assert actions.motion is None
+    assert actions.t_s == 0.0
+
+
+def test_an_empty_route_is_immediately_finished(guidance, state):
+    planner = WaypointPlanner([], STANDARD)
+    est = _estimate(state)
+    assert planner.plan(0.0, est, guidance.capability(est, state.mass_kg)).motion is None
+
+
+# --------------------------------------------------------------------------
+# Steering
+# --------------------------------------------------------------------------
+
+def test_steers_at_the_active_waypoint(vehicle, guidance, state):
+    planner = WaypointPlanner([Waypoint(0.0, 20000.0, 300.0)], STANDARD)  # due east
+    est = _estimate(state)
+    actions = planner.plan(0.0, est, guidance.capability(est, state.mass_kg))
+
+    assert isinstance(actions.motion, HeadingSpeedSetpoint)
+    assert actions.motion.psi_cmd_rad == pytest.approx(math.radians(90.0))
+    assert actions.motion.v_cmd_mps == 300.0
+
+
+def test_advances_through_the_route_as_each_is_captured(vehicle, guidance, state):
+    route = [
+        Waypoint(20000.0, 0.0, 250.0),
+        Waypoint(20000.0, 20000.0, 250.0),
+        Waypoint(0.0, 20000.0, 250.0),
+    ]
+    planner = WaypointPlanner(route, STANDARD)
+    est = _estimate(state)
+    cap = guidance.capability(est, state.mass_kg)
+
+    assert planner.index == 0
+    planner.plan(0.0, est, cap)
+    assert planner.index == 0                       # far from the first
+
+    at_first = _estimate(VehicleState(20000.0, 0.0, 0.0, 250.0, 16000.0))
+    planner.plan(1.0, at_first, cap)
+    assert planner.index == 1                       # captured, moved on
+
+
+# --------------------------------------------------------------------------
+# Capability, used rather than reimplemented
+# --------------------------------------------------------------------------
+
+def test_capture_radius_grows_with_turn_radius(vehicle, guidance):
+    """A waypoint cannot be captured inside the circle the aircraft is
+    physically able to fly, so the radius has to follow the vehicle's
+    current turn performance rather than be a fixed number."""
+    planner = WaypointPlanner([Waypoint(50000.0, 0.0, 250.0)], STANDARD)
+
+    slow = _estimate(VehicleState(0.0, 0.0, 0.0, 150.0, 16000.0))
+    fast = _estimate(VehicleState(0.0, 0.0, 0.0, 400.0, 16000.0))
+    r_slow = planner.capture_radius_m(slow, guidance.capability(slow, 16000.0))
+    r_fast = planner.capture_radius_m(fast, guidance.capability(fast, 16000.0))
+
+    assert r_fast > r_slow
+    # And it really is about a turn radius, not the configured floor.
+    cap = guidance.capability(fast, 16000.0)
+    turn_radius = fast.v_air_mps / cap.max_turn_rate_rad_s
+    assert r_fast == pytest.approx(STANDARD.capture_turn_radii * turn_radius)
+
+
+def test_capture_radius_never_falls_below_the_floor(vehicle, guidance):
+    """A vehicle that can turn on the spot would otherwise be asked to hit a
+    waypoint exactly, which no closed loop achieves."""
+    tight = WaypointPlannerParameters(min_capture_radius_m=800.0, capture_turn_radii=0.0)
+    planner = WaypointPlanner([Waypoint(50000.0, 0.0, 250.0)], tight)
+    est = _estimate(VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0))
+    assert planner.capture_radius_m(est, guidance.capability(est, 16000.0)) == 800.0
+
+
+def test_planner_does_not_clamp_an_infeasible_speed(vehicle, guidance, state):
+    """Silently clamping would hide an infeasible route behind plausible
+    flight. The planner emits what the route asks and lets enforcement clip
+    it visibly, the same argument as ADR 0006."""
+    too_fast = vehicle.lam.v_max_mps + 200.0
+    planner = WaypointPlanner([Waypoint(50000.0, 0.0, too_fast)], STANDARD)
+    est = _estimate(state)
+    cap = guidance.capability(est, state.mass_kg)
+
+    actions = planner.plan(0.0, est, cap)
+    assert actions.motion.v_cmd_mps == too_fast
+    assert not cap.admits(actions.motion)      # and the check is available
+
+
+# --------------------------------------------------------------------------
+# The whole stack
+# --------------------------------------------------------------------------
+
+def test_flies_the_whole_route(vehicle, guidance, state):
+    """Planner to guidance to vehicle to integrator, closed loop.
+
+    A box route, each leg long enough that the turns are not the whole
+    flight. Reaching every waypoint means the layers agree about frames,
+    units and signs -- the classic integration failure this environment
+    exists to catch, and the first test here to exercise all of them at once.
+    """
+    route = [
+        Waypoint(30000.0, 0.0, 250.0),
+        Waypoint(30000.0, 30000.0, 250.0),
+        Waypoint(0.0, 30000.0, 250.0),
+        Waypoint(0.0, 0.0, 250.0),
+    ]
+    planner = WaypointPlanner(route, STANDARD)
+
+    dt, t = 0.05, 0.0
+    while t < 900.0 and not planner.finished:
+        est = _estimate(state, t)
+        actions = planner.plan(t, est, guidance.capability(est, state.mass_kg))
+        if actions.motion is not None:
+            cmd, _ = guidance.command(t, actions.motion, est, state.mass_kg)
+            state = step_rk4(vehicle, state, cmd, dt)
+        t += dt
+
+    assert planner.finished, f"only reached waypoint {planner.index} of {len(route)}"
+    assert t < 900.0
+
+
+def test_holding_pattern_after_the_route_keeps_flying(vehicle, guidance, state):
+    """The absent-field semantics, end to end: once the route is done the
+    caller has no new motion action, keeps the last command, and the vehicle
+    carries on rather than stopping or falling out of the sky."""
+    planner = WaypointPlanner([Waypoint(4000.0, 0.0, 250.0)], STANDARD)
+    last = HeadingSpeedSetpoint(0.0, 250.0)
+
+    dt, t = 0.05, 0.0
+    while t < 120.0:
+        est = _estimate(state, t)
+        actions = planner.plan(t, est, guidance.capability(est, state.mass_kg))
+        if actions.motion is not None:
+            last = actions.motion              # otherwise: continue as before
+        cmd, _ = guidance.command(t, last, est, state.mass_kg)
+        state = step_rk4(vehicle, state, cmd, dt)
+        t += dt
+
+    assert planner.finished
+    assert state.v_mps > 200.0                 # still flying
+    assert state.p_x_m > 4000.0                # and still going

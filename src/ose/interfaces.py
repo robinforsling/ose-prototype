@@ -184,6 +184,60 @@ class TurnRateSpeedSetpoint:
 
 
 # ---------------------------------------------------------------------------
+# Committed actions -- planning.action.v1
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class ActionSet:
+    """What a single-ship action planner commits to, this cycle.
+
+    A bundle with one field per subsystem rather than a bare motion setpoint,
+    because docs/40-composition-spec.md binds one planner's `action_out` to
+    several subsystems at once -- vehicle, effector and sensor in its worked
+    example. Today only `motion` exists, since no other subsystem does; the
+    others arrive as new fields, which is backward compatible, rather than as
+    a change to this record's type, which would not be.
+
+    That shape is the cheap insurance for a planner that eventually decides
+    motion, sensing, communication and effect *together*. Joint planning is
+    not merely more fields -- it means reasoning about couplings, such as
+    flying a path that keeps a target inside a sensor's field of regard --
+    but a planner that does it can publish through this record unchanged,
+    and consumers that read only their own field never notice the difference.
+
+    A field set to None means "no new action, continue as before", NOT
+    "stop". A planner with nothing new to say about motion leaves the vehicle
+    doing what it was already doing. Saying "stop" is an action in its own
+    right and has to be expressed as one -- a zero-rate setpoint, say -- not
+    by omission, because omission is what silence looks like and silence has
+    to be safe.
+    """
+
+    t_s: float
+    motion: "HeadingSpeedSetpoint | TurnRateSpeedSetpoint | None" = None
+
+
+@runtime_checkable
+class ActionPlanner(Protocol):
+    """Single-ship layer. Decides what the platform should do next.
+
+    `capability` is what the planner is commanding, asked what it can
+    currently achieve, so the planner reasons against the real envelope
+    instead of reimplementing the dynamics. It is a single capability today
+    because there is a single subsystem to command; a joint planner will need
+    several, and that is a protocol change to make when it happens rather
+    than a bundle to invent now.
+    """
+
+    def plan(
+        self,
+        t_s: float,
+        own_state: OwnStateEstimate,
+        capability: GuidanceCapability,
+    ) -> ActionSet: ...
+
+
+# ---------------------------------------------------------------------------
 # Sensor and estimator protocols
 # ---------------------------------------------------------------------------
 

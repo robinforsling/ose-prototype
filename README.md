@@ -14,7 +14,8 @@ platform's single publisher of own-state; a resource-layer clock with a
 dead-reckoning-only subsystem-layer time estimator (no correction source
 exists yet); a resource-layer fuel gauge; and a subsystem-layer vehicle
 guidance component that enforces the vehicle's admissible sets before
-publishing a command, are implemented and tested. Every resource also answers
+publishing a command; and a single-ship action planner that follows a route
+of waypoints, are implemented and tested. Every resource also answers
 `capability()`, a self-assessment checked against integrated dynamics. The
 simulation core, the service registry, the composition binder, and every other
 component type are described in `docs/` but not yet built.
@@ -61,6 +62,8 @@ src/ose/subsystem/navigation_state_estimator.py   INS/GNSS error-state Kalman fi
 src/ose/subsystem/time_state_estimator.py         dead-reckoning platform clock estimator
 src/ose/subsystem/vehicle_guidance.py             heading/speed-hold guidance, enforces admissibility
 src/ose/subsystem/reference_configs/              reference configs for subsystem components
+src/ose/single_ship/action_planner.py             waypoint-following action planner
+src/ose/single_ship/reference_configs/            reference configs for single-ship components
 docs/                                             scope, concepts, architecture, tooling
 docs/adr/                                         architecture decision records
 docs/interfaces/                                  interface catalogue

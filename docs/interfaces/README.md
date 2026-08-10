@@ -21,7 +21,7 @@ renaming one is not, and requires a version increment.
 | `sensing.airdata.v1` | resource to subsystem | Airspeed, with declared uncertainty. | **implemented** |
 | `sensing.clock.v1` | resource to subsystem | The platform clock's own elapsed-time reading, with declared uncertainty. | **implemented** |
 | `platform.time.v1` | subsystem to above | Platform's belief about its own clock: accumulated reading, drift, covariance. | **implemented** |
-| `guidance.setpoint.v1` | single-ship to subsystem | Commanded heading and speed. Stand-in for `planning.action.v1` until single-ship exists. | **implemented** |
+| `guidance.setpoint.v1` | within a platform | Commanded heading and speed, or turn rate and speed. Carried inside `planning.action.v1`'s motion field. | **implemented** |
 | `sensing.detections.v1` | resource to subsystem | Time-stamped detections with measurement uncertainty. | planned |
 | `sensing.control.v1` | subsystem to resource | Sensor tasking: pointing, mode, priority. | planned |
 | `comms.message.v1` | bidirectional | Addressed transport with loss and latency applied. | planned |
@@ -29,7 +29,7 @@ renaming one is not, and requires a version increment.
 | `effect.status.v1` | resource to subsystem | Inventory, readiness, in-flight effector state. | planned |
 | `tracking.tracks.v1` | subsystem to single-ship | Fused track picture. | planned |
 | `sa.picture.v1` | within single-ship | Assessed situation, threat evaluation. | planned |
-| `planning.action.v1` | single-ship to subsystem | Committed actions for execution. | planned |
+| `planning.action.v1` | single-ship to subsystem | Committed actions for execution, one field per subsystem. | **implemented** |
 | `coord.intent.v1` | multi-ship to single-ship | Assigned role, tasking, constraints. | planned |
 
 ## Implemented interfaces
@@ -134,7 +134,9 @@ source exists. See ADR 0010.
 ### `guidance.setpoint.v1`
 
 Two setpoint records, consumed by any component satisfying
-`VehicleGuidance` (`command(t_s, setpoint, own_state, mass_kg) ->
+`VehicleGuidance`. They began as a stand-in for `planning.action.v1` before
+a single-ship layer existed; now that one does, they are what its `motion`
+field carries rather than a substitute for it. (`command(t_s, setpoint, own_state, mass_kg) ->
 (VehicleCommand, Saturation)`). Today the only implementation is
 `VehicleGuidance` (subsystem layer, `subsystem/vehicle_guidance.py`), whose
 raw command is projected onto the vehicle's admissible sets before
@@ -160,6 +162,27 @@ holding a bearing.
 ingest()`: a planned waypoint-pursuit mode is a new type and a new branch,
 not a protocol change. `mass_kg` is a plain caller-supplied parameter, not
 derived from `own_state` -- no component estimates mass yet. See ADR 0011.
+
+### `planning.action.v1`
+
+`ActionSet(t_s, motion=None)`, published by any component satisfying
+`ActionPlanner` (`plan(t_s, own_state, capability) -> ActionSet`). Today the
+only implementation is `WaypointPlanner` (single-ship layer,
+`single_ship/action_planner.py`), which follows a route of waypoints.
+
+A bundle with one field per subsystem, not a bare motion setpoint, because
+`docs/40-composition-spec.md` binds one planner's `action_out` to several
+subsystems at once. Only `motion` exists today; `sensor`, `effect` and
+`comms` arrive as new fields when those subsystems do, which is backward
+compatible where changing the record's type would not be. A planner that
+eventually decides motion and sensing *together* publishes through this
+record unchanged.
+
+**A field set to None means "no new action, continue as before", not
+"stop".** A planner with nothing new to say about motion leaves the vehicle
+doing what it was already doing. Stopping is an action in its own right and
+must be commanded as one, because omission is what silence looks like and
+silence has to be safe.
 
 ## Capability, which is not a port
 
