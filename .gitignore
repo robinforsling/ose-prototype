@@ -5,11 +5,16 @@
 .claude/settings.local.json.tmp.*
 
 # Generated demo/test output (regenerate with python demos/*.py). Scoped to
-# these two trees, not a blanket *.png, so an intentionally-committed image
-# elsewhere (e.g. a figure added to docs/) is never silently swallowed. Does
-# not affect docs/vehicle/vehicle_model.pdf, a tracked, versioned deliverable.
-demos/**/*.png
+# these two trees rather than a blanket rule, so an intentionally-committed
+# figure elsewhere (e.g. one added to docs/) is never silently swallowed, and
+# docs/vehicle/vehicle_model.pdf stays tracked.
+#
+# demos/plots/ is ignored wholesale: demo_live_flight.py writes a multi-megabyte
+# mp4 there, and listing extensions one at a time means the next output format
+# gets committed by accident before anyone notices.
+demos/plots/
 tests/**/*.png
+demos/**/*.png
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

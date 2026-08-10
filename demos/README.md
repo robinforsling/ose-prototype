@@ -7,7 +7,7 @@ Run from the repository root with the package installed (`pip install -e .`).
 | `demo_vehicle.py` | `plots/vehicle_envelope.png`, `plots/vehicle_trajectory.png` | ~5 s |
 | `demo_navigation.py` | `plots/navigation_errors.png` | ~30–60 s |
 | `demo_vehicle_guidance.py` | `plots/vehicle_guidance.png` | ~5 s |
-| `demo_live_flight.py` | live window, or `plots/live_flight.mp4` with `--video` | ~5 s live, ~3 min to render video |
+| `demo_live_flight.py` | live window, or `plots/live_flight.mp4` with `--video` | instant live, ~5 min to render video |
 | `demo_discretization.py` | printed tables only | ~2 s |
 
 Figures are written to `demos/plots/`, alongside the scripts, regardless of
@@ -48,11 +48,17 @@ watching a mission go past once tells you much less than stopping on the
 moment a limit binds and stepping through it. Space plays and pauses, the
 arrow keys step, and dragging the bar seeks.
 
-Two behaviours are worth watching for. The commanded reversal saturates the
-turn rate, and the deceleration leg saturates thrust in the other direction --
-guidance asks for negative thrust and gets idle, because this airframe has no
-speedbrake. Both are visible as requested and delivered separating, which is
-the point of keeping them apart.
+The mission presses on different limits in turn: a 360 at the structural
+load-factor limit that cannot be held and spirals in as speed bleeds; a planar
+lazy eight, trading airspeed rather than height between opposing loops, whose
+ground track crosses itself; and a corner-speed sweep, decelerating from
+380 m/s pinned against the turn-rate limit so the delivered rate traces the
+corner curve and peaks at `v_corner` -- within 0.1 m/s of the closed form.
+
+Saturation shows in both directions: the turn rate against the 9 g structural
+limit, and thrust the other way during deceleration, where guidance asks for
+negative thrust and gets idle because this airframe has no speedbrake. Both
+appear as requested and delivered separating.
 
 **`demo_discretization.py`** — one untouched `derivative()` consumed by
 fixed-step RK4, an adaptive solver, and a numerically-linearised zero-order-hold

@@ -9,9 +9,31 @@ notes in that file, for what is worth keeping when the real ones are built.
 
 What it shows
 -------------
-A mission is a list of setpoints with the time each becomes active. Guidance
-chases whichever is current; the vehicle flies whatever guidance commands,
-after the vehicle's own admissible sets have been applied to it.
+A mission is a list of segments, each holding a heading or sweeping it at a
+fixed rate. Guidance chases the current setpoint; the vehicle flies whatever
+guidance commands, after its own admissible sets have been applied.
+
+The manoeuvres are chosen to press against different limits:
+
+  360 at 9 g       a full circle at the structural limit. It cannot be held --
+                   sustained rate at 250 m/s is 14.7 deg/s against the 20.1
+                   commanded -- so speed bleeds and the circle spirals in.
+                   Peaks near 8 g rather than 9, because a proportional law
+                   chasing a ramp lags by rate/gain, about 67 degrees, and by
+                   the time it has spun up the speed has already decayed.
+
+  lazy eight       the planar equivalent. The real manoeuvre trades height for
+                   speed through opposing 180s; with altitude suppressed the
+                   exchange lives in airspeed alone, decelerating into one loop
+                   and accelerating out through the other, and the ground track
+                   crosses itself as a figure eight.
+
+  corner sweep     the vehicle decelerates from 380 m/s while pinned against
+                   its turn-rate limit, so the delivered rate traces the
+                   corner-speed curve and peaks where the lift and structural
+                   limits meet. It lands on v_corner to within 0.1 m/s of the
+                   closed-form prediction, which is the sharpest check in this
+                   repository that the turn-performance model is self-consistent.
 
   ground track      where it went, with the trail and current heading
   heading, airspeed  commanded against true -- the tracking task itself
@@ -25,6 +47,7 @@ is what ADR 0006 exists to keep visible rather than silently clipping.
 Run with:
     python demo_live_flight.py                 live window, or video if headless
     python demo_live_flight.py --video         force writing plots/live_flight.mp4
+    python demo_live_flight.py --video --speed 16   shorter video, quicker render
     python demo_live_flight.py --speed 1       start at real time
 
 The live window has transport controls, because watching a mission go past
@@ -92,28 +115,89 @@ from ose.subsystem.vehicle_guidance import VehicleGuidance
 DT = 0.02
 PLOTS_DIR = Path(__file__).resolve().parent / "plots"
 
-# The mission: (activation time, heading in degrees, airspeed). Guidance holds
-# whichever entry is current. Chosen to exercise a spread of behaviours --
-# gentle capture, a speed change with no turn, a reversal the airframe cannot
-# follow at the commanded rate, and a slow-down.
-MISSION: list[tuple[float, float, float]] = [
-    (0.0, 0.0, 250.0),        # hold: no control action should be needed
-    (20.0, 70.0, 250.0),      # moderate turn, comfortably inside the envelope
-    (60.0, 70.0, 320.0),      # accelerate on a fixed heading
-    (100.0, -110.0, 320.0),   # reversal: saturates the turn rate at first
-    (150.0, -110.0, 170.0),   # decelerate: guidance asks for negative thrust
-                              # and gets idle, no speedbrake on this airframe
-    (190.0, -20.0, 200.0),    # final capture at the lower speed
+# The mission, as segments rather than instants: three of these manoeuvres are
+# continuous turns, and a list of held headings cannot express one. A segment
+# either holds the heading it inherits or sweeps it at a fixed rate. The
+# schedule is built by accumulating, so the commanded heading stays a pure
+# function of time and never reads the vehicle's state.
+@dataclass(frozen=True)
+class Segment:
+    name: str
+    duration_s: float
+    v_cmd_mps: float
+    turn_rate_deg_s: float = 0.0      # 0 holds the inherited heading
+
+
+MISSION: list[Segment] = [
+    Segment("settle", 12.0, 250.0),
+
+    # A full circle at the structural limit. 20.1 deg/s is omega_max at
+    # 250 m/s, where the 9 g structural limit binds rather than lift.
+    # Sustained rate there is only 14.7 deg/s, so this cannot be held: speed
+    # bleeds and the circle spirals in. That energy cost is the point.
+    Segment("360 at 9 g", 18.0, 250.0, turn_rate_deg_s=20.1),
+    Segment("recover", 30.0, 250.0),
+
+    # Lazy eight, planar equivalent. The real manoeuvre trades height for
+    # speed through opposing 180s; with altitude suppressed the exchange has
+    # to be expressed in airspeed alone -- decelerating into one loop and
+    # accelerating out through the other -- and the ground track crosses
+    # itself as a figure eight rather than the nose tracing one against the
+    # horizon.
+    Segment("lazy eight, right loop", 26.0, 190.0, turn_rate_deg_s=14.0),
+    Segment("lazy eight, left loop", 26.0, 290.0, turn_rate_deg_s=-14.0),
+    Segment("rejoin", 25.0, 250.0),
+
+    # Corner speed. Accelerate, then command a turn rate faster than any
+    # speed can deliver together with a low speed setpoint, so thrust falls to
+    # idle. The vehicle decelerates through the envelope while pinned against
+    # omega_max, and the delivered turn rate traces the corner-speed curve:
+    # rising as lift allows more, peaking where the lift and structural limits
+    # meet, then falling as g/v shrinks. Sweeping through beats sampling three
+    # fixed speeds, because the peak lands wherever it lands.
+    #
+    # 22 deg/s, chosen by measurement rather than guessed, and the reason is
+    # a real limitation of this setpoint type: a heading setpoint cannot say
+    # "turn as hard as you can". Command a rate above the achievable one and
+    # the setpoint laps the vehicle, the heading error wraps through 180 and
+    # changes sign, and guidance dutifully reverses. At 60 deg/s that gave a
+    # sawtooth and put the apparent peak 12 m/s away from corner speed. At 22
+    # the lapping is occasional, and the recoveries are in fact what drive the
+    # vehicle onto omega_max, so the peak lands exactly on v_corner. Holding a
+    # saturated turn properly wants a turn-rate setpoint -- an argument for a
+    # second member of guidance.setpoint.v1.
+    Segment("accelerate for corner run", 45.0, 380.0, turn_rate_deg_s=4.0),
+    Segment("corner sweep", 95.0, 140.0, turn_rate_deg_s=22.0),
+    Segment("recover", 20.0, 220.0),
 ]
-T_END = 240.0
+T_END = sum(seg.duration_s for seg in MISSION)
+
+
+def build_schedule(mission):
+    """(start, end, segment, commanded heading at its start)."""
+    out, t0, psi = [], 0.0, 0.0
+    for seg in mission:
+        out.append((t0, t0 + seg.duration_s, seg, psi))
+        psi += seg.turn_rate_deg_s * seg.duration_s
+        t0 += seg.duration_s
+    return out
+
+
+SCHEDULE = build_schedule(MISSION)
+
+
+def segment_at(t_s: float):
+    for entry in SCHEDULE:
+        if entry[0] <= t_s < entry[1]:
+            return entry
+    return SCHEDULE[-1]
 
 
 def setpoint_at(t_s: float) -> HeadingSpeedSetpoint:
-    psi_deg, v = MISSION[0][1], MISSION[0][2]
-    for t_active, psi_d, v_cmd in MISSION:
-        if t_s >= t_active:
-            psi_deg, v = psi_d, v_cmd
-    return HeadingSpeedSetpoint(math.radians(psi_deg), v)
+    t0, _, seg, psi0 = segment_at(t_s)
+    return HeadingSpeedSetpoint(
+        math.radians(psi0 + seg.turn_rate_deg_s * (t_s - t0)), seg.v_cmd_mps
+    )
 
 
 @dataclass
@@ -142,6 +226,7 @@ class Recording:
     thrust_lim: list[float] = field(default_factory=list)
 
     load_factor: list[float] = field(default_factory=list)
+    n_available: list[float] = field(default_factory=list)
     omega_clipped: list[bool] = field(default_factory=list)
     thrust_clipped: list[bool] = field(default_factory=list)
     # X(lambda) violations, checked every step. project_command() keeps the
@@ -191,7 +276,13 @@ def fly() -> dict[str, np.ndarray]:
         rec.psi.append(math.degrees(state.psi_rad))
         rec.v.append(state.v_mps)
         rec.mass.append(state.mass_kg)
-        rec.psi_cmd.append(math.degrees(setpoint.psi_cmd_rad))
+        # Wrapped, because a sweeping setpoint accumulates without bound --
+        # the corner run alone commands over 5000 degrees -- while the state's
+        # heading wraps to +-180. Plotting the two unwrapped compares a ramp
+        # against a sawtooth and shows nothing.
+        rec.psi_cmd.append(
+            math.degrees(math.remainder(setpoint.psi_cmd_rad, 2.0 * math.pi))
+        )
         rec.v_cmd.append(setpoint.v_cmd_mps)
         rec.omega_req.append(math.degrees(sat.requested.omega_rad_s))
         rec.omega_del.append(math.degrees(cmd.omega_rad_s))
@@ -200,6 +291,7 @@ def fly() -> dict[str, np.ndarray]:
         rec.thrust_del.append(cmd.thrust_N / 1e3)
         rec.thrust_lim.append(envelope.thrust_available_N / 1e3)
         rec.load_factor.append(vehicle.load_factor(state.v_mps, cmd.omega_rad_s))
+        rec.n_available.append(envelope.load_factor_available)
         rec.omega_clipped.append(sat.omega_clipped)
         rec.thrust_clipped.append(sat.thrust_clipped)
 
@@ -214,11 +306,11 @@ def fly() -> dict[str, np.ndarray]:
     return rec.as_arrays()
 
 
-def build_figure(log, plt):
+def build_figure(log, plt, vehicle_n_structural=9.0):
     """Static scaffolding: axes, limits, and the lines that never change.
     Everything the animation moves is returned in `art`."""
-    fig = plt.figure(figsize=(14.0, 8.0))
-    gs = fig.add_gridspec(4, 2, width_ratios=[1.25, 1.0], hspace=0.45, wspace=0.2)
+    fig = plt.figure(figsize=(15.0, 9.0))
+    gs = fig.add_gridspec(5, 2, width_ratios=[1.15, 1.0], hspace=0.55, wspace=0.18)
     art: dict[str, object] = {}
 
     # ---- ground track -----------------------------------------------------
@@ -267,6 +359,19 @@ def build_figure(log, plt):
         if clipped is not None and clipped.any():
             a.fill_between(log["t"], 0, 1, where=clipped, transform=a.get_xaxis_transform(),
                            color="C1", alpha=0.15, zorder=0, linewidth=0)
+        # Segment boundaries, so a reader can tell which manoeuvre a feature
+        # belongs to without counting seconds.
+        for t0, _, seg, _ in SCHEDULE[1:]:
+            a.axvline(t0, color="0.75", lw=0.7, zorder=0)
+        if row == 0:
+            # Alternating rows: short segments sit close together and their
+            # labels ran into each other on one line.
+            for k, (t0, t1, seg, _) in enumerate(SCHEDULE):
+                a.text(
+                    0.5 * (t0 + t1), 1.04 + 0.15 * (k % 2), seg.name,
+                    transform=a.get_xaxis_transform(), ha="center", va="bottom",
+                    fontsize=6, color="0.35",
+                )
         cur = a.axvline(0.0, color="C3", lw=1.2)
         return a, cur
 
@@ -279,7 +384,6 @@ def build_figure(log, plt):
     _, art["cur0"] = time_axis(
         0, "heading [deg]",
         [{"key": "psi_cmd", "style": dotted}, {"key": "psi", "style": solid}],
-        "Guidance setpoints and the response",
     )
     _, art["cur1"] = time_axis(
         1, "airspeed [m/s]",
@@ -291,16 +395,26 @@ def build_figure(log, plt):
          {"key": "omega_del", "style": dlv}],
         "Control inputs: requested vs delivered (shaded = saturated)",
     )
-    ax3, art["cur3"] = time_axis(
+    _, art["cur3"] = time_axis(
         3, "thrust [kN]",
         [{"key": "thrust_lim", "style": lim}, {"key": "thrust_req", "style": req},
          {"key": "thrust_del", "style": dlv}],
     )
-    ax3.set_xlabel("time [s]")
+    ax4, art["cur4"] = time_axis(
+        4, "load factor [g]",
+        [{"key": "n_available", "style": dict(color="0.5", ls="--", lw=1.0,
+                                              label="available")},
+         {"key": "load_factor", "style": dict(color="C0", lw=1.5, label="flown")}],
+    )
+    ax4.axhline(
+        vehicle_n_structural, color="C3", ls="-.", lw=1.0, label="structural",
+    )
+    ax4.legend(frameon=False, fontsize=7, ncol=3, loc="upper right")
+    ax4.set_xlabel("time [s]")
 
     # tight_layout refuses to reason about a fixed-aspect axes, so the
     # margins are set directly.
-    fig.subplots_adjust(left=0.06, right=0.97, top=0.93, bottom=0.15)
+    fig.subplots_adjust(left=0.055, right=0.975, top=0.885, bottom=0.14)
     return fig, art
 
 
@@ -347,7 +461,7 @@ def make_updater(log, art):
             f"thrust {log['thrust_del'][i]:7.1f} kN   (req {log['thrust_req'][i]:7.1f})\n"
             + ("\n" + "\n".join(flags) if flags else "")
         )
-        for k in ("cur0", "cur1", "cur2", "cur3"):
+        for k in ("cur0", "cur1", "cur2", "cur3", "cur4"):
             art[k].set_xdata([log["t"][i], log["t"][i]])
         return tuple(art.values())
 
@@ -537,9 +651,10 @@ def main() -> None:
 
     print("Live flight")
     print("-" * 62)
-    print(f"{'t [s]':>8} {'heading [deg]':>15} {'airspeed [m/s]':>16}")
-    for t_active, psi_d, v_cmd in MISSION:
-        print(f"{t_active:>8.0f} {psi_d:>15.0f} {v_cmd:>16.0f}")
+    print(f"{'t [s]':>12}  {'manoeuvre':<26} {'turn [deg/s]':>13} {'v [m/s]':>8}")
+    for t0, t1, seg, _ in SCHEDULE:
+        rate = f"{seg.turn_rate_deg_s:+.1f}" if seg.turn_rate_deg_s else "hold"
+        print(f"{t0:5.0f}-{t1:<6.0f}  {seg.name:<26} {rate:>13} {seg.v_cmd_mps:>8.0f}")
     print(
         f"\n  simulated       : {T_END:.0f} s at {1 / DT:.0f} Hz "
         f"({len(log['t'])} steps)"
@@ -547,9 +662,26 @@ def main() -> None:
         f"\n  turn saturated  : {100.0 * log['omega_clipped'].mean():.1f} % of the time"
         f"\n  thrust saturated: {100.0 * log['thrust_clipped'].mean():.1f} % of the time"
         f"\n  outside X(lam)  : {100.0 * log['in_violation'].mean():.1f} % of the time"
+        f"\n  peak load factor: {log['load_factor'].max():.2f} g"
     )
 
-    fig, art = build_figure(log, plt)
+    # The corner-speed run is the one result worth stating numerically: the
+    # turn rate should peak exactly where the lift and structural limits
+    # cross, and that speed is predictable in closed form from the mass.
+    t0, t1, _, _ = next(e for e in SCHEDULE if e[2].name == "corner sweep")
+    m = (log["t"] >= t0) & (log["t"] < t1)
+    k = int(np.argmax(log["omega_del"][m]))
+    v_peak, mass_peak = log["v"][m][k], log["mass"][m][k]
+    predicted = reference_fighter().v_corner_mps(mass_peak)
+    print(
+        f"\n  corner sweep: fastest turn {log['omega_del'][m].max():.2f} deg/s "
+        f"at {v_peak:.1f} m/s"
+        f"\n                v_corner predicted for {mass_peak:.0f} kg = "
+        f"{predicted:.1f} m/s   (error {abs(v_peak - predicted):.1f} m/s)"
+        f"\n                swept {log['v'][m].max():.0f} -> {log['v'][m].min():.0f} m/s"
+    )
+
+    fig, art = build_figure(log, plt, reference_fighter().lam.n_structural)
     update = make_updater(log, art)
 
     if to_video:
