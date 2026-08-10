@@ -462,16 +462,16 @@ class TimeEstimator(Protocol):
 
 @runtime_checkable
 class VehicleGuidance(Protocol):
-    """`command` dispatches on setpoint type -- today only
-    HeadingSpeedSetpoint, later also a waypoint mode -- the same reasoning
-    as `ingest`. Unknown setpoint types raise TypeError.
+    """`command` dispatches on setpoint type -- HeadingSpeedSetpoint or
+    TurnRateSpeedSetpoint -- the same reasoning as `ingest`. Unknown setpoint
+    types raise TypeError.
 
-    mass_kg is a plain parameter, not sourced from own_state: no component
-    estimates mass yet (no vehicle-system/fuel-accounting component exists),
-    so this is today's acknowledged simplification rather than truth read
-    through the back door.
+    There is no mass parameter. An implementation binds to a vehicle manager,
+    which owns the platform's believed mass and answers vehicle questions at
+    it, so a caller has nothing to supply and no reason to reach for the true
+    value. See ADR 0015.
     """
 
     def command(
-        self, t_s: float, setpoint, own_state: OwnStateEstimate, mass_kg: float
+        self, t_s: float, setpoint, own_state: OwnStateEstimate
     ) -> tuple[VehicleCommand, Saturation]: ...

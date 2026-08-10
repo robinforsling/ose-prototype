@@ -63,18 +63,21 @@ Transport controls are shared with demo_live_flight (see _player.py):
     - speed / + speed          halve or double the playback rate
     the bar                    drag to scrub anywhere; scrubbing pauses
 
-Two things this demo is NOT evidence of
----------------------------------------
+Mass is believed, not known
+---------------------------
+The full loop is    FuelGauge -> VehicleManager -> VehicleGuidance,   so the
+mass guidance flies on is measured rather than read from truth. The readout
+prints both: true mass beside the manager's belief and its declared sigma.
+Over this route the vehicle burns about 420 kg and the belief stays within
+roughly 65 kg of truth, which is gauge noise rather than drift.
+
+This demo is NOT evidence about navigation
+------------------------------------------
 Navigation is perfect here: the estimate handed to the planner and to guidance
 is built from truth, so the planner steers at where the aircraft really is.
 A real navigation error moves the believed position, which moves the bearing
 and the measured range, and capture becomes a decision made on an estimate.
 demo_navigation.py is where estimation error is the subject.
-
-Mass is also truth, passed straight to guidance. Nothing estimates mass yet --
-see ADR 0011. Both are the same acknowledged simplification the rest of the
-repository carries, and both are the sort of thing a vehicle system would own
-once one exists.
 """
 
 from __future__ import annotations
@@ -91,6 +94,10 @@ from _player import CONTROLS_HELP, Player
 
 from ose.integration import step_rk4
 from ose.interfaces import HeadingSpeedSetpoint, OwnStateEstimate
+from ose.resource.fuel_gauge import FuelGauge
+from ose.resource.reference_configs.reference_fuel_gauge import (
+    STANDARD as FUEL_GAUGE_STANDARD,
+)
 from ose.resource.reference_configs.reference_vehicle import reference_fighter
 from ose.resource.vehicle import VehicleState
 from ose.single_ship.action_planner import Waypoint, WaypointPlanner
@@ -100,7 +107,11 @@ from ose.single_ship.reference_configs.reference_action_planner import (
 from ose.subsystem.reference_configs.reference_vehicle_guidance import (
     STANDARD as GUIDANCE_STANDARD,
 )
+from ose.subsystem.reference_configs.reference_vehicle_manager import (
+    STANDARD as MANAGER_STANDARD,
+)
 from ose.subsystem.vehicle_guidance import VehicleGuidance
+from ose.subsystem.vehicle_manager import VehicleManager
 
 DT = 0.02
 T_MAX = 900.0            # backstop: an infeasible route must not hang the demo
@@ -134,6 +145,12 @@ class Recording:
     psi: list[float] = field(default_factory=list)
     v: list[float] = field(default_factory=list)
     mass: list[float] = field(default_factory=list)
+    # True mass and the manager's belief about it, side by side. They
+    # differ by the gauge noise plus however stale the last reading is,
+    # and a renderer that drew only one of them would hide the component
+    # under test.
+    mass_believed: list[float] = field(default_factory=list)
+    mass_sigma: list[float] = field(default_factory=list)
 
     psi_cmd: list[float] = field(default_factory=list)
     v_cmd: list[float] = field(default_factory=list)
@@ -184,7 +201,16 @@ def fly() -> tuple[dict[str, np.ndarray], list[float]]:
     Returns the recording and the times at which a waypoint was captured.
     """
     vehicle = reference_fighter()
-    guidance = VehicleGuidance(vehicle, GUIDANCE_STANDARD)
+    # The fuel gauge is the only measurement source in this demo, and the
+    # vehicle manager the only consumer of it. Without the pair, the manager
+    # would sit on its initial 4 000 kg guess for the whole run while the
+    # vehicle burned through it, and guidance would fly an aircraft it
+    # believed to be a tonne heavier than it was.
+    gauge = FuelGauge(
+        FUEL_GAUGE_STANDARD, vehicle.lam.mass_dry_kg, np.random.default_rng(7)
+    )
+    manager = VehicleManager(vehicle, MANAGER_STANDARD)
+    guidance = VehicleGuidance(manager, GUIDANCE_STANDARD)
     planner = WaypointPlanner(ROUTE, PLANNER_STANDARD)
     state = VehicleState(0.0, 0.0, 0.0, 280.0, 16000.0)
     rec = Recording()
@@ -201,8 +227,13 @@ def fly() -> tuple[dict[str, np.ndarray], list[float]]:
 
     t = 0.0
     while t < T_MAX:
+        # Resource layer first: the gauge is the one component here entitled
+        # to read truth, and the manager consumes only what it publishes.
+        if gauge.due(t):
+            manager.ingest(gauge.sample(t, state))
+
         estimate = perfect_estimate(t, state)
-        capability = guidance.capability(estimate, state.mass_kg)
+        capability = guidance.capability(estimate)
         actions = planner.plan(t, estimate, capability)
 
         # The absent-field rule, ADR-pinned and currently the caller's job:
@@ -221,7 +252,7 @@ def fly() -> tuple[dict[str, np.ndarray], list[float]]:
             t_route_done = t
             print(f"  route complete at t={t:.1f} s; holding last action")
 
-        cmd, sat = guidance.command(t, last_motion, estimate, state.mass_kg)
+        cmd, sat = guidance.command(t, last_motion, estimate)
         envelope = vehicle.capability(state)
 
         rec.t.append(t)
@@ -230,6 +261,9 @@ def fly() -> tuple[dict[str, np.ndarray], list[float]]:
         rec.psi.append(math.degrees(state.psi_rad))
         rec.v.append(state.v_mps)
         rec.mass.append(state.mass_kg)
+        believed = manager.mass(t)
+        rec.mass_believed.append(believed.mass_kg)
+        rec.mass_sigma.append(believed.mass_sigma_kg)
         rec.psi_cmd.append(
             math.degrees(math.remainder(last_motion.psi_cmd_rad, 2.0 * math.pi))
         )
@@ -504,6 +538,8 @@ def make_updater(log, art):
             f"p_y    {log['p_y'][i] / 1e3:7.2f} km\n"
             f"psi    {log['psi'][i]:7.1f} deg   (cmd {log['psi_cmd'][i]:6.1f})\n"
             f"v      {log['v'][i]:7.1f} m/s   (cmd {log['v_cmd'][i]:6.1f})\n"
+            f"m      {log['mass'][i]:7.0f} kg    (believed "
+            f"{log['mass_believed'][i]:.0f} +- {log['mass_sigma'][i]:.0f})\n"
             f"omega  {log['omega_del'][i]:7.2f} deg/s (req {log['omega_req'][i]:7.2f})\n"
             f"thrust {log['thrust_del'][i]:7.1f} kN   (req {log['thrust_req'][i]:7.1f})\n"
             f"target {wp_text}\n"

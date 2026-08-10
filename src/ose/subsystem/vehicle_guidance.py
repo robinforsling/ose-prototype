@@ -6,30 +6,28 @@ Subsystem-layer: purely cyber. This module must not import VehicleState or
 Disturbance from ose.resource.vehicle, and no public method may take a
 parameter whose name begins with true_ -- see test_guidance_cannot_see_truth
 in tests/test_vehicle_guidance.py, which checks both by parsing this file
-with ast. Guidance never reads truth: its only state input is
-OwnStateEstimate, converted to a VehicleState-shaped "believed state" via
-its own as_vehicle_state() helper, which is not a truth read -- the values
-came from an estimate, not a privileged query.
+with ast. Guidance never reads truth: its only state input is an
+OwnStateEstimate published by the navigation manager.
 
-It does hold a Vehicle2D reference, and that is a different thing from
-reading truth: Vehicle2D is a stateless capability/constraints model, not
-live truth state, and a subsystem component binding down to the resource
-layer for a model reference is exactly the composition rule ("a layer may
-bind to the layer below it"). Imu already does the same for drag_N.
+It binds to a VehicleManager, a peer in the same layer on the same platform,
+and not to Vehicle2D. That is the change ADR 0015 made. Guidance used to hold
+the vehicle model directly and take mass_kg as a plain parameter, which left
+the truth boundary intact here and breached in every *composition* of this
+component: nothing estimated mass, so every caller reached for the true
+value. The manager owns the believed mass now, so there is no mass parameter
+to supply and nothing for a caller to reach for.
+
+It follows that guidance no longer constructs a believed VehicleState. Every
+vehicle question goes through the manager, which answers at the mass it
+believes. Guidance contributes what it alone knows -- how well navigation can
+hold what the vehicle can reach -- and nothing else.
 
 Guidance decides WHAT to command; it does not decide what is admissible.
-The raw command from the control law is handed to Vehicle2D.project_command(),
-which enforces the vehicle's own declared sets and reports any clipping via
-Saturation. That report is returned to the caller rather than swallowed --
-ADR 0006 exists so that a control law persistently commanding outside the
-envelope is a visible finding, not a silent clip, and nothing has exercised
-that path until this component.
-
-mass_kg is today a plain parameter to command(), not sourced from
-own_state: no component estimates mass yet (no vehicle-system/fuel-
-accounting component exists). This is an acknowledged simplification, not
-truth smuggled in under a different name -- see the module's own docstring
-on OwnStateEstimate.as_vehicle_state() in interfaces.py.
+The raw command from the control law is handed to the manager's
+project_command(), which forwards to the vehicle's own declared sets and
+reports any clipping via Saturation. That report is returned to the caller
+rather than swallowed -- ADR 0006 exists so that a control law persistently
+commanding outside the envelope is a visible finding, not a silent clip.
 """
 
 from __future__ import annotations
@@ -43,7 +41,8 @@ from ose.interfaces import (
     OwnStateEstimate,
     TurnRateSpeedSetpoint,
 )
-from ose.resource.vehicle import Saturation, Vehicle2D, VehicleCommand
+from ose.resource.vehicle import Saturation, VehicleCommand
+from ose.subsystem.vehicle_manager import VehicleManager
 
 
 @dataclass
@@ -64,20 +63,25 @@ class VehicleGuidance:
     its parameters and the vehicle model it was built against.
     """
 
-    def __init__(self, vehicle: Vehicle2D, parameters: VehicleGuidanceParameters) -> None:
-        self.vehicle = vehicle
+    def __init__(
+        self, manager: VehicleManager, parameters: VehicleGuidanceParameters
+    ) -> None:
+        self.manager = manager
         self.par = parameters
 
-    def capability(
-        self, own_state: OwnStateEstimate, mass_kg: float
-    ) -> GuidanceCapability:
-        """Compose the vehicle's capability with navigation's.
+    def capability(self, own_state: OwnStateEstimate) -> GuidanceCapability:
+        """Compose the vehicle manager's capability with navigation's.
 
         A control loop is bounded by both, and by different things: the
         vehicle decides which setpoints are reachable at all, navigation
         decides how tightly a reachable one can be held. Neither alone is
-        the answer, which is what makes this the first capability model in
-        the repository that is genuinely composed rather than reported.
+        the answer, which is what makes this a genuinely composed capability
+        model rather than a reported one.
+
+        The vehicle half now arrives already evaluated at the platform's
+        believed mass, because the manager owns that belief. The chain is
+        vehicle -> manager (adds mass) -> guidance (adds navigation), each
+        layer adding exactly what it knows.
 
         The navigation half is read from the covariance travelling with
         own_state rather than by querying a navigation component. That
@@ -88,8 +92,7 @@ class VehicleGuidance:
         navigation's uncertainty *is right now*, degraded by a GNSS outage
         or not, where a static claim from the estimator would not be.
         """
-        believed = own_state.as_vehicle_state(mass_kg)
-        envelope = self.vehicle.capability(believed)
+        envelope = self.manager.capability(own_state)
 
         return GuidanceCapability(
             max_turn_rate_rad_s=envelope.omega_available_rad_s,
@@ -107,28 +110,27 @@ class VehicleGuidance:
         t_s: float,
         setpoint,
         own_state: OwnStateEstimate,
-        mass_kg: float,
     ) -> tuple[VehicleCommand, Saturation]:
         """Dispatches on setpoint type. Unknown types raise TypeError."""
         if isinstance(setpoint, HeadingSpeedSetpoint):
-            return self._command_heading_speed(setpoint, own_state, mass_kg)
+            return self._command_heading_speed(setpoint, own_state)
         if isinstance(setpoint, TurnRateSpeedSetpoint):
-            return self._command_turn_rate_speed(setpoint, own_state, mass_kg)
+            return self._command_turn_rate_speed(setpoint, own_state)
         raise TypeError(f"VehicleGuidance cannot command from {type(setpoint).__name__}")
 
 
-    def _project(self, believed, omega_cmd: float, v_cmd_mps: float):
+    def _project(self, own_state: OwnStateEstimate, omega_cmd: float, v_cmd_mps: float):
         """Thrust feedforward and enforcement, shared by both setpoint types.
 
         Both want the same thing once a turn rate has been decided: hold
         speed through the turn the vehicle will actually fly, correct any
         speed error, then let the vehicle enforce its own sets.
         """
-        # Ask the vehicle what it can currently do rather than deriving it
-        # from the vehicle's internals. This is the capability model being
-        # used for what it is for: a consumer querying instead of
-        # reimplementing (docs/10-concepts.md, ADR 0012).
-        envelope = self.vehicle.capability(believed)
+        # Ask what the vehicle can currently do rather than deriving it from
+        # the vehicle's internals. This is the capability model being used for
+        # what it is for: a consumer querying instead of reimplementing
+        # (docs/10-concepts.md, ADR 0012).
+        envelope = self.manager.capability(own_state)
 
         # Feedforward the thrust to hold steady flight through the turn the
         # vehicle will ACTUALLY fly, not the one the error term asked for.
@@ -149,31 +151,35 @@ class VehicleGuidance:
         omega_achievable = math.copysign(
             min(abs(omega_cmd), envelope.omega_available_rad_s), omega_cmd
         )
-        steady = self.vehicle.capability(believed, omega_rad_s=omega_achievable)
+        steady = self.manager.capability(own_state, omega_rad_s=omega_achievable)
 
-        speed_error = v_cmd_mps - believed.v_mps
+        speed_error = v_cmd_mps - own_state.v_air_mps
+        # The believed mass, from the component that owns it. This term turns
+        # a desired acceleration into a force, so it needs a mass and has no
+        # business deciding what that mass is.
         thrust_cmd = (
             steady.thrust_required_N
-            + believed.mass_kg * self.par.speed_gain_per_s * speed_error
+            + self.manager.mass_kg * self.par.speed_gain_per_s * speed_error
         )
 
-        return self.vehicle.project_command(believed, VehicleCommand(thrust_cmd, omega_cmd))
+        return self.manager.project_command(
+            own_state, VehicleCommand(thrust_cmd, omega_cmd)
+        )
 
     def _command_turn_rate_speed(
-        self, setpoint: TurnRateSpeedSetpoint, own_state: OwnStateEstimate, mass_kg: float
+        self, setpoint: TurnRateSpeedSetpoint, own_state: OwnStateEstimate
     ) -> tuple[VehicleCommand, Saturation]:
         """No heading loop at all: the commanded rate is the command. An
         unreachable rate saturates against omega_available and stays there,
         which is the whole reason this setpoint type exists."""
-        believed = own_state.as_vehicle_state(mass_kg)
-        return self._project(believed, setpoint.omega_cmd_rad_s, setpoint.v_cmd_mps)
+        return self._project(own_state, setpoint.omega_cmd_rad_s, setpoint.v_cmd_mps)
 
     def _command_heading_speed(
-        self, setpoint: HeadingSpeedSetpoint, own_state: OwnStateEstimate, mass_kg: float
+        self, setpoint: HeadingSpeedSetpoint, own_state: OwnStateEstimate
     ) -> tuple[VehicleCommand, Saturation]:
-        believed = own_state.as_vehicle_state(mass_kg)
-
-        heading_error = math.remainder(setpoint.psi_cmd_rad - believed.psi_rad, 2.0 * math.pi)
+        heading_error = math.remainder(
+            setpoint.psi_cmd_rad - own_state.psi_rad, 2.0 * math.pi
+        )
 
         # Proportional correction plus the setpoint's own rate fed forward.
         # Without the feedforward term a moving setpoint is never caught: the
@@ -185,5 +191,5 @@ class VehicleGuidance:
             self.par.heading_gain_per_s * heading_error + setpoint.psi_rate_cmd_rad_s
         )
 
-        return self._project(believed, omega_cmd, setpoint.v_cmd_mps)
+        return self._project(own_state, omega_cmd, setpoint.v_cmd_mps)
 

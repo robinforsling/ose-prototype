@@ -1,6 +1,6 @@
 # 0013. Guidance capability composes the vehicle's and navigation's
 
-Status: accepted
+Status: accepted, amended by ADR 0015
 Date: 2026-08-10
 
 Extends ADR 0012, which established the capability contract for resource-layer
@@ -33,11 +33,13 @@ envelope would be claiming a precision the installed navigation cannot support.
 
 ## Decision
 
-`VehicleGuidance.capability(own_state, mass_kg)` returns a
-`GuidanceCapability` composed from both layers: `max_turn_rate_rad_s`,
-`min_speed_mps` and `max_speed_mps` from the vehicle's own capability model,
-and `heading_hold_sigma_rad` and `speed_hold_sigma_mps` from the navigation
-uncertainty. It carries an `admits(setpoint)` predicate answering the "can I
+`VehicleGuidance.capability(own_state)` returns a `GuidanceCapability`
+composed from both layers: `max_turn_rate_rad_s`, `min_speed_mps` and
+`max_speed_mps` from the vehicle's capability model, and
+`heading_hold_sigma_rad` and `speed_hold_sigma_mps` from the navigation
+uncertainty. (ADR 0015 removed the `mass_kg` argument: the vehicle half now
+reaches guidance through the vehicle manager, already evaluated at the
+platform's believed mass. The composition reasoning below is unchanged.) It carries an `admits(setpoint)` predicate answering the "can I
 do this?" question `docs/40-composition-spec.md` section 4.1 requires an
 envelope to answer.
 

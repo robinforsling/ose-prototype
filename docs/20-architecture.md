@@ -105,10 +105,9 @@ the planner decides where, guidance decides how.
 
 Not yet implemented: the registry, the binder, the descriptor validator, the
 simulation core itself, and every component type other than vehicle,
-navigation, the platform clock, the fuel gauge, vehicle guidance, and the
-action planner. The
-composition specification describes the intended format; nothing consumes it
-yet.
+navigation, the platform clock, the fuel gauge, the vehicle manager, vehicle
+guidance, and the action planner. The composition specification describes
+the intended format; nothing consumes it yet.
 
 ## Repository layout
 

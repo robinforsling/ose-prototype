@@ -38,10 +38,18 @@ import numpy as np
 
 from ose.integration import step_rk4
 from ose.interfaces import HeadingSpeedSetpoint, OwnStateEstimate
+from ose.resource.fuel_gauge import FuelGauge
+from ose.resource.reference_configs.reference_fuel_gauge import (
+    STANDARD as FUEL_GAUGE_STANDARD,
+)
 from ose.resource.reference_configs.reference_vehicle import reference_fighter
 from ose.resource.vehicle import VehicleState
 from ose.subsystem.reference_configs.reference_vehicle_guidance import STANDARD
+from ose.subsystem.reference_configs.reference_vehicle_manager import (
+    STANDARD as MANAGER_STANDARD,
+)
 from ose.subsystem.vehicle_guidance import VehicleGuidance
+from ose.subsystem.vehicle_manager import VehicleManager
 
 DT = 0.02
 T_END = 150.0
@@ -75,7 +83,11 @@ def perfect_estimate(t_s: float, state: VehicleState) -> OwnStateEstimate:
 
 def run():
     vehicle = reference_fighter()
-    guidance = VehicleGuidance(vehicle, STANDARD)
+    gauge = FuelGauge(
+        FUEL_GAUGE_STANDARD, vehicle.lam.mass_dry_kg, np.random.default_rng(7)
+    )
+    manager = VehicleManager(vehicle, MANAGER_STANDARD)
+    guidance = VehicleGuidance(manager, STANDARD)
 
     state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
     psi0, v0 = state.psi_rad, state.v_mps
@@ -90,9 +102,15 @@ def run():
 
     t = 0.0
     while t < T_END:
+        # The fuel gauge is the only truth-reading component in this loop; the
+        # manager consumes what it publishes and guidance flies on the
+        # believed mass that results.
+        if gauge.due(t):
+            manager.ingest(gauge.sample(t, state))
+
         setpoint = setpoint_at(t, psi0, v0)
         own_state = perfect_estimate(t, state)
-        cmd, sat = guidance.command(t, setpoint, own_state, state.mass_kg)
+        cmd, sat = guidance.command(t, setpoint, own_state)
 
         # What guidance asked for, before enforcement. Reported by Saturation
         # rather than recomputed here: this used to be a copy of guidance's

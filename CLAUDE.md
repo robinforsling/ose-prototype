@@ -134,11 +134,20 @@ depends on thrust and turn rate together and cannot isolate either.
 
 Implemented, with tests: the baseline vehicle model; navigation sensors and the
 INS/GNSS estimator; a platform clock and a dead-reckoning time estimator; a fuel
-gauge; vehicle guidance; and a single-ship action planner following a route of
-waypoints. Integrators live in `ose/integration.py`, outside
-the components they step. Every resource publishes a `capability()`, as does
-`VehicleGuidance`, whose capability is composed from the vehicle's envelope and
-the navigation covariance it steers on.
+gauge feeding a vehicle manager; vehicle guidance; and a single-ship action
+planner following a route of waypoints. Integrators live in
+`ose/integration.py`, outside the components they step. Every resource
+publishes a `capability()`, as does `VehicleGuidance`, whose capability is
+composed from the vehicle's envelope and the navigation covariance it steers
+on.
+
+**`VehicleManager` is the only component that may bind `Vehicle2D`** (ADR
+0015). It owns the platform's believed mass — dry + payload + fuel, where only
+fuel is measured — and answers vehicle questions at that mass, so nothing above
+it takes a mass parameter. An import test enforces this; `ose/integration.py`
+and the resource layer are the exemptions. Its mass belief is a sum rather than
+a filter, so it is stale between fuel readings and its published sigma is a
+floor, not a bound.
 
 Not implemented: the simulation core, the service registry, the composition
 binder, the descriptor validator, and every component type other than the above

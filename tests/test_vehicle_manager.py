@@ -221,6 +221,62 @@ def test_project_command_enforces_at_the_believed_mass(vehicle, manager):
     assert heavy_sat.requested.omega_rad_s == pytest.approx(turn.omega_rad_s)
 
 
+# --------------------------------------------------------------------------
+# Sole consumer of the vehicle model
+# --------------------------------------------------------------------------
+
+def test_only_the_vehicle_manager_binds_the_vehicle_model():
+    """ADR 0015's rule, in the form that can actually be checked.
+
+    "Only the vehicle manager consumes vehicle capability" is not decidable
+    from a call site without type inference, but holding a Vehicle2D at all
+    is, and it is the same rule: a component that cannot reach the model
+    cannot query it, and a component that can will eventually need a mass to
+    query it with. That is how the mass parameter got into guidance in the
+    first place.
+
+    Three exemptions, each for a different reason:
+
+      ose/resource/**       the resource layer owns the vehicle. Imu holds one
+                            for drag_N and is a peer, not a consumer above it.
+      ose/integration.py    the integrator steps the model rather than asking
+                            it what it can do. It is the simulation core's job
+                            sitting outside the components, per ADR 0004.
+      vehicle_manager.py    the one consumer this rule exists to name.
+
+    Anything else importing Vehicle2D is a component reaching past the
+    manager for a mass-dependent answer.
+    """
+    root = Path(__file__).resolve().parents[1] / "src" / "ose"
+    exempt = {
+        root / "integration.py",
+        root / "subsystem" / "vehicle_manager.py",
+    }
+
+    holders = []
+    for path in sorted(root.rglob("*.py")):
+        if path in exempt or "resource" in path.relative_to(root).parts:
+            continue
+        tree = ast.parse(path.read_text())
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.ImportFrom)
+                and node.module == "ose.resource.vehicle"
+                and any(a.name == "Vehicle2D" for a in node.names)
+            ):
+                holders.append(str(path.relative_to(root)))
+
+    assert not holders, (
+        "these bind the vehicle model directly instead of going through the "
+        f"vehicle manager: {holders}"
+    )
+
+    # Not vacuous: the manager really does hold one, so the walk is looking
+    # at the right import and would see another.
+    manager_src = (root / "subsystem" / "vehicle_manager.py").read_text()
+    assert "Vehicle2D" in manager_src
+
+
 def test_believed_state_carries_the_believed_mass(manager):
     est = _estimate(v_mps=310.0)
     manager.ingest(FuelMeasurement(1.0, 2500.0, 20.0))

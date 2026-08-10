@@ -12,10 +12,12 @@ sensors (IMU, GNSS, air data), a resource-layer black-box integrated nav unit,
 a subsystem-layer INS/GNSS estimator, and a navigation manager that is the
 platform's single publisher of own-state; a resource-layer clock with a
 dead-reckoning-only subsystem-layer time estimator (no correction source
-exists yet); a resource-layer fuel gauge; and a subsystem-layer vehicle
-guidance component that enforces the vehicle's admissible sets before
-publishing a command; and a single-ship action planner that follows a route
-of waypoints, are implemented and tested. Every resource also answers
+exists yet); a resource-layer fuel gauge feeding a subsystem-layer vehicle
+manager that owns the platform's believed mass and is the only consumer of
+the vehicle model; a subsystem-layer vehicle guidance component that
+enforces the vehicle's admissible sets before publishing a command; and a
+single-ship action planner that follows a route of waypoints, are
+implemented and tested. Every resource also answers
 `capability()`, a self-assessment checked against integrated dynamics. The
 simulation core, the service registry, the composition binder, and every other
 component type are described in `docs/` but not yet built.
@@ -61,6 +63,7 @@ src/ose/resource/fuel_gauge.py                    remaining-fuel sensor
 src/ose/subsystem/navigation_manager.py           one own-state publisher per platform
 src/ose/subsystem/navigation_state_estimator.py   INS/GNSS error-state Kalman filter
 src/ose/subsystem/time_state_estimator.py         dead-reckoning platform clock estimator
+src/ose/subsystem/vehicle_manager.py              believed mass; the only consumer of the vehicle model
 src/ose/subsystem/vehicle_guidance.py             heading/speed-hold guidance, enforces admissibility
 src/ose/subsystem/reference_configs/              reference configs for subsystem components
 src/ose/single_ship/action_planner.py             waypoint-following action planner

@@ -33,7 +33,11 @@ from ose.single_ship.reference_configs.reference_action_planner import STANDARD
 from ose.subsystem.reference_configs.reference_vehicle_guidance import (
     STANDARD as GUIDANCE_STANDARD,
 )
+from ose.subsystem.reference_configs.reference_vehicle_manager import (
+    STANDARD as MANAGER_STANDARD,
+)
 from ose.subsystem.vehicle_guidance import VehicleGuidance
+from ose.subsystem.vehicle_manager import VehicleManager
 
 
 def _estimate(state: VehicleState, t_s: float = 0.0) -> OwnStateEstimate:
@@ -57,7 +61,9 @@ def vehicle():
 
 @pytest.fixture
 def guidance(vehicle):
-    return VehicleGuidance(vehicle, GUIDANCE_STANDARD)
+    return VehicleGuidance(
+        VehicleManager(vehicle, MANAGER_STANDARD), GUIDANCE_STANDARD
+    )
 
 
 @pytest.fixture
@@ -106,7 +112,7 @@ def test_route_end_publishes_no_motion(vehicle, guidance, state):
     not mean stop, which would have to be commanded explicitly."""
     planner = WaypointPlanner([Waypoint(10.0, 0.0, 250.0)], STANDARD)
     est = _estimate(state)
-    cap = guidance.capability(est, state.mass_kg)
+    cap = guidance.capability(est)
 
     actions = planner.plan(0.0, est, cap)      # already inside capture radius
     assert planner.finished
@@ -117,7 +123,7 @@ def test_route_end_publishes_no_motion(vehicle, guidance, state):
 def test_an_empty_route_is_immediately_finished(guidance, state):
     planner = WaypointPlanner([], STANDARD)
     est = _estimate(state)
-    assert planner.plan(0.0, est, guidance.capability(est, state.mass_kg)).motion is None
+    assert planner.plan(0.0, est, guidance.capability(est)).motion is None
 
 
 # --------------------------------------------------------------------------
@@ -127,7 +133,7 @@ def test_an_empty_route_is_immediately_finished(guidance, state):
 def test_steers_at_the_active_waypoint(vehicle, guidance, state):
     planner = WaypointPlanner([Waypoint(0.0, 20000.0, 300.0)], STANDARD)  # due east
     est = _estimate(state)
-    actions = planner.plan(0.0, est, guidance.capability(est, state.mass_kg))
+    actions = planner.plan(0.0, est, guidance.capability(est))
 
     assert isinstance(actions.motion, HeadingSpeedSetpoint)
     assert actions.motion.psi_cmd_rad == pytest.approx(math.radians(90.0))
@@ -142,7 +148,7 @@ def test_advances_through_the_route_as_each_is_captured(vehicle, guidance, state
     ]
     planner = WaypointPlanner(route, STANDARD)
     est = _estimate(state)
-    cap = guidance.capability(est, state.mass_kg)
+    cap = guidance.capability(est)
 
     assert planner.index == 0
     planner.plan(0.0, est, cap)
@@ -165,12 +171,12 @@ def test_capture_radius_grows_with_turn_radius(vehicle, guidance):
 
     slow = _estimate(VehicleState(0.0, 0.0, 0.0, 150.0, 16000.0))
     fast = _estimate(VehicleState(0.0, 0.0, 0.0, 400.0, 16000.0))
-    r_slow = planner.capture_radius_m(slow, guidance.capability(slow, 16000.0))
-    r_fast = planner.capture_radius_m(fast, guidance.capability(fast, 16000.0))
+    r_slow = planner.capture_radius_m(slow, guidance.capability(slow))
+    r_fast = planner.capture_radius_m(fast, guidance.capability(fast))
 
     assert r_fast > r_slow
     # And it really is about a turn radius, not the configured floor.
-    cap = guidance.capability(fast, 16000.0)
+    cap = guidance.capability(fast)
     turn_radius = fast.v_air_mps / cap.max_turn_rate_rad_s
     assert r_fast == pytest.approx(STANDARD.capture_turn_radii * turn_radius)
 
@@ -181,7 +187,7 @@ def test_capture_radius_never_falls_below_the_floor(vehicle, guidance):
     tight = WaypointPlannerParameters(min_capture_radius_m=800.0, capture_turn_radii=0.0)
     planner = WaypointPlanner([Waypoint(50000.0, 0.0, 250.0)], tight)
     est = _estimate(VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0))
-    assert planner.capture_radius_m(est, guidance.capability(est, 16000.0)) == 800.0
+    assert planner.capture_radius_m(est, guidance.capability(est)) == 800.0
 
 
 def test_planner_does_not_clamp_an_infeasible_speed(vehicle, guidance, state):
@@ -191,7 +197,7 @@ def test_planner_does_not_clamp_an_infeasible_speed(vehicle, guidance, state):
     too_fast = vehicle.lam.v_max_mps + 200.0
     planner = WaypointPlanner([Waypoint(50000.0, 0.0, too_fast)], STANDARD)
     est = _estimate(state)
-    cap = guidance.capability(est, state.mass_kg)
+    cap = guidance.capability(est)
 
     actions = planner.plan(0.0, est, cap)
     assert actions.motion.v_cmd_mps == too_fast
@@ -221,9 +227,9 @@ def test_flies_the_whole_route(vehicle, guidance, state):
     dt, t = 0.05, 0.0
     while t < 900.0 and not planner.finished:
         est = _estimate(state, t)
-        actions = planner.plan(t, est, guidance.capability(est, state.mass_kg))
+        actions = planner.plan(t, est, guidance.capability(est))
         if actions.motion is not None:
-            cmd, _ = guidance.command(t, actions.motion, est, state.mass_kg)
+            cmd, _ = guidance.command(t, actions.motion, est)
             state = step_rk4(vehicle, state, cmd, dt)
         t += dt
 
@@ -241,10 +247,10 @@ def test_holding_pattern_after_the_route_keeps_flying(vehicle, guidance, state):
     dt, t = 0.05, 0.0
     while t < 120.0:
         est = _estimate(state, t)
-        actions = planner.plan(t, est, guidance.capability(est, state.mass_kg))
+        actions = planner.plan(t, est, guidance.capability(est))
         if actions.motion is not None:
             last = actions.motion              # otherwise: continue as before
-        cmd, _ = guidance.command(t, last, est, state.mass_kg)
+        cmd, _ = guidance.command(t, last, est)
         state = step_rk4(vehicle, state, cmd, dt)
         t += dt
 

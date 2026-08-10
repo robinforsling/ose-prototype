@@ -131,13 +131,37 @@ a calibrated, honestly growing bound on how far it may have diverged from
 true elapsed time. It never shrinks, by construction, until a correction
 source exists. See ADR 0010.
 
+### `vehicle.mass.v1`
+
+`MassEstimate(t_s, mass_kg, mass_sigma_kg, dry_mass_kg, payload_mass_kg,
+fuel_mass_kg)`, published by `VehicleManager` (subsystem layer,
+`subsystem/vehicle_manager.py`) from the `FuelMeasurement` the fuel gauge
+publishes. **Implemented.**
+
+The platform's belief about its own mass, and the only sanctioned answer to
+"what does this aircraft weigh?" above the resource layer. Broken out by
+contribution because the contributions differ in kind: dry mass is a design
+constant and payload is a configuration decision, both exact, while only fuel
+is measured. `mass_sigma_kg` is therefore exactly the sigma that travelled
+with the fuel measurement, per invariant 4.
+
+The manager also answers vehicle questions at that mass -- `capability()`,
+including the parametrised turn-rate form guidance feeds thrust forward on,
+and `project_command()` -- and is the only component permitted to bind
+`Vehicle2D`. That rule is enforced as an import check; see ADR 0015 for why it
+is phrased that way and for the three exemptions.
+
+Today the belief is a sum, not a filter, so it is stale between measurements
+and the published sigma describes the measurement rather than the belief. It
+is a floor, not a bound. Do not build a consistency test against it.
+
 ### `guidance.setpoint.v1`
 
 Two setpoint records, consumed by any component satisfying
 `VehicleGuidance`. They began as a stand-in for `planning.action.v1` before
 a single-ship layer existed; now that one does, they are what its `motion`
-field carries rather than a substitute for it. (`command(t_s, setpoint, own_state, mass_kg) ->
-(VehicleCommand, Saturation)`). Today the only implementation is
+field carries rather than a substitute for it.
+(`command(t_s, setpoint, own_state) -> (VehicleCommand, Saturation)`). Today the only implementation is
 `VehicleGuidance` (subsystem layer, `subsystem/vehicle_guidance.py`), whose
 raw command is projected onto the vehicle's admissible sets before
 publication.
@@ -159,9 +183,9 @@ against the limit. The right tool for flying the envelope, the wrong one for
 holding a bearing.
 
 `command()` dispatches on setpoint type, mirroring `NavigationEstimator.
-ingest()`: a planned waypoint-pursuit mode is a new type and a new branch,
-not a protocol change. `mass_kg` is a plain caller-supplied parameter, not
-derived from `own_state` -- no component estimates mass yet. See ADR 0011.
+ingest()`: a further mode is a new type and a new branch, not a protocol
+change. There is no mass parameter -- guidance binds to a vehicle manager,
+which owns the platform's believed mass. See ADR 0015.
 
 ### `planning.action.v1`
 
@@ -210,7 +234,7 @@ Implemented today by every resource, and by one subsystem component:
   rate), a tuple of `MeasurementChannel(name, sigma, units)` -- one per quantity
   measured -- and an `available` flag that tracks denial.
 
-- `VehicleGuidance.capability(own_state, mass_kg)` returns
+- `VehicleGuidance.capability(own_state)` returns
   `GuidanceCapability`, the one capability model here that is *composed*
   rather than reported: reachable setpoints come from the vehicle's
   envelope, hold accuracy from the navigation covariance travelling with

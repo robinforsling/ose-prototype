@@ -34,9 +34,17 @@ The manoeuvres are chosen to press against different limits:
                    omega_max for the whole segment while decelerating from
                    380 m/s. The delivered rate therefore traces the
                    corner-speed curve and peaks where the lift and structural
-                   limits meet, landing on v_corner exactly. That is the
-                   sharpest check in this repository that the turn-performance
-                   model is self-consistent.
+                   limits meet, landing within about 0.2 m/s of v_corner. That
+                   is the sharpest check in this repository that the
+                   turn-performance model is self-consistent.
+
+                   It used to land on v_corner exactly. The residual appeared
+                   when guidance moved onto the believed mass (ADR 0015): the
+                   rate is now clipped at the mass the fuel gauge reports,
+                   while the closed-form v_corner printed below is evaluated
+                   at the true mass, so the two differ by the gauge error.
+                   Nothing regressed -- the demo simply stopped being allowed
+                   to read truth.
 
   ground track      where it went, with the trail and current heading
   heading, airspeed  commanded against true -- the tracking task itself
@@ -114,10 +122,18 @@ from ose.interfaces import (
     OwnStateEstimate,
     TurnRateSpeedSetpoint,
 )
+from ose.resource.fuel_gauge import FuelGauge
+from ose.resource.reference_configs.reference_fuel_gauge import (
+    STANDARD as FUEL_GAUGE_STANDARD,
+)
 from ose.resource.reference_configs.reference_vehicle import reference_fighter
 from ose.resource.vehicle import VehicleState
 from ose.subsystem.reference_configs.reference_vehicle_guidance import STANDARD
+from ose.subsystem.reference_configs.reference_vehicle_manager import (
+    STANDARD as MANAGER_STANDARD,
+)
 from ose.subsystem.vehicle_guidance import VehicleGuidance
+from ose.subsystem.vehicle_manager import VehicleManager
 
 DT = 0.02
 PLOTS_DIR = Path(__file__).resolve().parent / "plots"
@@ -277,15 +293,25 @@ def perfect_estimate(t_s: float, state: VehicleState) -> OwnStateEstimate:
 def fly() -> dict[str, np.ndarray]:
     """The throwaway simulation core: fixed step, one platform, log everything."""
     vehicle = reference_fighter()
-    guidance = VehicleGuidance(vehicle, STANDARD)
+    gauge = FuelGauge(
+        FUEL_GAUGE_STANDARD, vehicle.lam.mass_dry_kg, np.random.default_rng(7)
+    )
+    manager = VehicleManager(vehicle, MANAGER_STANDARD)
+    guidance = VehicleGuidance(manager, STANDARD)
     state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
     rec = Recording()
     reported = False
 
     t = 0.0
     while t < T_END:
+        # The fuel gauge is the only truth-reading component in this loop;
+        # the manager consumes what it publishes and guidance flies on the
+        # believed mass that results.
+        if gauge.due(t):
+            manager.ingest(gauge.sample(t, state))
+
         setpoint = setpoint_at(t)
-        cmd, sat = guidance.command(t, setpoint, perfect_estimate(t, state), state.mass_kg)
+        cmd, sat = guidance.command(t, setpoint, perfect_estimate(t, state))
         envelope = vehicle.capability(state)
 
         rec.t.append(t)

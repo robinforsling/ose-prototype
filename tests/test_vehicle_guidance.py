@@ -27,7 +27,11 @@ from ose.interfaces import (
 from ose.resource.reference_configs.reference_vehicle import reference_fighter
 from ose.resource.vehicle import VehicleState
 from ose.subsystem.reference_configs.reference_vehicle_guidance import STANDARD
+from ose.subsystem.reference_configs.reference_vehicle_manager import (
+    STANDARD as MANAGER_STANDARD,
+)
 from ose.subsystem.vehicle_guidance import VehicleGuidance
+from ose.subsystem.vehicle_manager import VehicleManager
 
 
 def _perfect_estimate(t_s: float, state: VehicleState) -> OwnStateEstimate:
@@ -52,8 +56,16 @@ def vehicle():
 
 
 @pytest.fixture
-def guidance(vehicle):
-    return VehicleGuidance(vehicle, STANDARD)
+def manager(vehicle):
+    # 12 000 kg dry plus 4 000 kg of fuel: the 16 000 kg platform every
+    # state constructed below is built at, so these tests exercise the
+    # same numbers they did when mass was a call argument.
+    return VehicleManager(vehicle, MANAGER_STANDARD)
+
+
+@pytest.fixture
+def guidance(manager):
+    return VehicleGuidance(manager, STANDARD)
 
 
 # --------------------------------------------------------------------------
@@ -87,7 +99,7 @@ def test_satisfies_the_protocol(guidance):
 def test_commanding_unknown_setpoint_type_raises_type_error(guidance):
     state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
     with pytest.raises(TypeError):
-        guidance.command(0.0, object(), _perfect_estimate(0.0, state), state.mass_kg)
+        guidance.command(0.0, object(), _perfect_estimate(0.0, state))
 
 
 # --------------------------------------------------------------------------
@@ -101,7 +113,7 @@ def test_zero_error_commands_steady_level_flight(vehicle, guidance):
     state = VehicleState(0.0, 0.0, math.radians(30.0), 250.0, 16000.0)
     setpoint = HeadingSpeedSetpoint(psi_cmd_rad=state.psi_rad, v_cmd_mps=state.v_mps)
 
-    cmd, sat = guidance.command(0.0, setpoint, _perfect_estimate(0.0, state), state.mass_kg)
+    cmd, sat = guidance.command(0.0, setpoint, _perfect_estimate(0.0, state))
 
     assert not sat.any
     assert abs(cmd.omega_rad_s) < 1e-9
@@ -119,7 +131,7 @@ def test_holds_heading_and_speed_setpoint(vehicle, guidance):
     dt = 0.05
     t = 0.0
     while t < 60.0:
-        cmd, _ = guidance.command(t, setpoint, _perfect_estimate(t, state), state.mass_kg)
+        cmd, _ = guidance.command(t, setpoint, _perfect_estimate(t, state))
         state = step_rk4(vehicle, state, cmd, dt)
         t += dt
 
@@ -143,7 +155,7 @@ def test_feedforward_matches_the_turn_actually_commanded(vehicle, guidance):
     state = VehicleState(0.0, 0.0, 0.0, 150.0, 16000.0)
     setpoint = HeadingSpeedSetpoint(psi_cmd_rad=math.pi, v_cmd_mps=state.v_mps)
 
-    cmd, sat = guidance.command(0.0, setpoint, _perfect_estimate(0.0, state), state.mass_kg)
+    cmd, sat = guidance.command(0.0, setpoint, _perfect_estimate(0.0, state))
 
     assert sat.omega_clipped
     assert not sat.thrust_clipped
@@ -163,7 +175,7 @@ def _fly(vehicle, guidance, state, setpoint_at, duration_s, dt=0.05):
     t = 0.0
     while t < duration_s:
         cmd, _ = guidance.command(
-            t, setpoint_at(t), _perfect_estimate(t, state), state.mass_kg
+            t, setpoint_at(t), _perfect_estimate(t, state)
         )
         state = step_rk4(vehicle, state, cmd, dt)
         t += dt
@@ -215,18 +227,27 @@ def test_turn_rate_setpoint_is_commanded_directly(vehicle, guidance):
     rate = math.radians(8.0)
     cmd, sat = guidance.command(
         0.0, TurnRateSpeedSetpoint(rate, 250.0), _perfect_estimate(0.0, state),
-        state.mass_kg,
     )
     assert not sat.any
     assert cmd.omega_rad_s == pytest.approx(rate)
 
 
-def test_unreachable_turn_rate_saturates_and_stays_saturated(vehicle, guidance):
+def test_unreachable_turn_rate_saturates_and_stays_saturated(
+    vehicle, guidance, manager
+):
     """The reason this setpoint type exists. A heading command asking for
     more than the airframe can give laps the vehicle, the error wraps
     through 180 and flips sign, and guidance reverses the turn. With no
     heading to chase there is no error to wrap, so an impossible rate simply
     pins against omega_available for as long as it is commanded.
+
+    The limit is evaluated at the mass the platform BELIEVES, not the true
+    one. Over these 60 seconds the vehicle burns several hundred kilograms
+    while nothing feeds the manager a fuel measurement, so the belief stays
+    at its initial 16 000 kg and the two diverge by about 0.4 t. Asserting
+    against state.mass_kg here would be asserting that guidance can read
+    truth, which is exactly what ADR 0015 removed. It is also the staleness
+    the sum-only manager is documented as having.
     """
     state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
     absurd = TurnRateSpeedSetpoint(math.radians(200.0), 250.0)
@@ -235,11 +256,11 @@ def test_unreachable_turn_rate_saturates_and_stays_saturated(vehicle, guidance):
     t = 0.0
     while t < 60.0:
         cmd, sat = guidance.command(
-            t, absurd, _perfect_estimate(t, state), state.mass_kg
+            t, absurd, _perfect_estimate(t, state)
         )
         assert sat.omega_clipped
         assert cmd.omega_rad_s == pytest.approx(
-            vehicle.omega_max_rad_s(state.v_mps, state.mass_kg)
+            vehicle.omega_max_rad_s(state.v_mps, manager.mass_kg)
         )
         signs.append(math.copysign(1.0, cmd.omega_rad_s))
         state = step_rk4(vehicle, state, cmd, 0.05)
@@ -266,7 +287,7 @@ def test_turn_rate_setpoint_still_holds_speed(vehicle, guidance):
 def test_capability_reachability_comes_from_the_vehicle(vehicle, guidance):
     state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
     envelope = vehicle.capability(state)
-    cap = guidance.capability(_perfect_estimate(0.0, state), state.mass_kg)
+    cap = guidance.capability(_perfect_estimate(0.0, state))
 
     assert cap.max_turn_rate_rad_s == envelope.omega_available_rad_s
     assert cap.max_speed_mps == envelope.v_max_achievable_mps
@@ -280,7 +301,7 @@ def test_capability_hold_accuracy_comes_from_navigation(vehicle, guidance):
     est = _perfect_estimate(0.0, state)
     est.covariance = np.diag([100.0, 100.0, math.radians(2.0) ** 2, 1.5**2])
 
-    cap = guidance.capability(est, state.mass_kg)
+    cap = guidance.capability(est)
     assert cap.heading_hold_sigma_rad == pytest.approx(math.radians(2.0))
     assert cap.speed_hold_sigma_mps == pytest.approx(1.5)
 
@@ -296,20 +317,20 @@ def test_capability_degrades_when_navigation_does(vehicle, guidance):
     degraded.covariance = np.diag([400.0, 400.0, math.radians(3.0) ** 2, 2.0**2])
 
     assert (
-        guidance.capability(degraded, state.mass_kg).heading_hold_sigma_rad
-        > guidance.capability(good, state.mass_kg).heading_hold_sigma_rad
+        guidance.capability(degraded).heading_hold_sigma_rad
+        > guidance.capability(good).heading_hold_sigma_rad
     )
     # The vehicle half is unaffected -- the airframe does not care that the
     # navigation solution got worse.
     assert (
-        guidance.capability(degraded, state.mass_kg).max_turn_rate_rad_s
-        == guidance.capability(good, state.mass_kg).max_turn_rate_rad_s
+        guidance.capability(degraded).max_turn_rate_rad_s
+        == guidance.capability(good).max_turn_rate_rad_s
     )
 
 
 def test_admits_rejects_unholdable_speeds(vehicle, guidance):
     state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
-    cap = guidance.capability(_perfect_estimate(0.0, state), state.mass_kg)
+    cap = guidance.capability(_perfect_estimate(0.0, state))
 
     assert cap.admits(HeadingSpeedSetpoint(0.0, 250.0))
     assert not cap.admits(HeadingSpeedSetpoint(0.0, cap.min_speed_mps - 10.0))
@@ -342,8 +363,8 @@ def test_claimed_hold_accuracy_is_honest(vehicle, guidance, nav_heading_error_de
         est.psi_rad = state.psi_rad + error       # navigation is off by `error`
         est.covariance = np.diag([0.0, 0.0, error**2, 0.0])
         if claimed is None:
-            claimed = guidance.capability(est, state.mass_kg).heading_hold_sigma_rad
-        cmd, _ = guidance.command(t, setpoint, est, state.mass_kg)
+            claimed = guidance.capability(est).heading_hold_sigma_rad
+        cmd, _ = guidance.command(t, setpoint, est)
         state = step_rk4(vehicle, state, cmd, dt)
         t += dt
 
@@ -361,7 +382,7 @@ def test_reports_saturation_when_setpoint_exceeds_envelope(vehicle, guidance):
     state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
     setpoint = HeadingSpeedSetpoint(psi_cmd_rad=math.pi, v_cmd_mps=state.v_mps)
 
-    cmd, sat = guidance.command(0.0, setpoint, _perfect_estimate(0.0, state), state.mass_kg)
+    cmd, sat = guidance.command(0.0, setpoint, _perfect_estimate(0.0, state))
 
     assert sat.omega_clipped
     assert sat.any

@@ -1,6 +1,6 @@
 # 0011. Vehicle guidance decides what to command, not what is admissible
 
-Status: accepted
+Status: accepted, amended by ADR 0015
 Date: 2026-08-10
 
 ## Context
@@ -27,9 +27,9 @@ fuel-accounting component exists.
 ## Decision
 
 `VehicleGuidance` (`subsystem/vehicle_guidance.py`) takes a
-`HeadingSpeedSetpoint` -- a stand-in for `planning.action.v1` -- and the
-platform's own `OwnStateEstimate`, converts the estimate to a believed
-`VehicleState` via `as_vehicle_state()`, computes a raw command by
+`HeadingSpeedSetpoint` and the platform's own `OwnStateEstimate`, converts
+the estimate to a believed `VehicleState` via `as_vehicle_state()`, computes
+a raw command by
 proportional control on heading and speed error (drag feedforward on the
 thrust channel), and hands that raw command to
 `Vehicle2D.project_command()`. The `Saturation` it returns is passed back to
@@ -55,6 +55,11 @@ nothing in this repository estimates mass yet, and inventing an estimate
 would be worse than being honest that today's callers must supply the true
 value directly.
 
+**Superseded by ADR 0015.** A `VehicleManager` now owns the platform's
+believed mass, guidance binds to it instead of to `Vehicle2D`, and there is
+no `mass_kg` parameter. The two paragraphs above describe how this component
+was first built; `as_vehicle_state()` moved to the manager with the mass.
+
 ## Consequences
 
 The truth boundary is exercised by something other than an estimator for
@@ -75,9 +80,14 @@ changed. `Saturation` now carries the requested command as numbers.
 Guidance's quality is bounded by what it is given. A mass supplied directly
 by the caller is exactly the kind of implicit truth-reading ADR 0008 exists
 to prevent, once a real fuel-accounting component exists to supply a
-believed mass instead. Until then, any demo or test using `VehicleGuidance`
-is implicitly assuming perfect mass knowledge and should not be read as
-evidence that guidance works under mass uncertainty.
+believed mass instead.
+
+That is what happened, and the gap was wider than this paragraph guessed.
+It was not only that demos assumed perfect mass knowledge: nineteen of
+twenty call sites reached for `state.mass_kg` and read truth outright, so
+the boundary held inside guidance and failed in every composition of it.
+ADR 0015 closed it by removing the parameter rather than by asking callers
+to behave.
 
 The control law has no integral term, so a persistent disturbance still
 leaves a steady-state error uncorrected. The feedforward term added later
