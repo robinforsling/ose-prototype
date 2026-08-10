@@ -58,6 +58,13 @@ real caller, and `test_reports_saturation_when_setpoint_exceeds_envelope` is
 the first test in the repository that exercises a command actually being
 clipped and that clipping being reported rather than silently applied.
 
+That first caller also showed what `Saturation` was missing. It reported
+*that* a command had been clipped but not *what had been asked for*, except
+inside its note strings, so the pre-enforcement command was unobservable from
+outside. The first consumer that wanted to show the difference duplicated the
+control law to recover it, and that duplicate went stale as soon as the law
+changed. `Saturation` now carries the requested command as numbers.
+
 Guidance's quality is bounded by what it is given. A mass supplied directly
 by the caller is exactly the kind of implicit truth-reading ADR 0008 exists
 to prevent, once a real fuel-accounting component exists to supply a

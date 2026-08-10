@@ -184,11 +184,25 @@ class Capability:
 
 @dataclass
 class Saturation:
-    """Record of any command clipping, so violations are visible not silent."""
+    """Record of any command clipping, so violations are visible not silent.
+
+    `requested` carries the command as it arrived, before enforcement, and is
+    always populated -- not only when something was clipped. Without it the
+    pre-enforcement command is unobservable from outside, since
+    project_command() returns only what survived, and a caller wanting to show
+    or log what was asked for has to recompute it by duplicating the control
+    law. demos/demo_vehicle_guidance.py did exactly that and the duplicate
+    went stale the first time the law changed, plotting a feedforward the
+    guidance no longer used.
+
+    The notes stay: they are for a human reading a log. The numbers are for
+    everything else.
+    """
 
     thrust_clipped: bool = False
     omega_clipped: bool = False
     notes: list[str] = field(default_factory=list)
+    requested: "VehicleCommand | None" = None
 
     @property
     def any(self) -> bool:
@@ -349,7 +363,7 @@ class Vehicle2D:
         persistently commanding outside the envelope is a finding, not a detail
         to be swallowed by the integrator.
         """
-        sat = Saturation()
+        sat = Saturation(requested=command)
 
         T = command.thrust_N
         T_max = self.thrust_available_N(state)

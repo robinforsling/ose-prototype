@@ -47,6 +47,12 @@ interface: it projects its raw command onto the vehicle's admissible sets
 via `project_command()` before publishing it, and reports any clipping via
 `Saturation` rather than swallowing it. See ADR 0011.
 
+`Saturation` carries `thrust_clipped`, `omega_clipped`, human-readable
+`notes`, and `requested` -- the command as it arrived, before enforcement,
+always populated. The numbers matter because `project_command()` returns only
+what survived, so without them the pre-enforcement command is unobservable and
+a caller wanting to show or log it has to duplicate the control law.
+
 ### `vehicle.state.v1`
 
 `OwnStateEstimate`, published by any component satisfying the

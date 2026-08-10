@@ -93,37 +93,22 @@ def run():
         own_state = perfect_estimate(t, state)
         cmd, sat = guidance.command(t, setpoint, own_state, state.mass_kg)
 
-        # The raw, pre-enforcement command, mirrored here only for the plot:
-        # command() returns what survived enforcement, so what was ASKED for
-        # is not otherwise observable from outside. That makes this a
-        # duplicate of guidance's control law and a maintenance hazard --
-        # it has already been stale once, plotting the old feedforward after
-        # the real law started asking capability what the vehicle could
-        # actually fly. The honest fix is for Saturation to carry the
-        # requested values as numbers rather than only inside its note
-        # strings; until it does, keep this in step with vehicle_guidance.py.
-        heading_error = math.remainder(setpoint.psi_cmd_rad - state.psi_rad, 2.0 * math.pi)
-        omega_raw = STANDARD.heading_gain_per_s * heading_error
-        omega_achievable = math.copysign(
-            min(abs(omega_raw), vehicle.capability(state).omega_available_rad_s), omega_raw
-        )
-        thrust_raw = vehicle.capability(
-            state, omega_rad_s=omega_achievable
-        ).thrust_required_N + state.mass_kg * STANDARD.speed_gain_per_s * (
-            setpoint.v_cmd_mps - state.v_mps
-        )
+        # What guidance asked for, before enforcement. Reported by Saturation
+        # rather than recomputed here: this used to be a copy of guidance's
+        # control law, and it went stale the first time that law changed.
+        requested = sat.requested
 
         log["t"].append(t)
         log["psi"].append(math.degrees(state.psi_rad))
         log["psi_cmd"].append(math.degrees(setpoint.psi_cmd_rad))
         log["v"].append(state.v_mps)
         log["v_cmd"].append(setpoint.v_cmd_mps)
-        log["omega_raw_deg_s"].append(math.degrees(omega_raw))
+        log["omega_raw_deg_s"].append(math.degrees(requested.omega_rad_s))
         log["omega_applied_deg_s"].append(math.degrees(cmd.omega_rad_s))
         log["omega_max_deg_s"].append(
             math.degrees(vehicle.omega_max_rad_s(state.v_mps, state.mass_kg))
         )
-        log["thrust_raw_kN"].append(thrust_raw / 1e3)
+        log["thrust_raw_kN"].append(requested.thrust_N / 1e3)
         log["thrust_applied_kN"].append(cmd.thrust_N / 1e3)
         log["thrust_avail_kN"].append(vehicle.thrust_available_N(state) / 1e3)
         log["omega_clipped"].append(sat.omega_clipped)

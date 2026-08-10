@@ -225,3 +225,33 @@ def test_project_command_is_offered_not_applied(vehicle, state):
     assert abs(applied.omega_rad_s) == pytest.approx(
         vehicle.omega_max_rad_s(state.v_mps, state.mass_kg)
     )
+
+
+def test_saturation_reports_what_was_requested(vehicle, state):
+    """The pre-enforcement command must be recoverable as numbers, not only
+    from the note strings. Without it a caller wanting to show what was asked
+    for has to duplicate the control law, which is exactly what
+    demo_vehicle_guidance.py did until this field existed -- and that
+    duplicate went stale the first time the law changed."""
+    absurd = VehicleCommand(10 * vehicle.lam.thrust_max_N, 5.0)
+    applied, sat = vehicle.project_command(state, absurd)
+
+    assert sat.requested is not None
+    assert sat.requested.thrust_N == absurd.thrust_N
+    assert sat.requested.omega_rad_s == absurd.omega_rad_s
+    # And it is the *requested* command, not the projected one.
+    assert sat.requested.thrust_N != applied.thrust_N
+    assert sat.requested.omega_rad_s != applied.omega_rad_s
+
+
+def test_saturation_reports_the_request_even_when_nothing_was_clipped(vehicle, state):
+    """Always populated, so a consumer needs no None handling and no
+    special case for the unclipped path. sat.any is what says whether the
+    request differed from what was delivered."""
+    fine = VehicleCommand(vehicle.thrust_required_N(state.v_mps, state.mass_kg), 0.05)
+    applied, sat = vehicle.project_command(state, fine)
+
+    assert not sat.any
+    assert sat.requested is not None
+    assert sat.requested.thrust_N == pytest.approx(applied.thrust_N)
+    assert sat.requested.omega_rad_s == pytest.approx(applied.omega_rad_s)
