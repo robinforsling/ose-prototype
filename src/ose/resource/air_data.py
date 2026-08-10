@@ -20,7 +20,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ose.interfaces import AirDataMeasurement, SensorCapability
+from ose.interfaces import AirDataMeasurement, MeasurementChannel, SensorCapability
 from ose.resource.vehicle import VehicleState
 
 
@@ -50,7 +50,9 @@ class AirDataSensor:
         """Always available: this sensor has no denial or failure concept."""
         return SensorCapability(
             rate_hz=self.par.air_data_rate_hz,
-            declared_sigma=self.par.air_data_sigma_mps,
+            channels=(
+                MeasurementChannel("airspeed", self.par.air_data_sigma_mps, "m/s"),
+            ),
             available=True,
         )
 

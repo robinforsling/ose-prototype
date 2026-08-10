@@ -25,7 +25,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ose.interfaces import FuelMeasurement, SensorCapability
+from ose.interfaces import FuelMeasurement, MeasurementChannel, SensorCapability
 from ose.resource.vehicle import VehicleState
 
 
@@ -59,7 +59,9 @@ class FuelGauge:
         """Always available: this sensor has no denial or failure concept."""
         return SensorCapability(
             rate_hz=self.par.fuel_rate_hz,
-            declared_sigma=self.par.fuel_sigma_kg,
+            channels=(
+                MeasurementChannel("fuel_remaining", self.par.fuel_sigma_kg, "kg"),
+            ),
             available=True,
         )
 

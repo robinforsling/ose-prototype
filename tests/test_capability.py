@@ -15,6 +15,7 @@ delivers what it claimed, which is the one thing capability() promises to
 answer without integrating.
 """
 
+import dataclasses
 import math
 
 import numpy as np
@@ -22,13 +23,17 @@ import pytest
 
 from ose import interfaces
 from ose.resource.air_data import AirDataSensor as AirDataSensorImpl
+from ose.resource.clock import Clock
 from ose.resource.fuel_gauge import FuelGauge
 from ose.resource.gnss import GnssReceiver
+from ose.resource.imu import Imu
 from ose.resource.reference_configs.reference_air_data import STANDARD as AIR_DATA_STANDARD
+from ose.resource.reference_configs.reference_clock import STANDARD as CLOCK_STANDARD
 from ose.resource.reference_configs.reference_fuel_gauge import STANDARD as FUEL_STANDARD
 from ose.resource.reference_configs.reference_gnss import STANDARD as GNSS_STANDARD
+from ose.resource.reference_configs.reference_imu import TACTICAL_GRADE
 from ose.resource.reference_configs.reference_vehicle import reference_fighter
-from ose.resource.vehicle import VehicleCommand, VehicleState, step_rk4
+from ose.resource.vehicle import Disturbance, VehicleCommand, VehicleState, step_rk4
 
 DT = 0.02
 
@@ -54,16 +59,38 @@ def _fly(vehicle, state, cmd, duration_s, dt=DT):
 # Protocol conformance
 # --------------------------------------------------------------------------
 
-def test_resources_satisfy_the_capability_protocol(vehicle):
+def test_every_resource_satisfies_the_capability_protocol(vehicle):
+    """All seven resources, not a subset: self-assessment is what makes
+    components swappable, so a resource that cannot be asked is a hole in
+    the whole premise."""
     mass_dry_kg = vehicle.lam.mass_dry_kg
     rng = np.random.default_rng(0)
     for resource in (
         vehicle,
+        Imu(TACTICAL_GRADE, rng, vehicle),
         GnssReceiver(GNSS_STANDARD, rng=rng),
         AirDataSensorImpl(AIR_DATA_STANDARD, rng=rng),
+        Clock(CLOCK_STANDARD, rng=rng),
         FuelGauge(FUEL_STANDARD, mass_dry_kg, rng=rng),
     ):
         assert isinstance(resource, interfaces.CapabilityModel)
+
+
+def test_every_sensor_declares_at_least_one_channel(vehicle):
+    """A capability with no channels declares nothing about accuracy."""
+    rng = np.random.default_rng(0)
+    for sensor in (
+        Imu(TACTICAL_GRADE, rng, vehicle),
+        GnssReceiver(GNSS_STANDARD, rng=rng),
+        AirDataSensorImpl(AIR_DATA_STANDARD, rng=rng),
+        Clock(CLOCK_STANDARD, rng=rng),
+        FuelGauge(FUEL_STANDARD, vehicle.lam.mass_dry_kg, rng=rng),
+    ):
+        cap = sensor.capability()
+        assert cap.channels
+        for c in cap.channels:
+            assert c.name and c.units
+            assert c.sigma > 0.0
 
 
 # --------------------------------------------------------------------------
@@ -210,16 +237,83 @@ def test_sensor_capability_matches_published_measurements(vehicle):
     measurements declare -- otherwise a planner and a filter reading the
     same sensor would disagree about its accuracy."""
     truth = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
-    dist_free = VehicleState(0.0, 0.0, 0.0, 250.0, vehicle.lam.mass_dry_kg + 4000.0)
+    fuelled = VehicleState(0.0, 0.0, 0.0, 250.0, vehicle.lam.mass_dry_kg + 4000.0)
+    dist = Disturbance()
 
     air = AirDataSensorImpl(AIR_DATA_STANDARD, rng=np.random.default_rng(0))
-    assert air.capability().declared_sigma == air.sample(0.0, truth).airspeed_sigma_mps
+    assert (
+        air.capability().channel("airspeed").sigma
+        == air.sample(0.0, truth).airspeed_sigma_mps
+    )
 
     gauge = FuelGauge(FUEL_STANDARD, vehicle.lam.mass_dry_kg, rng=np.random.default_rng(0))
     assert (
-        gauge.capability().declared_sigma
-        == gauge.sample(0.0, dist_free).fuel_remaining_sigma_kg
+        gauge.capability().channel("fuel_remaining").sigma
+        == gauge.sample(0.0, fuelled).fuel_remaining_sigma_kg
     )
+
+    clock = Clock(CLOCK_STANDARD, rng=np.random.default_rng(0))
+    assert (
+        clock.capability().channel("elapsed").sigma
+        == clock.sample(0.0, 0.05).elapsed_sigma_s
+    )
+
+    gnss = GnssReceiver(GNSS_STANDARD, rng=np.random.default_rng(0))
+    fix = gnss.sample(0.0, truth, dist)
+    cap = gnss.capability()
+    assert cap.channel("position").sigma == fix.position_sigma_m
+    assert cap.channel("velocity").sigma == fix.velocity_sigma_mps
+
+
+def test_gnss_declares_both_channels_not_just_position(vehicle):
+    """The defect this record shape exists to prevent: GNSS declares two
+    accuracies with different units, and a single-valued capability
+    silently reported only the first."""
+    cap = GnssReceiver(GNSS_STANDARD, rng=np.random.default_rng(0)).capability()
+    assert {c.name for c in cap.channels} == {"position", "velocity"}
+    assert cap.channel("position").units == "m"
+    assert cap.channel("velocity").units == "m/s"
+
+
+def test_gnss_without_velocity_aiding_declares_no_velocity_channel():
+    """A receiver that will not publish velocity must not claim an accuracy
+    for it -- an absent channel, not a channel with a meaningless number."""
+    par = dataclasses.replace(GNSS_STANDARD, gnss_velocity_enabled=False)
+    cap = GnssReceiver(par, rng=np.random.default_rng(0)).capability()
+    assert {c.name for c in cap.channels} == {"position"}
+    with pytest.raises(KeyError):
+        cap.channel("velocity")
+
+
+def test_imu_declares_densities_and_owns_no_rate():
+    """The IMU cannot state a per-sample sigma without knowing the interval,
+    so it declares densities and reports no rate. A consumer that assumed
+    sigma here would be wrong by a factor of sqrt(dt)."""
+    cap = Imu(TACTICAL_GRADE, np.random.default_rng(0), reference_fighter()).capability()
+    assert cap.rate_hz is None
+    assert cap.interval_s is None
+    assert {c.name for c in cap.channels} == {"specific_force", "angular_rate"}
+    assert cap.channel("specific_force").units.endswith("/sqrt(Hz)")
+    assert cap.channel("angular_rate").units.endswith("/sqrt(Hz)")
+
+    # The density really is the per-sample sigma scaled by sqrt(dt).
+    dt = 0.05
+    m = Imu(TACTICAL_GRADE, np.random.default_rng(0), reference_fighter()).sample(
+        0.0, dt, VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0),
+        VehicleCommand(0.0, 0.0), Disturbance(),
+    )
+    assert m.specific_force_sigma_mps2 == pytest.approx(
+        cap.channel("specific_force").sigma / math.sqrt(dt)
+    )
+
+
+def test_clock_owns_no_rate_but_declares_a_true_sigma():
+    """Unlike the IMU, the clock's white noise is a fixed per-reading
+    jitter, so its declared sigma is directly comparable to what its
+    measurements carry -- even though it owns no rate either."""
+    cap = Clock(CLOCK_STANDARD, rng=np.random.default_rng(0)).capability()
+    assert cap.rate_hz is None
+    assert cap.channel("elapsed").units == "s"
 
 
 def test_sensor_capability_rate_matches_due(vehicle):

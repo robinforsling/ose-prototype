@@ -20,7 +20,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ose.interfaces import GnssFix, SensorCapability
+from ose.interfaces import GnssFix, MeasurementChannel, SensorCapability
 from ose.resource.vehicle import Disturbance, VehicleState
 
 
@@ -53,10 +53,22 @@ class GnssReceiver:
     def capability(self) -> SensorCapability:
         """available tracks denial, so a consumer that asks during an outage
         is told the receiver cannot currently deliver -- the one resource
-        here whose capability is genuinely dynamic."""
+        here whose capability is genuinely dynamic.
+
+        Two channels, and the velocity one is absent entirely when velocity
+        aiding is disabled: a receiver that will not publish velocity should
+        not claim an accuracy for it.
+        """
+        channels = [
+            MeasurementChannel("position", self.par.gnss_position_sigma_m, "m")
+        ]
+        if self.par.gnss_velocity_enabled:
+            channels.append(
+                MeasurementChannel("velocity", self.par.gnss_velocity_sigma_mps, "m/s")
+            )
         return SensorCapability(
             rate_hz=self.par.gnss_rate_hz,
-            declared_sigma=self.par.gnss_position_sigma_m,
+            channels=tuple(channels),
             available=self._available,
         )
 

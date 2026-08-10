@@ -18,7 +18,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ose.interfaces import ImuMeasurement
+from ose.interfaces import ImuMeasurement, MeasurementChannel, SensorCapability
 from ose.resource.vehicle import Disturbance, Vehicle2D, VehicleCommand, VehicleState
 
 
@@ -55,6 +55,26 @@ class Imu:
         # True biases, drawn once per instantiation and then propagated.
         self.bias_accel = rng.normal(0.0, parameters.accel_bias_sigma, size=2)
         self.bias_gyro = float(rng.normal(0.0, parameters.gyro_bias_sigma))
+
+    def capability(self) -> SensorCapability:
+        """Two channels with different units, and densities rather than
+        per-sample sigmas: this sensor does not own its rate, so its
+        per-sample accuracy (density / sqrt(dt)) is undefined until the
+        caller picks an interval. Reporting the density is the honest
+        invariant; the units say so.
+        """
+        return SensorCapability(
+            rate_hz=None,
+            channels=(
+                MeasurementChannel(
+                    "specific_force", self.par.accel_noise_density, "m/s^2/sqrt(Hz)"
+                ),
+                MeasurementChannel(
+                    "angular_rate", self.par.gyro_noise_density, "rad/s/sqrt(Hz)"
+                ),
+            ),
+            available=True,
+        )
 
     def true_specific_force(
         self, state: VehicleState, command: VehicleCommand, dist: Disturbance

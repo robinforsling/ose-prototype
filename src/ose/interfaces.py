@@ -200,18 +200,55 @@ class FuelSensor(Protocol):
 # ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
-class SensorCapability:
-    """What a sensing resource can currently achieve. Shared by the
-    measurement-producing resources, whose envelopes genuinely are the same
-    shape: how often, how well, and whether at all right now."""
+class MeasurementChannel:
+    """One measurable quantity a sensor declares an accuracy for.
 
-    rate_hz: float
-    declared_sigma: float       # in the sensor's own measurement units
+    Sensors are routinely multi-channel with different units per channel --
+    GNSS declares metres of position and metres per second of velocity --
+    so an accuracy claim cannot be a single number without silently
+    dropping part of it. `units` is carried explicitly rather than encoded
+    in a field name, the one place this repository cannot use its usual
+    `position_sigma_m` convention: the field name is generic by design so
+    a consumer can iterate channels it was not written against.
+    """
+
+    name: str       # e.g. "position", "angular_rate"
+    sigma: float    # declared 1-sigma accuracy, in `units`
+    units: str      # e.g. "m", "rad/s", "rad/s/sqrt(Hz)"
+
+
+@dataclass(frozen=True)
+class SensorCapability:
+    """What a sensing resource can currently achieve: how often, how well
+    on each channel, and whether at all right now.
+
+    `rate_hz` is None for a sensor that does not own its rate -- Imu and
+    Clock are sampled at whatever interval the caller chooses, so claiming
+    a rate for them would be an invention. Such sensors also declare noise
+    *densities* rather than per-sample sigmas, since their per-sample
+    accuracy is only defined once an interval is known; the channel's
+    `units` says which is being reported.
+    """
+
+    rate_hz: float | None
+    channels: tuple[MeasurementChannel, ...]
     available: bool             # False when denied, failed, or otherwise mute
 
     @property
-    def interval_s(self) -> float:
+    def interval_s(self) -> float | None:
+        """None when the sensor does not own its rate."""
+        if self.rate_hz is None:
+            return None
         return 1.0 / self.rate_hz if self.rate_hz > 0.0 else math.inf
+
+    def channel(self, name: str) -> MeasurementChannel:
+        for c in self.channels:
+            if c.name == name:
+                return c
+        raise KeyError(
+            f"no channel {name!r}; declared channels are "
+            f"{[c.name for c in self.channels]}"
+        )
 
 
 @runtime_checkable

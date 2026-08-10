@@ -32,7 +32,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ose.interfaces import ClockMeasurement
+from ose.interfaces import ClockMeasurement, MeasurementChannel, SensorCapability
 
 
 @dataclass
@@ -63,6 +63,21 @@ class Clock:
         self.par = parameters
         self.rng = rng or np.random.default_rng(0)
         self.drift = float(self.rng.normal(0.0, self.par.drift_sigma))
+
+    def capability(self) -> SensorCapability:
+        """Like Imu, does not own its rate. Unlike Imu, its white-noise term
+        is a fixed per-reading jitter rather than a density, so the sigma
+        reported here is directly the one its measurements declare -- the
+        drift term is deliberately not reported, being the clock's own true
+        behaviour rather than something it declares (ADR 0010).
+        """
+        return SensorCapability(
+            rate_hz=None,
+            channels=(
+                MeasurementChannel("elapsed", self.par.white_noise_sigma_s, "s"),
+            ),
+            available=True,
+        )
 
     def sample(self, t_s: float, dt_s: float) -> ClockMeasurement:
         p = self.par
