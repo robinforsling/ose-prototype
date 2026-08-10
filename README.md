@@ -122,5 +122,13 @@ single seed does not.
 
 ## Licence
 
-Not yet chosen. Pick one before the first external contribution — it is far
-easier now than after several people hold copyright in the history.
+Apache License 2.0. Copyright 2026 Saab AB. Full text in [LICENSE](LICENSE),
+attribution in [NOTICE](NOTICE).
+
+Apache 2.0 rather than a permissive alternative because it grants patent rights
+explicitly and requires contributors to do the same, which matters more than
+usual for a defence-adjacent project. Contributions are accepted under the same
+terms, per section 5 of the licence — there is no separate CLA.
+
+All parameter values in this repository are fictional and plausible. They are
+not claims about, and are not derived from, any real system.

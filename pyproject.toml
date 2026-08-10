@@ -8,6 +8,10 @@ version = "0.1.0"
 description = "Open Simulation Environment for autonomous combat aircraft systems"
 requires-python = ">=3.10"
 dependencies = ["numpy", "scipy", "matplotlib"]
+# The table form rather than PEP 639's `license = "Apache-2.0"` string: the
+# SPDX form needs setuptools >= 77, and build-system only pins >= 68.
+license = { text = "Apache-2.0" }
+classifiers = ["License :: OSI Approved :: Apache Software License"]
 
 [project.optional-dependencies]
 dev = ["pytest"]

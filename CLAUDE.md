@@ -83,6 +83,10 @@ any other component's stream. See ADR 0005.
   unit in the field name (`fov_deg`).
 - **Interfaces** live in `src/ose/interfaces.py` and contain no implementations.
   Components depend on that module, never on each other.
+- **Licensing**: Apache 2.0, copyright Saab AB. `LICENSE` and `NOTICE` at the
+  repository root cover every file; do not add per-file licence headers or SPDX
+  lines. Apache 2.0 recommends them but does not require them, and they would
+  displace the module docstring that every file here opens with.
 
 ## Working in this repository
 
