@@ -308,7 +308,8 @@ def test_prediction_backwards_is_a_no_op(manager):
 # Honesty of the stated uncertainty
 # --------------------------------------------------------------------------
 
-def _fly_one(seed: int, checkpoints, dt: float, thrust_N: float = 60_000.0):
+def _fly_one(seed: int, checkpoints, dt: float, thrust_N: float = 60_000.0,
+             gauge_par=GAUGE):
     """One ensemble member. Returns NEES on the fuel channel at each
     checkpoint.
 
@@ -334,7 +335,7 @@ def _fly_one(seed: int, checkpoints, dt: float, thrust_N: float = 60_000.0):
         nominal.lam,
         nominal.eta,
     )
-    gauge = FuelGauge(GAUGE, vehicle.lam.mass_dry_kg, gauge_rng)
+    gauge = FuelGauge(gauge_par, vehicle.lam.mass_dry_kg, gauge_rng)
     manager = VehicleManager(vehicle, STANDARD)
 
     state = VehicleState(0.0, 0.0, 0.0, 250.0, vehicle.lam.mass_dry_kg + fuel0)
@@ -382,6 +383,37 @@ def test_fuel_estimate_is_consistent_through_the_run():
             f"[{1 - band:.2f}, {1 + band:.2f}] -- the filter's stated "
             f"uncertainty is {'over' if column.mean() > 1 else 'under'}confident"
         )
+
+
+def test_consistency_survives_a_worse_gauge():
+    """The filter must be honest against whatever gauge is bolted to it, not
+    only against the reference one.
+
+    This matters because the gauge's role changed in kind. It used to BE the
+    belief, so its sigma was the platform's mass sigma outright and its rate
+    only controlled staleness. Now it is a correction source, and rate and
+    noise trade off: the same 20 kg reading arriving at 0.05 Hz instead of
+    1 Hz leaves a belief three times worse. A filter calibrated only at the
+    reference rate would be a trap in a repository whose whole point is that
+    people swap components out.
+
+    Twenty times slower and three times noisier, which is a different
+    prediction-to-correction balance rather than a rescaling of the same one.
+    """
+    degraded = dataclasses.replace(GAUGE, fuel_rate_hz=0.05, fuel_sigma_kg=60.0)
+    n_runs = 80
+    band = 1.96 * math.sqrt(2.0 / n_runs)
+
+    rows = np.array([
+        _fly_one(s, [150.0], dt=0.25, gauge_par=degraded) for s in range(n_runs)
+    ])
+    anees = rows[:, 0].mean()
+
+    assert abs(anees - 1.0) < band, (
+        f"ANEES {anees:.3f} against a 0.05 Hz / 60 kg gauge is outside "
+        f"[{1 - band:.2f}, {1 + band:.2f}] -- the filter is only calibrated "
+        "for the reference gauge"
+    )
 
 
 def test_the_filter_beats_the_raw_gauge():

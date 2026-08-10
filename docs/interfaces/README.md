@@ -154,6 +154,15 @@ miscalibrated coefficient is a bias and modelling a bias as process noise
 makes a filter overconfident. It is weakly observable by design. The stated
 uncertainty is checked by an ensemble ANEES test through the run, two-sided.
 
+The gauge's role changed when the filter arrived, and it is worth being clear
+about: it used to *be* the belief, so its declared sigma was the platform's
+mass sigma outright and its rate only controlled staleness. It is now a
+correction source, so rate and noise trade off -- the same 20 kg reading at
+0.05 Hz instead of 1 Hz leaves a belief three times worse. Consistency is
+checked at both the reference gauge and a twenty-times-slower, three-times-
+noisier one, because swapping a component out is the point of this
+environment.
+
 `predict(t_s, thrust_N)` is separate from `project_command()` on purpose:
 asking whether a command is admissible must not commit the platform to having
 flown it.
