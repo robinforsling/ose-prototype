@@ -93,12 +93,23 @@ def run():
         own_state = perfect_estimate(t, state)
         cmd, sat = guidance.command(t, setpoint, own_state, state.mass_kg)
 
-        # The raw, pre-enforcement control law, recomputed here only for the
-        # plot -- to show what was asked for alongside what was delivered.
+        # The raw, pre-enforcement command, mirrored here only for the plot:
+        # command() returns what survived enforcement, so what was ASKED for
+        # is not otherwise observable from outside. That makes this a
+        # duplicate of guidance's control law and a maintenance hazard --
+        # it has already been stale once, plotting the old feedforward after
+        # the real law started asking capability what the vehicle could
+        # actually fly. The honest fix is for Saturation to carry the
+        # requested values as numbers rather than only inside its note
+        # strings; until it does, keep this in step with vehicle_guidance.py.
         heading_error = math.remainder(setpoint.psi_cmd_rad - state.psi_rad, 2.0 * math.pi)
         omega_raw = STANDARD.heading_gain_per_s * heading_error
-        drag = vehicle.drag_N(state.v_mps, state.mass_kg, omega_raw)
-        thrust_raw = drag + state.mass_kg * STANDARD.speed_gain_per_s * (
+        omega_achievable = math.copysign(
+            min(abs(omega_raw), vehicle.capability(state).omega_available_rad_s), omega_raw
+        )
+        thrust_raw = vehicle.capability(
+            state, omega_rad_s=omega_achievable
+        ).thrust_required_N + state.mass_kg * STANDARD.speed_gain_per_s * (
             setpoint.v_cmd_mps - state.v_mps
         )
 

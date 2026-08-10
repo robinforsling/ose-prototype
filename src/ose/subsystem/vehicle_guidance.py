@@ -83,11 +83,37 @@ class VehicleGuidance:
         heading_error = math.remainder(setpoint.psi_cmd_rad - believed.psi_rad, 2.0 * math.pi)
         omega_cmd = self.par.heading_gain_per_s * heading_error
 
-        # Feedforward the thrust needed to hold steady flight at the
-        # commanded turn rate, then a proportional correction on speed
-        # error -- cancels drag rather than fighting it.
-        drag = self.vehicle.drag_N(believed.v_mps, believed.mass_kg, omega_cmd)
+        # Ask the vehicle what it can currently do rather than deriving it
+        # from the vehicle's internals. This is the capability model being
+        # used for what it is for: a consumer querying instead of
+        # reimplementing (docs/10-concepts.md, ADR 0012).
+        envelope = self.vehicle.capability(believed)
+
+        # Feedforward the thrust to hold steady flight through the turn the
+        # vehicle will ACTUALLY fly, not the one the error term asked for.
+        #
+        # These differ whenever the setpoint is aggressive, and not
+        # slightly: induced drag scales with load factor squared, so
+        # feedforwarding an unachievable turn rate demands an absurd
+        # thrust. A commanded heading reversal at 250 m/s asks for 54 deg/s,
+        # a 24 g turn against a 9 g airframe, and 1330 kN from a 130 kN
+        # engine. Evaluating at the achievable rate instead gives 214 kN --
+        # still saturating, but a number that means something.
+        #
+        # The command still carries the desired omega_cmd, unclipped, so
+        # project_command below is what performs and reports enforcement
+        # (ADR 0006) rather than guidance quietly pre-limiting itself. It
+        # clips to exactly omega_available_rad_s, which is what the thrust
+        # was computed for, so the pair that comes out is consistent.
+        omega_achievable = math.copysign(
+            min(abs(omega_cmd), envelope.omega_available_rad_s), omega_cmd
+        )
+        steady = self.vehicle.capability(believed, omega_rad_s=omega_achievable)
+
         speed_error = setpoint.v_cmd_mps - believed.v_mps
-        thrust_cmd = drag + believed.mass_kg * self.par.speed_gain_per_s * speed_error
+        thrust_cmd = (
+            steady.thrust_required_N
+            + believed.mass_kg * self.par.speed_gain_per_s * speed_error
+        )
 
         return self.vehicle.project_command(believed, VehicleCommand(thrust_cmd, omega_cmd))

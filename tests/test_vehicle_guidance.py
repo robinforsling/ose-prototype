@@ -124,6 +124,33 @@ def test_holds_heading_and_speed_setpoint(vehicle, guidance):
     assert abs(state.v_mps - setpoint.v_cmd_mps) < 1.0
 
 
+def test_feedforward_matches_the_turn_actually_commanded(vehicle, guidance):
+    """Guidance asks capability what the vehicle can do and feedforwards
+    thrust for THAT turn, not for the one the error term wished for.
+
+    The regression this pins: induced drag scales with load factor
+    squared, so feedforwarding an unachievable turn rate demands an absurd
+    thrust. Evaluating drag at a raw 54 deg/s request asked for 1330 kN
+    from a 130 kN engine. The flight condition here is chosen so the
+    difference is externally visible -- the turn rate saturates, but the
+    thrust for the achievable turn is inside the envelope, so a correct
+    feedforward does not saturate thrust and an incorrect one does.
+    """
+    state = VehicleState(0.0, 0.0, 0.0, 150.0, 16000.0)
+    setpoint = HeadingSpeedSetpoint(psi_cmd_rad=math.pi, v_cmd_mps=state.v_mps)
+
+    cmd, sat = guidance.command(0.0, setpoint, _perfect_estimate(0.0, state), state.mass_kg)
+
+    assert sat.omega_clipped
+    assert not sat.thrust_clipped
+
+    # Zero speed error, so the whole command is feedforward: it must equal
+    # the thrust required to sustain the turn that was actually commanded.
+    assert cmd.thrust_N == pytest.approx(
+        vehicle.thrust_required_N(state.v_mps, state.mass_kg, cmd.omega_rad_s), rel=1e-9
+    )
+
+
 def test_reports_saturation_when_setpoint_exceeds_envelope(vehicle, guidance):
     """A heading flip commands far more turn rate than the vehicle can
     deliver. The applied command must be clipped, and that clipping must be
