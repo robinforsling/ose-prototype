@@ -7,6 +7,7 @@ Run from the repository root with the package installed (`pip install -e .`).
 | `demo_vehicle.py` | `plots/vehicle_envelope.png`, `plots/vehicle_trajectory.png` | ~5 s |
 | `demo_navigation.py` | `plots/navigation_errors.png` | ~30–60 s |
 | `demo_vehicle_guidance.py` | `plots/vehicle_guidance.png` | ~5 s |
+| `demo_live_flight.py` | live window, or `plots/live_flight.mp4` with `--video` | ~5 s live, ~3 min to render video |
 | `demo_discretization.py` | printed tables only | ~2 s |
 
 Figures are written to `demos/plots/`, alongside the scripts, regardless of
@@ -34,6 +35,24 @@ larger heading change saturates the turn rate at first -- visibly, both in
 the shaded region and in requested-vs-delivered traces -- rather than being
 silently clipped, then recovers as the heading error shrinks back within
 capability.
+
+**`demo_live_flight.py`** — a sequence of guidance setpoints flown and
+animated: ground track with heading, commanded against true heading and
+airspeed, and requested against delivered turn rate and thrust with the
+vehicle's own moving limits. Opens a window if there is a display, writes mp4
+otherwise or with `--video`. Doubles as a throwaway stand-in for the
+simulation core; `docs/50-tooling.md` records what building it taught.
+
+The window has transport controls -- play/pause, step, scrub, speed -- because
+watching a mission go past once tells you much less than stopping on the
+moment a limit binds and stepping through it. Space plays and pauses, the
+arrow keys step, and dragging the bar seeks.
+
+Two behaviours are worth watching for. The commanded reversal saturates the
+turn rate, and the deceleration leg saturates thrust in the other direction --
+guidance asks for negative thrust and gets idle, because this airframe has no
+speedbrake. Both are visible as requested and delivered separating, which is
+the point of keeping them apart.
 
 **`demo_discretization.py`** — one untouched `derivative()` consumed by
 fixed-step RK4, an adaptive solver, and a numerically-linearised zero-order-hold
