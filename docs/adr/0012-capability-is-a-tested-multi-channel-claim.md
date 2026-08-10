@@ -3,13 +3,6 @@
 Status: accepted, extended by ADR 0013
 Date: 2026-08-10
 
-The decisions below stand. ADR 0013 answers the one question this record
-deliberately left open -- whether subsystem-layer components publish capability
-models -- and the answer changed: `VehicleGuidance` publishes one, composed
-from the vehicle's envelope and navigation's uncertainty. Read the scope
-paragraph under Decision as the position at the time of writing, not as
-current state; `docs/10-concepts.md` has that.
-
 ## Context
 
 Self-contained capability assessment is the mechanism that is supposed to make
@@ -66,10 +59,13 @@ must have a test that it is honest, the same obligation ADR 0009 established
 for declared uncertainty. The tests integrate the dynamics forward and check
 the component delivers what it claimed.
 
-Capability is implemented for resource-layer components only. Whether
-subsystem-layer components should publish one is left open: the categories the
-composition specification defines envelopes for are all resource-layer, and no
-consumer has yet needed to ask a filter or a guidance law what it can achieve.
+Every resource-layer component publishes a capability model. A subsystem-layer
+component publishes one when a consumer needs it, rather than as a blanket
+requirement -- the two estimators publish none, because nothing asks them.
+Where a subsystem component does publish one it is typically *composed* from
+the layers beneath it rather than merely reported, since a cyber component's
+reach is bounded by the resources it drives and the estimates it consumes.
+`VehicleGuidance` is the worked example; see ADR 0013.
 
 ## Consequences
 
@@ -92,12 +88,15 @@ needs an assertion that fuel still remains *shortly before* the claim. A
 capability test that only checks one side of a claim can be worse than none,
 because it looks like coverage.
 
-Nothing consumes capability yet. `VehicleGuidance` enforces admissibility
-through `project_command()`, not through `capability()`, so the "planner
-queries instead of reimplementing" claim remains unexercised by anything but
-tests and a demo print. Until a real consumer exists the interface is shaped by
-what seemed useful rather than by what was needed, and should be expected to
-change when one arrives.
+The interface was shaped before it had a consumer, by what seemed useful
+rather than by what was needed, and the first real consumer duly bent it.
+`VehicleGuidance` now queries `capability()` for the turn rate it can actually
+fly, which turned up a defect in its thrust feedforward, and publishes a
+composed capability of its own (ADR 0013). That exercise showed `Capability`
+reports `v_stall_mps` but not the airframe's hard `v_min_mps`/`v_max_mps`, so
+consumers reach into `Constraints` for them -- a gap better closed in the
+record than worked around downstream. Expect further shaping as more consumers
+arrive.
 
 Explicit `units` strings are unvalidated. Nothing stops a component declaring
 `"m"` where it means `"m/s"`, and no consumer currently checks. This is weaker

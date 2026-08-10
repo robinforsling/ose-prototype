@@ -1,3 +1,9 @@
+# Claude Code local settings, and the temp files it writes alongside them.
+# The .tmp.* variant is what got committed by accident once; a plain
+# settings.local.json rule does not match it.
+.claude/settings.local.json
+.claude/settings.local.json.tmp.*
+
 # Generated demo/test output (regenerate with python demos/*.py). Scoped to
 # these two trees, not a blanket *.png, so an intentionally-committed image
 # elsewhere (e.g. a figure added to docs/) is never silently swallowed. Does

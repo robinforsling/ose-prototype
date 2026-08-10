@@ -1,14 +1,14 @@
 # Architecture decision records
 
-One file per decision, numbered, immutable once accepted. Superseding or
-extending a decision means writing a new record that references the old one,
-never rewriting it.
+One file per decision, numbered. A new decision means a new record that
+references the ones it changes, never a renumbering.
 
-The one edit an accepted record may receive is a forward pointer in its status
-line, so that nobody reads a superseded or extended decision as current. The
-reasoning below it stays as written: an ADR is a dated record of why a choice
-was made, not a description of how things are now. For current state, read
-`docs/10-concepts.md`, `docs/20-architecture.md` and `docs/interfaces/`.
+Accepted records are revised when a statement in them stops being true, so that
+reading one never misleads. A forward pointer goes in the status line as well,
+so the relationship between records is visible. What is preserved is the
+*reasoning*: the Context section says what the problem looked like at the time
+and stays as written even when the decision it led to has moved on. Git holds
+the full history, so nothing is lost by keeping the working copy accurate.
 
 | # | Decision | Status |
 |---|---|---|

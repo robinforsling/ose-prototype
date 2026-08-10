@@ -3,18 +3,18 @@
 Status: accepted
 Date: 2026-08-10
 
-Extends ADR 0012, which established the capability contract and left one
-question open: whether subsystem-layer components should publish capability
-models. This record answers it for guidance. ADR 0012's other decisions --
-the unfixed return type, per-channel accuracy, capability as a tested claim --
-stand unchanged.
+Extends ADR 0012, which established the capability contract for resource-layer
+components. This record covers the first subsystem-layer capability model and
+the composition rule it required. ADR 0012's other decisions -- the unfixed
+return type, per-channel accuracy, capability as a tested claim -- stand
+unchanged and apply here too.
 
 ## Context
 
-ADR 0012 implemented capability for resource-layer components only, noting
-that the categories `docs/40-composition-spec.md` defines envelopes for are
-all resource-layer, and that no consumer had yet needed to ask a filter or a
-guidance law what it could achieve.
+Capability began as a resource-layer idea, on the reasoning that the categories
+`docs/40-composition-spec.md` defines envelopes for are all resource-layer, and
+that nothing had yet needed to ask a filter or a guidance law what it could
+achieve.
 
 That reasoning does not survive contact with the first real consumer.
 `VehicleGuidance` is asked to hold a heading and a speed, and whether it can

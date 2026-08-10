@@ -96,13 +96,12 @@ pytest
 three-sigma containment fractions, and the observability ratios are calibrated.
 If one starts failing, the change is wrong.
 
-**Record architectural decisions as ADRs** in `docs/adr/`, numbered, immutable
-once accepted, stating consequences you dislike as well as benefits. Superseding
-or extending means writing a new record that references the old one. The only
-edit an accepted record takes is a forward pointer in its status line, so a
-reader cannot mistake it for current state; its reasoning stays as written. An
-ADR is a dated record of why a choice was made — for how things are now, read
-`docs/10-concepts.md`, `docs/20-architecture.md` and `docs/interfaces/`.
+**Record architectural decisions as ADRs** in `docs/adr/`, numbered, stating
+consequences you dislike as well as benefits. A new decision means a new record
+referencing the ones it changes, plus a forward pointer in their status lines.
+Revise an accepted record when a statement in it stops being true — a reader
+should never be misled by one — but keep its Context as written, since that is
+the reasoning the decision came from. Git holds the history.
 
 **Prefer adding fields to published records over changing them.** Adding is
 backward compatible; removing or renaming requires a version increment on the
@@ -129,13 +128,18 @@ depends on thrust and turn rate together and cannot isolate either.
 
 ## Current state
 
-Implemented: the baseline vehicle model, navigation sensors and estimator, with
-tests.
+Implemented, with tests: the baseline vehicle model; navigation sensors and the
+INS/GNSS estimator; a platform clock and a dead-reckoning time estimator; a fuel
+gauge; and vehicle guidance. Integrators live in `ose/integration.py`, outside
+the components they step. Every resource publishes a `capability()`, as does
+`VehicleGuidance`, whose capability is composed from the vehicle's envelope and
+the navigation covariance it steers on.
 
 Not implemented: the simulation core, the service registry, the composition
-binder, the descriptor validator, and every component type other than vehicle
-and navigation. `docs/40-composition-spec.md` describes the intended
-specification format; nothing consumes it yet.
+binder, the descriptor validator, and every component type other than the above
+— no sensors beyond navigation, no communicators, no effectors, and nothing at
+the single-ship or multi-ship layers. `docs/40-composition-spec.md` describes the
+intended specification format; nothing consumes it yet.
 
 Do not describe unimplemented parts as working, in code comments or in
 documentation.
