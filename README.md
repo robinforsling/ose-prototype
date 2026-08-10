@@ -43,6 +43,7 @@ Full setup notes, including direnv and troubleshooting, are in
 ```
 src/ose/interfaces.py                             contracts only, no implementations
 src/ose/frames.py                                 rotation utilities, no dependencies
+src/ose/integration.py                            integrators, external to the components they step
 src/ose/environment.py                            environmental parameters (g, rho), no dependencies
 src/ose/reference_configs/                        reference configs for cross-layer shapes, e.g. environment
 src/ose/resource/vehicle.py                       baseline 2D vehicle model

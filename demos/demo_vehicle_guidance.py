@@ -36,9 +36,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+from ose.integration import step_rk4
 from ose.interfaces import HeadingSpeedSetpoint, OwnStateEstimate
 from ose.resource.reference_configs.reference_vehicle import reference_fighter
-from ose.resource.vehicle import VehicleState, step_rk4
+from ose.resource.vehicle import VehicleState
 from ose.subsystem.reference_configs.reference_vehicle_guidance import STANDARD
 from ose.subsystem.vehicle_guidance import VehicleGuidance
 

@@ -10,13 +10,13 @@ import math
 import numpy as np
 import pytest
 
+from ose.integration import step_rk4
 from ose.resource.reference_configs.reference_vehicle import reference_fighter
 from ose.resource.vehicle import (
     NO_DISTURBANCE,
     Disturbance,
     VehicleCommand,
     VehicleState,
-    step_rk4,
 )
 
 G = 9.80665

@@ -103,6 +103,7 @@ yet.
 ```
 src/ose/interfaces.py        contracts only
 src/ose/frames.py            rotation utilities, no dependencies
+src/ose/integration.py       integrators, external to components (ADR 0004)
 src/ose/environment.py       environmental parameters (g, rho), no dependencies
 src/ose/resource/            resource-layer components
 src/ose/subsystem/           subsystem-layer components

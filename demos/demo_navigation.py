@@ -26,6 +26,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+from ose.integration import step_rk4
 from ose.resource.air_data import AirDataSensor as AirDataSensorImpl
 from ose.resource.gnss import GnssReceiver
 from ose.resource.imu import Imu
@@ -33,7 +34,7 @@ from ose.resource.reference_configs.reference_air_data import STANDARD as AIR_DA
 from ose.resource.reference_configs.reference_gnss import STANDARD as GNSS_STANDARD
 from ose.resource.reference_configs.reference_imu import TACTICAL_GRADE
 from ose.resource.reference_configs.reference_vehicle import reference_fighter
-from ose.resource.vehicle import Disturbance, VehicleCommand, VehicleState, step_rk4
+from ose.resource.vehicle import Disturbance, VehicleCommand, VehicleState
 from ose.subsystem.navigation_state_estimator import InitialUncertainty, InsGnssEstimator
 
 DT = 0.02

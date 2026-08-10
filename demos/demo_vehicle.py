@@ -20,8 +20,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+from ose.integration import step_rk4
 from ose.resource.reference_configs.reference_vehicle import reference_fighter
-from ose.resource.vehicle import VehicleCommand, VehicleState, step_rk4
+from ose.resource.vehicle import VehicleCommand, VehicleState
 
 PLOTS_DIR = Path(__file__).resolve().parent / "plots"
 

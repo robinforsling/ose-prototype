@@ -25,6 +25,7 @@ import numpy as np
 import pytest
 
 from ose import interfaces
+from ose.integration import step_rk4
 from ose.resource.air_data import AirDataSensor as AirDataSensorImpl
 from ose.resource.clock import Clock
 from ose.resource.fuel_gauge import FuelGauge
@@ -40,7 +41,7 @@ from ose.resource.reference_configs.reference_integrated_navigation_unit import 
     STANDARD as INTEGRATED_NAV_STANDARD,
 )
 from ose.resource.reference_configs.reference_vehicle import reference_fighter
-from ose.resource.vehicle import Disturbance, VehicleCommand, VehicleState, step_rk4
+from ose.resource.vehicle import Disturbance, VehicleCommand, VehicleState
 
 DT = 0.02
 

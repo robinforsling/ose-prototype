@@ -310,6 +310,23 @@ class Vehicle2D:
             dtype=float,
         )
 
+    def normalise_state(self, x: np.ndarray) -> np.ndarray:
+        """Wrap the angular elements of a raw state vector into range.
+
+        Handed to an integrator, which cannot know that element 2 is an
+        angle -- only the component defining the state layout knows that.
+        This is not a discretisation and does not make the vehicle own one:
+        it says what the state *means*, and an integrator applies it. See
+        ADR 0004 and ose/integration.py.
+
+        Heading is the only angular state. Mass and speed are deliberately
+        left alone; clamping them here would be enforcement, which belongs
+        to guidance rather than to the model (ADR 0006).
+        """
+        out = np.array(x, dtype=float, copy=True)
+        out[2] = math.remainder(out[2], 2.0 * math.pi)
+        return out
+
     # ---------------- constraints ----------------
 
     def project_command(
@@ -460,34 +477,3 @@ class Vehicle2D:
         return t_turn + t_run <= horizon_s
 
 
-# --------------------------------------------------------------------------
-# Integration
-# --------------------------------------------------------------------------
-
-def step_rk4(
-    vehicle: Vehicle2D,
-    state: VehicleState,
-    command: VehicleCommand,
-    dt_s: float,
-    disturbance: Disturbance = NO_DISTURBANCE,
-) -> VehicleState:
-    """Advance the state by dt using classical RK4, holding the command constant.
-
-    Integrates whatever it is given. No projection onto U(lambda), no clamping
-    onto X(lambda). If the command is inadmissible the caller will get the
-    integral of an inadmissible command, which is the intended behaviour --
-    enforcement belongs to guidance, not to the vehicle.
-    """
-
-    def f(a: np.ndarray) -> np.ndarray:
-        return vehicle.derivative(VehicleState.from_array(a), command, disturbance)
-
-    x = state.to_array()
-    k1 = f(x)
-    k2 = f(x + 0.5 * dt_s * k1)
-    k3 = f(x + 0.5 * dt_s * k2)
-    k4 = f(x + dt_s * k3)
-    x_next = x + (dt_s / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
-    x_next[2] = math.remainder(x_next[2], 2.0 * math.pi)   # wrap heading only
-
-    return VehicleState.from_array(x_next)
