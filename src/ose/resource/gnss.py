@@ -20,7 +20,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ose.interfaces import GnssFix
+from ose.interfaces import GnssFix, SensorCapability
 from ose.resource.vehicle import Disturbance, VehicleState
 
 
@@ -49,6 +49,16 @@ class GnssReceiver:
         self._t_last = -math.inf
         self._available = True
         self.n_fixes = 0
+
+    def capability(self) -> SensorCapability:
+        """available tracks denial, so a consumer that asks during an outage
+        is told the receiver cannot currently deliver -- the one resource
+        here whose capability is genuinely dynamic."""
+        return SensorCapability(
+            rate_hz=self.par.gnss_rate_hz,
+            declared_sigma=self.par.gnss_position_sigma_m,
+            available=self._available,
+        )
 
     def due(self, t_s: float) -> bool:
         return t_s - self._t_last >= 1.0 / self.par.gnss_rate_hz

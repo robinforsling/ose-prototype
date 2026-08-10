@@ -184,6 +184,49 @@ class FuelSensor(Protocol):
     def sample(self, t_s: float, true_state: VehicleState) -> FuelMeasurement: ...
 
 
+# ---------------------------------------------------------------------------
+# Capability
+#
+# Every component answers "what can I currently achieve?" without being
+# simulated forward. This is what makes composition-time validation possible
+# and what a planner queries instead of reimplementing a component's
+# internals -- see docs/10-concepts.md and docs/40-composition-spec.md sec 4.1.
+#
+# The return type is deliberately not fixed here. Per that spec the envelope's
+# structure varies by category (vehicle, sensor, communicator, effector) and
+# the binder treats it as opaque; forcing one record shape onto all four would
+# either bloat it with inapplicable fields or flatten away what each category
+# actually needs to declare. The protocol fixes the question, not the answer.
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class SensorCapability:
+    """What a sensing resource can currently achieve. Shared by the
+    measurement-producing resources, whose envelopes genuinely are the same
+    shape: how often, how well, and whether at all right now."""
+
+    rate_hz: float
+    declared_sigma: float       # in the sensor's own measurement units
+    available: bool             # False when denied, failed, or otherwise mute
+
+    @property
+    def interval_s(self) -> float:
+        return 1.0 / self.rate_hz if self.rate_hz > 0.0 else math.inf
+
+
+@runtime_checkable
+class CapabilityModel(Protocol):
+    """Answerable without integrating anything forward.
+
+    Deliberately loose in its arguments: a vehicle's capability depends on
+    its state, a sensor's does not, and a future effector's will depend on
+    engagement geometry. Implementations name their own parameters; what
+    the protocol pins down is that every component can be asked.
+    """
+
+    def capability(self, *args, **kwargs): ...
+
+
 @runtime_checkable
 class NavigationEstimator(Protocol):
     """`ingest` dispatches on measurement type: an ImuMeasurement drives

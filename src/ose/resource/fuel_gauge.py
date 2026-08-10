@@ -25,7 +25,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ose.interfaces import FuelMeasurement
+from ose.interfaces import FuelMeasurement, SensorCapability
 from ose.resource.vehicle import VehicleState
 
 
@@ -54,6 +54,14 @@ class FuelGauge:
         self.mass_dry_kg = mass_dry_kg
         self.rng = rng or np.random.default_rng(0)
         self._t_last = -math.inf
+
+    def capability(self) -> SensorCapability:
+        """Always available: this sensor has no denial or failure concept."""
+        return SensorCapability(
+            rate_hz=self.par.fuel_rate_hz,
+            declared_sigma=self.par.fuel_sigma_kg,
+            available=True,
+        )
 
     def due(self, t_s: float) -> bool:
         return t_s - self._t_last >= 1.0 / self.par.fuel_rate_hz

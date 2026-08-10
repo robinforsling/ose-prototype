@@ -20,7 +20,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ose.interfaces import AirDataMeasurement
+from ose.interfaces import AirDataMeasurement, SensorCapability
 from ose.resource.vehicle import VehicleState
 
 
@@ -45,6 +45,14 @@ class AirDataSensor:
         self.par = parameters
         self.rng = rng or np.random.default_rng(0)
         self._t_last = -math.inf
+
+    def capability(self) -> SensorCapability:
+        """Always available: this sensor has no denial or failure concept."""
+        return SensorCapability(
+            rate_hz=self.par.air_data_rate_hz,
+            declared_sigma=self.par.air_data_sigma_mps,
+            available=True,
+        )
 
     def due(self, t_s: float) -> bool:
         return t_s - self._t_last >= 1.0 / self.par.air_data_rate_hz
