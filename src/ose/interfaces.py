@@ -86,18 +86,28 @@ class MassEstimate:
     publishing the parts as well costs nothing and keeps the reasoning
     visible.
 
-    mass_sigma_kg is the honest part. Today it is exactly the sigma that
-    travelled with the fuel measurement, since the other two terms are known
-    constants -- see invariant 4 in CLAUDE.md, and note that this component
-    does not get to invent a number of its own.
+    tsfc_error is the filter's estimate of the fractional error in the burn
+    coefficient it predicts with -- the mass analogue of a clock's drift rate,
+    and carried for the same reason (ADR 0010): a miscalibrated coefficient is
+    a bias, so it has to be estimated rather than absorbed into process noise.
+
+    mass_sigma_kg is a property rather than a field, derived from the
+    covariance. Dry mass and payload are exact, so the uncertainty in the mass
+    IS the uncertainty in the fuel; deriving it makes that structurally true
+    instead of a comment two fields could drift apart from.
     """
 
     t_s: float
     mass_kg: float                   # dry + payload + fuel
-    mass_sigma_kg: float
     dry_mass_kg: float               # design constant, exact
     payload_mass_kg: float           # configuration, exact
-    fuel_mass_kg: float              # measured, uncertain
+    fuel_mass_kg: float              # estimated, uncertain
+    tsfc_error: float                # fractional error on the burn coefficient
+    covariance: np.ndarray           # 2x2, over [fuel_kg, tsfc_error]
+
+    @property
+    def mass_sigma_kg(self) -> float:
+        return math.sqrt(max(self.covariance[0, 0], 0.0))
 
 
 # ---------------------------------------------------------------------------

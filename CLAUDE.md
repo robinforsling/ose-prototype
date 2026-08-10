@@ -145,9 +145,10 @@ on.
 0015). It owns the platform's believed mass — dry + payload + fuel, where only
 fuel is measured — and answers vehicle questions at that mass, so nothing above
 it takes a mass parameter. An import test enforces this; `ose/integration.py`
-and the resource layer are the exemptions. Its mass belief is a sum rather than
-a filter, so it is stale between fuel readings and its published sigma is a
-floor, not a bound.
+and the resource layer are the exemptions. Fuel is tracked by a two-state
+filter over `[fuel_kg, tsfc_error]`, predicting on commanded thrust and
+correcting on each gauge reading; the burn-coefficient error is a state
+because a bias modelled as process noise makes a filter overconfident.
 
 Not implemented: the simulation core, the service registry, the composition
 binder, the descriptor validator, and every component type other than the above

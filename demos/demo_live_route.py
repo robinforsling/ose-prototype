@@ -66,10 +66,15 @@ Transport controls are shared with demo_live_flight (see _player.py):
 Mass is believed, not known
 ---------------------------
 The full loop is    FuelGauge -> VehicleManager -> VehicleGuidance,   so the
-mass guidance flies on is measured rather than read from truth. The readout
+mass guidance flies on is estimated rather than read from truth. The readout
 prints both: true mass beside the manager's belief and its declared sigma.
-Over this route the vehicle burns about 420 kg and the belief stays within
-roughly 65 kg of truth, which is gauge noise rather than drift.
+
+Over this route the vehicle burns about 420 kg and the belief tracks it to
+about 3 kg rms, against a gauge whose individual readings are worth 20 kg.
+The filter predicts on the commanded thrust between readings and corrects on
+each one, so most of the gauge noise is averaged away and the sigma settles
+near 2 kg. It reached 65 kg before that filter existed, when the belief was
+the last raw reading.
 
 This demo is NOT evidence about navigation
 ------------------------------------------
@@ -293,6 +298,11 @@ def fly() -> tuple[dict[str, np.ndarray], list[float]]:
         rec.omega_clipped.append(sat.omega_clipped)
         rec.thrust_clipped.append(sat.thrust_clipped)
 
+        # Propagate the mass belief over the same interval the vehicle is
+        # about to fly, burning at the thrust actually commanded. Without it
+        # the filter would grow steadily more confident in a fuel figure that
+        # is falling underneath it.
+        manager.predict(t + DT, cmd.thrust_N)
         state = step_rk4(vehicle, state, cmd, DT)
         violations = vehicle.state_violations(state)
         if violations and not reported:

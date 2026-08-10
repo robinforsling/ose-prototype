@@ -133,6 +133,11 @@ def run():
         log["omega_clipped"].append(sat.omega_clipped)
         log["thrust_clipped"].append(sat.thrust_clipped)
 
+        # Propagate the mass belief over the same interval the vehicle is
+        # about to fly, burning at the thrust actually commanded. Without it
+        # the filter would grow steadily more confident in a fuel figure that
+        # is falling underneath it.
+        manager.predict(t + DT, cmd.thrust_N)
         state = step_rk4(vehicle, state, cmd, DT)
         # X(lambda) is not enforced by anything -- project_command() keeps the
         # input admissible, nothing keeps the state so. Report rather than hide.

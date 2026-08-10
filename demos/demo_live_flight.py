@@ -345,6 +345,11 @@ def fly() -> dict[str, np.ndarray]:
         rec.omega_clipped.append(sat.omega_clipped)
         rec.thrust_clipped.append(sat.thrust_clipped)
 
+        # Propagate the mass belief over the same interval the vehicle is
+        # about to fly, burning at the thrust actually commanded. Without it
+        # the filter would grow steadily more confident in a fuel figure that
+        # is falling underneath it.
+        manager.predict(t + DT, cmd.thrust_N)
         state = step_rk4(vehicle, state, cmd, DT)
         violations = vehicle.state_violations(state)
         if violations and not reported:

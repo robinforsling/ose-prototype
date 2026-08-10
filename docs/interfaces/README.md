@@ -133,8 +133,8 @@ source exists. See ADR 0010.
 
 ### `vehicle.mass.v1`
 
-`MassEstimate(t_s, mass_kg, mass_sigma_kg, dry_mass_kg, payload_mass_kg,
-fuel_mass_kg)`, published by `VehicleManager` (subsystem layer,
+`MassEstimate(t_s, mass_kg, dry_mass_kg, payload_mass_kg, fuel_mass_kg,
+tsfc_error, covariance)`, published by `VehicleManager` (subsystem layer,
 `subsystem/vehicle_manager.py`) from the `FuelMeasurement` the fuel gauge
 publishes. **Implemented.**
 
@@ -142,18 +142,27 @@ The platform's belief about its own mass, and the only sanctioned answer to
 "what does this aircraft weigh?" above the resource layer. Broken out by
 contribution because the contributions differ in kind: dry mass is a design
 constant and payload is a configuration decision, both exact, while only fuel
-is measured. `mass_sigma_kg` is therefore exactly the sigma that travelled
-with the fuel measurement, per invariant 4.
+is estimated. `mass_sigma_kg` is a property derived from the covariance rather
+than a field, since the uncertainty in the mass IS the uncertainty in the fuel.
+
+Fuel is tracked by a two-state filter over `[fuel_kg, tsfc_error]` that
+predicts on the commanded thrust and corrects on each measurement, so the
+sigma sawtooths -- growing with staleness, dropping at each reading -- rather
+than restating the gauge's own figure. `tsfc_error` is the estimated
+fractional error in the burn coefficient, carried as a state because a
+miscalibrated coefficient is a bias and modelling a bias as process noise
+makes a filter overconfident. It is weakly observable by design. The stated
+uncertainty is checked by an ensemble ANEES test through the run, two-sided.
+
+`predict(t_s, thrust_N)` is separate from `project_command()` on purpose:
+asking whether a command is admissible must not commit the platform to having
+flown it.
 
 The manager also answers vehicle questions at that mass -- `capability()`,
 including the parametrised turn-rate form guidance feeds thrust forward on,
 and `project_command()` -- and is the only component permitted to bind
 `Vehicle2D`. That rule is enforced as an import check; see ADR 0015 for why it
 is phrased that way and for the three exemptions.
-
-Today the belief is a sum, not a filter, so it is stale between measurements
-and the published sigma describes the measurement rather than the belief. It
-is a floor, not a bound. Do not build a consistency test against it.
 
 ### `guidance.setpoint.v1`
 
