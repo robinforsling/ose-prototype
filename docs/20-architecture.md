@@ -85,10 +85,18 @@ vehicle's admissible sets before publishing a command, the first real
 consumer of `Vehicle2D.project_command()` and the first real producer of
 `vehicle.command.v1` (ADR 0011).
 
+Every resource-layer component answers `capability()`, a self-assessment of
+what it can currently achieve, checked by tests that integrate the dynamics
+forward and confirm it delivers what it claimed (ADR 0012). Subsystem-layer
+components do not publish capability models yet, and no consumer queries them:
+`VehicleGuidance` enforces admissibility through `project_command()` rather
+than through `capability()`.
+
 Not yet implemented: the registry, the binder, the descriptor validator, the
 simulation core itself, and every component type other than vehicle,
-navigation, the platform clock, and vehicle guidance. The composition
-specification describes the intended format; nothing consumes it yet.
+navigation, the platform clock, the fuel gauge, and vehicle guidance. The
+composition specification describes the intended format; nothing consumes it
+yet.
 
 ## Repository layout
 

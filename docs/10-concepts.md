@@ -107,16 +107,40 @@ See ADR 0009 for the navigation split that established this pattern and ADR
 
 ## Capability model
 
-Every component publishes a machine-readable statement of what it can currently
-achieve, answerable without simulating it forward. For a vehicle this includes
-available thrust, required thrust, acceleration bounds, instantaneous and
-sustained turn rates, minimum turn radius, characteristic speeds, fuel and
-endurance.
+Every resource-layer component publishes a machine-readable statement of what
+it can currently achieve, answerable without simulating it forward. For a
+vehicle this includes available thrust, required thrust, acceleration bounds,
+instantaneous and sustained turn rates, minimum turn radius, characteristic
+speeds, fuel and endurance. For a sensor it is the rate it can deliver at, the
+accuracy it declares on each channel it measures, and whether it can deliver
+at all right now.
 
 The capability model is the component's external interface. It is what makes
 composition-time validation possible, what a planner queries instead of
 reimplementing the dynamics, and what the composition GUI reads to know the
 shape of each puzzle piece.
+
+**Capability is a claim, and claims are tested.** A component that publishes a
+capability must have a test that the capability is honest, for exactly the
+reason a component publishing an uncertainty must -- see the measurement-records
+rule above. An overconfident capability is the more dangerous of the two,
+because a planner acts on it: a sustained turn rate the vehicle cannot hold or
+an endurance it cannot fly does not degrade a result, it invalidates a plan.
+The tests therefore integrate the dynamics forward and check the component
+delivers what it claimed, which is the one thing capability promises to answer
+*without* integrating.
+
+**Accuracy claims are per channel, with units.** A sensor measuring several
+quantities declares an accuracy for each: GNSS declares metres of position and
+metres per second of velocity, and collapsing that to one number silently drops
+part of the claim. A channel a component will not deliver is absent rather than
+present with a meaningless value. See ADR 0012.
+
+Subsystem-layer and higher components do not publish capability models today.
+Whether they should is open: the categories the composition specification
+defines envelopes for (vehicle, sensor, communicator, effector) are all
+resource-layer, and no consumer has yet needed to ask a filter or a guidance
+law what it can achieve.
 
 ## Time
 

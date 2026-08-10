@@ -16,7 +16,10 @@ answer without integrating.
 """
 
 import dataclasses
+import importlib
+import inspect
 import math
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -27,11 +30,15 @@ from ose.resource.clock import Clock
 from ose.resource.fuel_gauge import FuelGauge
 from ose.resource.gnss import GnssReceiver
 from ose.resource.imu import Imu
+from ose.resource.integrated_navigation_unit import IntegratedNavUnit
 from ose.resource.reference_configs.reference_air_data import STANDARD as AIR_DATA_STANDARD
 from ose.resource.reference_configs.reference_clock import STANDARD as CLOCK_STANDARD
 from ose.resource.reference_configs.reference_fuel_gauge import STANDARD as FUEL_STANDARD
 from ose.resource.reference_configs.reference_gnss import STANDARD as GNSS_STANDARD
 from ose.resource.reference_configs.reference_imu import TACTICAL_GRADE
+from ose.resource.reference_configs.reference_integrated_navigation_unit import (
+    STANDARD as INTEGRATED_NAV_STANDARD,
+)
 from ose.resource.reference_configs.reference_vehicle import reference_fighter
 from ose.resource.vehicle import Disturbance, VehicleCommand, VehicleState, step_rk4
 
@@ -59,10 +66,46 @@ def _fly(vehicle, state, cmd, duration_s, dt=DT):
 # Protocol conformance
 # --------------------------------------------------------------------------
 
-def test_every_resource_satisfies_the_capability_protocol(vehicle):
-    """All seven resources, not a subset: self-assessment is what makes
-    components swappable, so a resource that cannot be asked is a hole in
-    the whole premise."""
+def test_every_resource_module_defines_a_component_with_capability():
+    """Discovered, not hand-listed, on purpose.
+
+    An earlier version of this test enumerated resources by hand under the
+    name "every resource" and quietly omitted IntegratedNavUnit, so a
+    resource with no capability() at all passed unnoticed -- coverage in
+    name only. Walking the package means adding a resource without a
+    capability model fails here rather than going unremarked.
+    """
+    package = importlib.import_module("ose.resource")
+    package_dir = Path(package.__file__).parent
+
+    module_names = sorted(
+        p.stem
+        for p in package_dir.glob("*.py")
+        if p.stem != "__init__"
+    )
+    assert module_names, "no resource modules discovered -- test is vacuous"
+
+    for name in module_names:
+        module = importlib.import_module(f"ose.resource.{name}")
+        components = [
+            obj
+            for attr, obj in vars(module).items()
+            if inspect.isclass(obj)
+            and obj.__module__ == module.__name__
+            and not attr.endswith("Parameters")
+            and not dataclasses.is_dataclass(obj)
+        ]
+        assert components, f"ose.resource.{name} defines no component class"
+        for component in components:
+            assert hasattr(component, "capability"), (
+                f"{component.__name__} in ose.resource.{name} has no "
+                "capability(); every resource must be answerable"
+            )
+
+
+def test_constructed_resources_satisfy_the_capability_protocol(vehicle):
+    """hasattr above is a structural check; this one instantiates and
+    confirms the runtime-checkable protocol actually holds."""
     mass_dry_kg = vehicle.lam.mass_dry_kg
     rng = np.random.default_rng(0)
     for resource in (
@@ -72,6 +115,7 @@ def test_every_resource_satisfies_the_capability_protocol(vehicle):
         AirDataSensorImpl(AIR_DATA_STANDARD, rng=rng),
         Clock(CLOCK_STANDARD, rng=rng),
         FuelGauge(FUEL_STANDARD, mass_dry_kg, rng=rng),
+        IntegratedNavUnit(INTEGRATED_NAV_STANDARD, rng=rng),
     ):
         assert isinstance(resource, interfaces.CapabilityModel)
 
@@ -85,6 +129,7 @@ def test_every_sensor_declares_at_least_one_channel(vehicle):
         AirDataSensorImpl(AIR_DATA_STANDARD, rng=rng),
         Clock(CLOCK_STANDARD, rng=rng),
         FuelGauge(FUEL_STANDARD, vehicle.lam.mass_dry_kg, rng=rng),
+        IntegratedNavUnit(INTEGRATED_NAV_STANDARD, rng=rng),
     ):
         cap = sensor.capability()
         assert cap.channels

@@ -27,7 +27,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ose.interfaces import OwnStateEstimate
+from ose.interfaces import MeasurementChannel, OwnStateEstimate, SensorCapability
 from ose.resource.vehicle import Disturbance, VehicleState
 
 
@@ -54,6 +54,24 @@ class IntegratedNavUnit:
         self.par = parameters
         self.rng = rng or np.random.default_rng(0)
         self._last: OwnStateEstimate | None = None
+
+    def capability(self) -> SensorCapability:
+        """Publishes a state estimate rather than a measurement, but the
+        question is the same one: how accurate, on which quantities. The
+        channels are exactly the diagonal this unit puts in the covariance
+        it publishes, so a consumer reading either gets the same answer.
+
+        Owns no rate: update() runs whenever the caller runs it.
+        """
+        return SensorCapability(
+            rate_hz=None,
+            channels=(
+                MeasurementChannel("position", self.par.position_sigma_m, "m"),
+                MeasurementChannel("heading", self.par.heading_sigma_rad, "rad"),
+                MeasurementChannel("airspeed", self.par.airspeed_sigma_mps, "m/s"),
+            ),
+            available=True,
+        )
 
     def update(
         self, t_s: float, true_state: VehicleState, true_disturbance: Disturbance

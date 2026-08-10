@@ -134,6 +134,38 @@ ingest()`: a planned waypoint-pursuit mode is a new type and a new branch,
 not a protocol change. `mass_kg` is a plain caller-supplied parameter, not
 derived from `own_state` -- no component estimates mass yet. See ADR 0011.
 
+## Capability, which is not a port
+
+`CapabilityModel`, `SensorCapability` and `MeasurementChannel` live in
+`ose.interfaces` alongside the port records, but they are deliberately absent
+from the catalogue above. That table describes ports: two components bind when
+their interface names match and their major versions are equal. Capability is
+not something two components bind over -- it is a query surface every component
+exposes, to a planner, to the binder, or to the composition GUI, none of which
+are the component's peer.
+
+`CapabilityModel` fixes only that a component can be asked
+(`capability(...)`), not what comes back. Envelope structure varies by category
+and the binder treats it as opaque; see `docs/40-composition-spec.md` section
+4.1 and ADR 0012.
+
+Implemented today by the resource layer only:
+
+- `Vehicle2D.capability(state, omega_rad_s, disturbance)` returns `Capability`,
+  a twelve-field record covering thrust, acceleration bounds, turn performance,
+  characteristic speeds, fuel and endurance. It is a function of state, so it
+  changes as fuel burns.
+- `Imu`, `GnssReceiver`, `AirDataSensor`, `Clock` and `FuelGauge` return
+  `SensorCapability`: a `rate_hz` (`None` when the sensor does not own its
+  rate), a tuple of `MeasurementChannel(name, sigma, units)` -- one per quantity
+  measured -- and an `available` flag that tracks denial.
+
+Accuracy is per channel because sensors are routinely multi-channel with
+different units per channel, and a single number silently drops part of the
+claim. `Imu` reports noise densities rather than per-sample sigmas, since its
+per-sample accuracy is undefined until the caller picks an interval; its
+channel `units` say so.
+
 ## What every interface file must state
 
 For each new interface, record: what it carries, at what rate, in what frame and

@@ -55,6 +55,22 @@ absorbed silently. Also checks the truth boundary (guidance only ever
 touches `OwnStateEstimate`) and closed-loop convergence to a commanded
 heading and speed.
 
+`test_capability.py` (ADR 0012) applies the same honesty argument to
+capability that the NEES tests apply to covariance. It does not check that
+`capability()` returns plausible numbers; it integrates the dynamics forward
+and checks the vehicle delivers what it claimed — the one thing capability
+promises to answer *without* integrating. It also checks that every resource
+can be asked at all, and that each sensor's declared accuracy agrees with what
+its own measurements carry.
+
+The endurance test is worth reading before writing another capability test.
+Its first version missed a ten percent overstatement completely: fuel flow
+stops once the tanks are dry, so flying past an inflated claim leaves the
+remaining fuel at zero and looks perfectly healthy. Overstating endurance is
+the dangerous direction, and catching it needs an assertion that fuel still
+remains *shortly before* the claim. A capability test that checks only one side
+of a claim can be worse than no test, because it looks like coverage.
+
 ## Why consistency is tested rather than eyeballed
 
 The INS/GNSS filter shipped with a one-step misalignment between the mechanised
