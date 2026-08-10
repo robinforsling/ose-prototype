@@ -32,12 +32,35 @@ So a nonsensical configuration is made impossible rather than given an
 averaging rule: the constructor takes one source, and there is no way to hand
 it two.
 
-Real fusion belongs here when there is genuinely more than one independent
-source -- INS/GNSS alongside terrain-referenced navigation, or a second
-independent INS. Whoever adds it must handle the cross-covariance, or use
-covariance intersection, and must add a NEES test: naive fusion of correlated
-estimates is overconfident, which is the classic track-fusion trap and exactly
-what this repository's consistency discipline exists to catch. See ADR 0014.
+Which source a platform uses is therefore settled at composition time, not at
+runtime. The manager holds the one it was built with and never reconsiders.
+
+AND DO NOT MAKE THAT CHOICE AT RUNTIME BETWEEN THESE TWO
+--------------------------------------------------------
+Runtime arbitration -- hold several sources, publish whichever is currently
+best -- is a real and sound idea, and unlike fusion it introduces no false
+confidence, because choosing an estimate does not shrink its covariance. It is
+the most likely thing to be added here. But it must never treat an
+IntegratedNavUnit as a candidate, and the reason is easy to miss:
+
+Its covariance is a constant. It is truth plus fixed white noise, so it does
+not degrade, because it is not modelling anything that could. A real estimator
+does degrade, honestly, and says so -- during a GNSS outage this one's position
+sigma grows from under a metre to around twenty. So any "pick the lowest
+sigma" rule selects the estimator while aided and switches to the fiction
+exactly when the real system starts struggling, which is the one moment worth
+observing. GNSS outages would silently disappear from every result.
+
+A source that never degrades always wins a contest against one that honestly
+does. Arbitrate only between sources that can all be wrong.
+
+Real fusion belongs here too, when a platform genuinely carries more than one
+independent source -- INS/GNSS alongside terrain-referenced navigation, or a
+second independent INS. Whoever adds it must handle the cross-covariance, or
+use covariance intersection, and must add a NEES test: naive fusion of
+correlated estimates is overconfident, which is the classic track-fusion trap
+and exactly what this repository's consistency discipline exists to catch.
+See ADR 0014.
 """
 
 from __future__ import annotations

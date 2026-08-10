@@ -51,6 +51,19 @@ manager cannot drive it -- `update()` takes ground truth, which a subsystem
 component may not touch -- so the simulation core updates it as it does any
 resource, and the manager only reads the estimate it publishes.
 
+The choice of source is made at composition time and never revisited at
+runtime. Runtime arbitration -- hold several, publish whichever is currently
+best -- is sound in principle, and unlike fusion it adds no false confidence,
+since choosing an estimate does not shrink its covariance. But it must never
+treat an `IntegratedNavUnit` as a candidate. Its covariance is constant,
+because truth plus fixed noise cannot degrade; a real estimator's grows
+honestly, from under a metre to around twenty during a GNSS outage. Any
+lowest-sigma rule would therefore select the estimator while aided and switch
+to the fiction exactly when the real system starts struggling, and outages
+would vanish from every result. A source that never degrades always wins
+against one that honestly does; arbitrate only between sources that can all
+be wrong.
+
 Real fusion belongs in this component when a platform genuinely carries more
 than one independent source: INS/GNSS alongside terrain-referenced navigation,
 or a second independent INS. Whoever adds it must handle the cross-covariance
@@ -68,8 +81,10 @@ The manager is, today, almost nothing: it holds a reference, forwards two
 calls, and raises on a third. That is deliberate -- it names the seam where
 fusion and source arbitration will live without inventing either now -- but it
 is fair to call it ceremony until something fills it. The first thing likely
-to fill it is not fusion but failover: dropping to a black-box or dead-reckoned
-source when the primary estimator diverges.
+to fill it is not fusion but failover, dropping to a degraded source when the
+primary estimator diverges. That needs a second source which degrades
+honestly, such as an air-data-and-heading dead reckoner; the black box cannot
+serve, for the reason above.
 
 `InsGnssEstimator` still satisfies `OwnStateSource`, so "one publisher" is a
 composition rule rather than something the type system enforces. A consumer
