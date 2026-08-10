@@ -227,6 +227,68 @@ def test_project_command_is_offered_not_applied(vehicle, state):
     )
 
 
+def test_state_violations_is_silent_inside_the_envelope(vehicle, state):
+    assert vehicle.state_violations(state) == []
+
+
+def test_state_violations_reports_each_bound_it_owns(vehicle):
+    """One case per branch. The check had no tests at all, and
+    demo_vehicle.py's "envelope events: 0" could equally have meant no
+    violations or a check that never fires."""
+    m = 16000.0
+    slow = VehicleState(0.0, 0.0, 0.0, 40.0, m)
+    fast = VehicleState(0.0, 0.0, 0.0, vehicle.lam.v_max_mps + 50.0, m)
+    light = VehicleState(0.0, 0.0, 0.0, 250.0, vehicle.lam.mass_dry_kg - 500.0)
+
+    assert any("below floor" in s for s in vehicle.state_violations(slow))
+    assert any("above" in s for s in vehicle.state_violations(fast))
+    assert any("dry mass" in s for s in vehicle.state_violations(light))
+
+
+def test_state_violation_floor_follows_stall_not_just_the_hard_minimum(vehicle):
+    """The floor is mass-dependent, so a speed legal when light is illegal
+    when heavy. A check comparing only against v_min_mps would pass the
+    heavy case and be wrong."""
+    v_test = 95.0                       # above the 90 m/s hard minimum
+    light = VehicleState(0.0, 0.0, 0.0, v_test, 16000.0)
+    heavy = VehicleState(0.0, 0.0, 0.0, v_test, 30000.0)
+
+    assert vehicle.state_violations(light) == []
+    assert any("below floor" in s for s in vehicle.state_violations(heavy))
+
+
+def test_state_violations_reports_but_does_not_correct(vehicle):
+    """The state-side counterpart to project_command, and deliberately
+    weaker: a command can be projected before it is applied, a state cannot
+    be projected without falsifying the dynamics that produced it."""
+    bad = VehicleState(0.0, 0.0, 0.0, 40.0, 16000.0)
+    before = (bad.v_mps, bad.mass_kg)
+    assert vehicle.state_violations(bad)
+    assert (bad.v_mps, bad.mass_kg) == before
+
+
+def test_integrating_to_fuel_exhaustion_is_reported_not_hidden(vehicle):
+    """RK4 undershoots dry mass at exhaustion, and state_violations() is
+    what makes that visible.
+
+    Fuel flow is gated on `m > mass_dry_kg`, a discontinuity. RK4 assumes a
+    smooth derivative, so stages still burning carry the weighted sum past
+    the boundary. The undershoot is O(dt) -- tens of grams at the working
+    step -- and once tripped it stays tripped, because mass then freezes
+    just below dry. Small enough to ignore physically; the point is that the
+    model does not pretend it did not happen.
+    """
+    state = VehicleState(0.0, 0.0, 0.0, 250.0, vehicle.lam.mass_dry_kg + 200.0)
+    cmd = VehicleCommand(vehicle.lam.thrust_max_N, 0.0)
+    for _ in range(int(600.0 / 0.5)):
+        state = step_rk4(vehicle, state, cmd, 0.5)
+
+    undershoot = vehicle.lam.mass_dry_kg - state.mass_kg
+    assert undershoot > 0.0                      # it really does overshoot
+    assert undershoot < 5.0                      # but only by a little
+    assert any("dry mass" in s for s in vehicle.state_violations(state))
+
+
 def test_saturation_reports_what_was_requested(vehicle, state):
     """The pre-enforcement command must be recoverable as numbers, not only
     from the note strings. Without it a caller wanting to show what was asked

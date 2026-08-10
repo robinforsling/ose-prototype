@@ -101,6 +101,8 @@ def run():
         "wx", "wy", "gnss", "true_x", "true_y", "est_x", "est_y",
     )}
 
+    violations: set[str] = set()
+
     t = 0.0
     while t < T_END:
         gnss.set_gnss_available(not (OUTAGE[0] <= t < OUTAGE[1]))
@@ -138,9 +140,13 @@ def run():
         log["est_y"].append(est.p_y_m)
 
         state = step_rk4(vehicle, state, cmd, DT, disturbance)
+        # X(lambda) is not enforced by anything -- project_command() keeps the
+        # input admissible, nothing keeps the state so. Report rather than hide.
+        for note in vehicle.state_violations(state):
+            violations.add(note.split(" ")[0])
         t += DT
 
-    return {k: np.array(v) for k, v in log.items()}, gnss.n_fixes
+    return {k: np.array(v) for k, v in log.items()}, gnss.n_fixes, violations
 
 
 def plot(log, path: Path) -> None:
@@ -193,7 +199,7 @@ def plot(log, path: Path) -> None:
 
 
 def main() -> None:
-    log, n_gnss_fixes = run()
+    log, n_gnss_fixes, violations = run()
 
     inside = np.abs(log["e_psi"]) <= 3.0 * log["s_psi"]
     pre = log["t"] < OUTAGE[0]
@@ -221,6 +227,10 @@ def main() -> None:
     PLOTS_DIR.mkdir(exist_ok=True)
     errors_path = PLOTS_DIR / "navigation_errors.png"
     plot(log, errors_path)
+    print(
+        f"\n  state left X(lambda)              : "
+        f"{', '.join(sorted(violations)) if violations else 'never'}"
+    )
     print(f"\nWrote {errors_path}")
 
 

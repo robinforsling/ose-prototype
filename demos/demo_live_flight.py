@@ -75,6 +75,7 @@ from __future__ import annotations
 import argparse
 import math
 import os
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -143,6 +144,11 @@ class Recording:
     load_factor: list[float] = field(default_factory=list)
     omega_clipped: list[bool] = field(default_factory=list)
     thrust_clipped: list[bool] = field(default_factory=list)
+    # X(lambda) violations, checked every step. project_command() keeps the
+    # INPUT inside U(x); nothing keeps the STATE inside X, because a state
+    # cannot be projected without falsifying the dynamics that produced it.
+    # So it is reported instead -- see ADR 0006 and state_violations().
+    in_violation: list[bool] = field(default_factory=list)
 
     def as_arrays(self) -> dict[str, np.ndarray]:
         return {k: np.asarray(v) for k, v in self.__dict__.items()}
@@ -171,6 +177,7 @@ def fly() -> dict[str, np.ndarray]:
     guidance = VehicleGuidance(vehicle, STANDARD)
     state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
     rec = Recording()
+    reported = False
 
     t = 0.0
     while t < T_END:
@@ -197,6 +204,11 @@ def fly() -> dict[str, np.ndarray]:
         rec.thrust_clipped.append(sat.thrust_clipped)
 
         state = step_rk4(vehicle, state, cmd, DT)
+        violations = vehicle.state_violations(state)
+        if violations and not reported:
+            print(f"  state violation at t={t:.1f} s: {violations[0]}")
+            reported = True
+        rec.in_violation.append(bool(violations))
         t += DT
 
     return rec.as_arrays()
@@ -320,6 +332,8 @@ def make_updater(log, art):
             flags.append("TURN RATE SATURATED")
         if log["thrust_clipped"][i]:
             flags.append("THRUST SATURATED")
+        if log["in_violation"][i]:
+            flags.append("STATE OUTSIDE X(lambda)")
 
         art["readout"].set_text(
             f"t      {log['t'][i]:7.1f} s\n"
@@ -350,14 +364,17 @@ class Player:
     and seek the same operation with different arguments.
     """
 
-    def __init__(self, fig, plt, log, update, stride, fps):
+    def __init__(self, fig, plt, log, update, speed, fps):
         from matplotlib.widgets import Button, Slider
 
         self.fig, self.log, self.update = fig, log, update
         self.n = len(log["t"])
-        self.stride = stride
+        self.speed = float(speed)
+        self.fps = fps
         self.idx = 0
         self.playing = True
+        self._last_tick = time.monotonic()
+        self._measured_fps = float(fps)
 
         bar = dict(color="0.92", hovercolor="0.82")
         self.ax_slider = fig.add_axes([0.06, 0.065, 0.91, 0.022])
@@ -416,10 +433,15 @@ class Player:
         self.b_play.label.set_text("play")
         self._goto(int(round(value / DT)), from_slider=True)
 
+    @property
+    def _step(self) -> int:
+        """Indices in one nominal display frame at the current speed."""
+        return max(1, int(round(self.speed / (self.fps * DT))))
+
     def _nudge(self, direction):
         self.playing = False
         self.b_play.label.set_text("play")
-        self._goto(self.idx + direction * self.stride)
+        self._goto(self.idx + direction * self._step)
 
     def _toggle(self, _event=None):
         # Restart from the beginning if play is pressed at the very end,
@@ -431,7 +453,7 @@ class Player:
         self.fig.canvas.draw_idle()
 
     def _scale(self, factor):
-        self.stride = int(min(max(round(self.stride * factor), 1), self.n // 4))
+        self.speed = min(max(self.speed * factor, 0.25), 256.0)
         self._render()
 
     def _key(self, event):
@@ -453,20 +475,40 @@ class Player:
     # -- the loop --------------------------------------------------------
 
     def _tick(self):
+        """Advance by wall-clock time, not by a fixed number of steps.
+
+        Stepping a fixed stride per frame silently ties playback speed to
+        render cost: this figure takes about 80 ms to draw, so a timer asking
+        for 25 fps gets 12.5, and a nominal 4x played at 2x while the readout
+        insisted it was 4x. Deriving the advance from elapsed wall time makes
+        the speed honest -- when rendering cannot keep up, frames are dropped
+        rather than time dilated, which is what a media player does.
+        """
+        now = time.monotonic()
+        elapsed = now - self._last_tick
+        self._last_tick = now
+        if elapsed > 0.0:
+            # Smoothed, only for the readout, so a reader can see when the
+            # display is struggling rather than wonder why it looks choppy.
+            self._measured_fps += 0.2 * (1.0 / elapsed - self._measured_fps)
+
         if not self.playing:
             return
         if self.idx >= self.n - 1:
             self.playing = False
             self.b_play.label.set_text("play")
             return
-        self._goto(self.idx + self.stride)
+
+        # Clamp the jump so a stall or a long pause does not skip the mission.
+        elapsed = min(elapsed, 0.25)
+        self._goto(self.idx + max(1, int(round(self.speed * elapsed / DT))))
 
     def _render(self):
         self.update(self.idx)
         now, total = self.log["t"][self.idx], self.log["t"][-1]
         self.clock.set_text(
             f"{now:6.1f} / {total:.0f} s   -{total - now:5.1f} s"
-            f"   x{self.stride * DT * 25:.0f}"
+            f"   x{self.speed:g}   {self._measured_fps:4.1f} fps"
         )
         self.fig.canvas.draw_idle()
 
@@ -504,6 +546,7 @@ def main() -> None:
         f"\n  rendered        : {len(frames)} frames at {args.fps} fps"
         f"\n  turn saturated  : {100.0 * log['omega_clipped'].mean():.1f} % of the time"
         f"\n  thrust saturated: {100.0 * log['thrust_clipped'].mean():.1f} % of the time"
+        f"\n  outside X(lam)  : {100.0 * log['in_violation'].mean():.1f} % of the time"
     )
 
     fig, art = build_figure(log, plt)
@@ -517,7 +560,7 @@ def main() -> None:
         plt.close(fig)
         print(f"\nWrote {out}")
     else:
-        player = Player(fig, plt, log, update, stride, args.fps)  # noqa: F841
+        player = Player(fig, plt, log, update, args.speed, args.fps)  # noqa: F841
         fig.canvas.manager.set_window_title("OSE - live flight")
         print(
             "\n  controls: space play/pause, left/right step, home/end,"

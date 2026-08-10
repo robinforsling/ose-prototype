@@ -79,6 +79,7 @@ def run():
 
     state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
     psi0, v0 = state.psi_rad, state.v_mps
+    violations: set[str] = set()
 
     log = {k: [] for k in (
         "t", "psi", "psi_cmd", "v", "v_cmd",
@@ -115,9 +116,15 @@ def run():
         log["thrust_clipped"].append(sat.thrust_clipped)
 
         state = step_rk4(vehicle, state, cmd, DT)
+        # X(lambda) is not enforced by anything -- project_command() keeps the
+        # input admissible, nothing keeps the state so. Report rather than hide.
+        for note in vehicle.state_violations(state):
+            violations.add(note.split(" ")[0])
         t += DT
 
-    return {k: np.array(v) for k, v in log.items()}
+    out = {k: np.array(v) for k, v in log.items()}
+    out['_violations'] = violations
+    return out
 
 
 def plot(log, path: Path) -> None:
@@ -190,6 +197,8 @@ def main() -> None:
         f"\n  time with thrust saturated    : {frac_thrust_clipped:6.1f} %"
         f"\n  final heading                 : {log['psi'][-1]:6.1f} deg"
         f"\n  final airspeed                : {log['v'][-1]:6.1f} m/s"
+        f"\n  state left X(lambda)          : "
+        f"{', '.join(sorted(log['_violations'])) if log['_violations'] else 'never'}"
     )
 
     PLOTS_DIR.mkdir(exist_ok=True)
