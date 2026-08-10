@@ -142,7 +142,44 @@ class FuelMeasurement:
 
 @dataclass(frozen=True)
 class HeadingSpeedSetpoint:
+    """Hold a heading and a speed.
+
+    psi_rate_cmd_rad_s is how fast the commanded heading is itself moving,
+    and exists so guidance can feed it forward. A proportional law chasing a
+    ramp settles at an error of rate/gain, not at zero -- commanding a
+    20 deg/s sweep at a gain of 0.3 leaves the vehicle 67 degrees behind the
+    setpoint indefinitely. Guidance cannot recover the rate by
+    differentiating psi_cmd_rad, both because it is memoryless by design and
+    because that signal steps discontinuously whenever the commander changes
+    its mind. So whoever builds the setpoint, which knows the rate exactly,
+    states it. Zero for a stationary command, which is the default and the
+    common case.
+    """
+
     psi_cmd_rad: float
+    v_cmd_mps: float
+    psi_rate_cmd_rad_s: float = 0.0
+
+
+@dataclass(frozen=True)
+class TurnRateSpeedSetpoint:
+    """Turn at a rate and hold a speed, with no heading to aim at.
+
+    Exists because a heading setpoint cannot express "turn as hard as you
+    can". Ask for a rate above what the airframe can deliver and a heading
+    command laps the vehicle: the error passes through 180 degrees, changes
+    sign, and guidance obligingly reverses the turn. There is no error to
+    wrap here, so a deliberately unreachable rate simply saturates and stays
+    saturated, and the clipping is reported as usual.
+
+    That makes this the natural way to fly the envelope -- maximum-rate
+    turns, corner-speed sweeps -- and the wrong way to hold a bearing, since
+    nothing corrects the heading that results. The two setpoint types are
+    complements, and the dispatch in VehicleGuidance.command() is what ADR
+    0011 put there to allow it.
+    """
+
+    omega_cmd_rad_s: float
     v_cmd_mps: float
 
 

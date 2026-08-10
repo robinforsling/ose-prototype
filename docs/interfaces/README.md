@@ -133,12 +133,28 @@ source exists. See ADR 0010.
 
 ### `guidance.setpoint.v1`
 
-`HeadingSpeedSetpoint(psi_cmd_rad, v_cmd_mps)`, consumed by any component
-satisfying `VehicleGuidance` (`command(t_s, setpoint, own_state, mass_kg) ->
+Two setpoint records, consumed by any component satisfying
+`VehicleGuidance` (`command(t_s, setpoint, own_state, mass_kg) ->
 (VehicleCommand, Saturation)`). Today the only implementation is
-`VehicleGuidance` (subsystem layer, `subsystem/vehicle_guidance.py`), a
-proportional heading/speed-hold law whose raw command is projected onto the
-vehicle's admissible sets before publication.
+`VehicleGuidance` (subsystem layer, `subsystem/vehicle_guidance.py`), whose
+raw command is projected onto the vehicle's admissible sets before
+publication.
+
+`HeadingSpeedSetpoint(psi_cmd_rad, v_cmd_mps, psi_rate_cmd_rad_s=0.0)` holds a
+heading and a speed. The rate field is how fast the commanded heading is
+itself moving, and it exists because a proportional law chasing a ramp settles
+at an error of rate/gain rather than zero -- 67 degrees for a 20 deg/s sweep
+at this gain. Guidance is memoryless by design and the signal steps between
+commands, so it cannot differentiate the heading itself; the commander, which
+knows the rate exactly, declares it.
+
+`TurnRateSpeedSetpoint(omega_cmd_rad_s, v_cmd_mps)` turns at a rate with no
+heading to aim at. It exists because a heading command cannot express "turn as
+hard as you can": ask for more than the airframe can give and the setpoint
+laps the vehicle, the error wraps through 180 degrees and flips sign, and
+guidance reverses. With no error to wrap, an unreachable rate simply pins
+against the limit. The right tool for flying the envelope, the wrong one for
+holding a bearing.
 
 `command()` dispatches on setpoint type, mirroring `NavigationEstimator.
 ingest()`: a planned waypoint-pursuit mode is a new type and a new branch,

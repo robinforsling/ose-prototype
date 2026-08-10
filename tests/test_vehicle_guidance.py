@@ -19,7 +19,11 @@ import pytest
 
 from ose import interfaces
 from ose.integration import step_rk4
-from ose.interfaces import HeadingSpeedSetpoint, OwnStateEstimate
+from ose.interfaces import (
+    HeadingSpeedSetpoint,
+    OwnStateEstimate,
+    TurnRateSpeedSetpoint,
+)
 from ose.resource.reference_configs.reference_vehicle import reference_fighter
 from ose.resource.vehicle import VehicleState
 from ose.subsystem.reference_configs.reference_vehicle_guidance import STANDARD
@@ -149,6 +153,110 @@ def test_feedforward_matches_the_turn_actually_commanded(vehicle, guidance):
     assert cmd.thrust_N == pytest.approx(
         vehicle.thrust_required_N(state.v_mps, state.mass_kg, cmd.omega_rad_s), rel=1e-9
     )
+
+
+# --------------------------------------------------------------------------
+# Feedforward on a moving heading setpoint
+# --------------------------------------------------------------------------
+
+def _fly(vehicle, guidance, state, setpoint_at, duration_s, dt=0.05):
+    t = 0.0
+    while t < duration_s:
+        cmd, _ = guidance.command(
+            t, setpoint_at(t), _perfect_estimate(t, state), state.mass_kg
+        )
+        state = step_rk4(vehicle, state, cmd, dt)
+        t += dt
+    return state, t
+
+
+def test_ramping_setpoint_without_feedforward_lags_by_rate_over_gain(vehicle, guidance):
+    """The defect the feedforward field exists to remove, pinned so nobody
+    removes the field believing it decorative.
+
+    A proportional law chasing a ramp settles where the correction alone
+    supplies the whole turn rate, i.e. at an error of rate/gain. Omit the
+    rate and the vehicle trails the commanded heading permanently.
+    """
+    rate = math.radians(10.0)
+    state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
+    flown, t_end = _fly(
+        vehicle, guidance, state,
+        lambda t: HeadingSpeedSetpoint(rate * t, 250.0),   # no rate declared
+        40.0,
+    )
+    # Wrapped: after 40 s the command has passed 360 degrees while the
+    # vehicle's heading wraps to +-180, so the raw difference is a full turn out.
+    lag = math.degrees(math.remainder(rate * t_end - flown.psi_rad, 2.0 * math.pi))
+    predicted = math.degrees(rate / STANDARD.heading_gain_per_s)
+    assert lag == pytest.approx(predicted, rel=0.1)
+
+
+def test_declaring_the_rate_removes_the_lag(vehicle, guidance):
+    """Same sweep, same gains, with the setpoint's own rate declared: the
+    heading error settles at zero instead of at rate/gain."""
+    rate = math.radians(10.0)
+    state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
+    flown, t_end = _fly(
+        vehicle, guidance, state,
+        lambda t: HeadingSpeedSetpoint(rate * t, 250.0, psi_rate_cmd_rad_s=rate),
+        40.0,
+    )
+    lag = abs(math.degrees(math.remainder(rate * t_end - flown.psi_rad, 2.0 * math.pi)))
+    assert lag < 1.0
+
+
+# --------------------------------------------------------------------------
+# Turn-rate setpoints
+# --------------------------------------------------------------------------
+
+def test_turn_rate_setpoint_is_commanded_directly(vehicle, guidance):
+    state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
+    rate = math.radians(8.0)
+    cmd, sat = guidance.command(
+        0.0, TurnRateSpeedSetpoint(rate, 250.0), _perfect_estimate(0.0, state),
+        state.mass_kg,
+    )
+    assert not sat.any
+    assert cmd.omega_rad_s == pytest.approx(rate)
+
+
+def test_unreachable_turn_rate_saturates_and_stays_saturated(vehicle, guidance):
+    """The reason this setpoint type exists. A heading command asking for
+    more than the airframe can give laps the vehicle, the error wraps
+    through 180 and flips sign, and guidance reverses the turn. With no
+    heading to chase there is no error to wrap, so an impossible rate simply
+    pins against omega_available for as long as it is commanded.
+    """
+    state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
+    absurd = TurnRateSpeedSetpoint(math.radians(200.0), 250.0)
+
+    signs = []
+    t = 0.0
+    while t < 60.0:
+        cmd, sat = guidance.command(
+            t, absurd, _perfect_estimate(t, state), state.mass_kg
+        )
+        assert sat.omega_clipped
+        assert cmd.omega_rad_s == pytest.approx(
+            vehicle.omega_max_rad_s(state.v_mps, state.mass_kg)
+        )
+        signs.append(math.copysign(1.0, cmd.omega_rad_s))
+        state = step_rk4(vehicle, state, cmd, 0.05)
+        t += 0.05
+
+    assert len(set(signs)) == 1, "the turn reversed, which is the wrap bug"
+
+
+def test_turn_rate_setpoint_still_holds_speed(vehicle, guidance):
+    """It replaces the heading loop, not the speed loop."""
+    state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
+    flown, _ = _fly(
+        vehicle, guidance, state,
+        lambda t: TurnRateSpeedSetpoint(math.radians(5.0), 280.0),
+        90.0,
+    )
+    assert abs(flown.v_mps - 280.0) < 2.0
 
 
 # --------------------------------------------------------------------------

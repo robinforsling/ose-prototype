@@ -37,7 +37,12 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from ose.interfaces import GuidanceCapability, HeadingSpeedSetpoint, OwnStateEstimate
+from ose.interfaces import (
+    GuidanceCapability,
+    HeadingSpeedSetpoint,
+    OwnStateEstimate,
+    TurnRateSpeedSetpoint,
+)
 from ose.resource.vehicle import Saturation, Vehicle2D, VehicleCommand
 
 
@@ -107,16 +112,18 @@ class VehicleGuidance:
         """Dispatches on setpoint type. Unknown types raise TypeError."""
         if isinstance(setpoint, HeadingSpeedSetpoint):
             return self._command_heading_speed(setpoint, own_state, mass_kg)
+        if isinstance(setpoint, TurnRateSpeedSetpoint):
+            return self._command_turn_rate_speed(setpoint, own_state, mass_kg)
         raise TypeError(f"VehicleGuidance cannot command from {type(setpoint).__name__}")
 
-    def _command_heading_speed(
-        self, setpoint: HeadingSpeedSetpoint, own_state: OwnStateEstimate, mass_kg: float
-    ) -> tuple[VehicleCommand, Saturation]:
-        believed = own_state.as_vehicle_state(mass_kg)
 
-        heading_error = math.remainder(setpoint.psi_cmd_rad - believed.psi_rad, 2.0 * math.pi)
-        omega_cmd = self.par.heading_gain_per_s * heading_error
+    def _project(self, believed, omega_cmd: float, v_cmd_mps: float):
+        """Thrust feedforward and enforcement, shared by both setpoint types.
 
+        Both want the same thing once a turn rate has been decided: hold
+        speed through the turn the vehicle will actually fly, correct any
+        speed error, then let the vehicle enforce its own sets.
+        """
         # Ask the vehicle what it can currently do rather than deriving it
         # from the vehicle's internals. This is the capability model being
         # used for what it is for: a consumer querying instead of
@@ -144,10 +151,39 @@ class VehicleGuidance:
         )
         steady = self.vehicle.capability(believed, omega_rad_s=omega_achievable)
 
-        speed_error = setpoint.v_cmd_mps - believed.v_mps
+        speed_error = v_cmd_mps - believed.v_mps
         thrust_cmd = (
             steady.thrust_required_N
             + believed.mass_kg * self.par.speed_gain_per_s * speed_error
         )
 
         return self.vehicle.project_command(believed, VehicleCommand(thrust_cmd, omega_cmd))
+
+    def _command_turn_rate_speed(
+        self, setpoint: TurnRateSpeedSetpoint, own_state: OwnStateEstimate, mass_kg: float
+    ) -> tuple[VehicleCommand, Saturation]:
+        """No heading loop at all: the commanded rate is the command. An
+        unreachable rate saturates against omega_available and stays there,
+        which is the whole reason this setpoint type exists."""
+        believed = own_state.as_vehicle_state(mass_kg)
+        return self._project(believed, setpoint.omega_cmd_rad_s, setpoint.v_cmd_mps)
+
+    def _command_heading_speed(
+        self, setpoint: HeadingSpeedSetpoint, own_state: OwnStateEstimate, mass_kg: float
+    ) -> tuple[VehicleCommand, Saturation]:
+        believed = own_state.as_vehicle_state(mass_kg)
+
+        heading_error = math.remainder(setpoint.psi_cmd_rad - believed.psi_rad, 2.0 * math.pi)
+
+        # Proportional correction plus the setpoint's own rate fed forward.
+        # Without the feedforward term a moving setpoint is never caught: the
+        # loop settles where the correction alone supplies the whole turn
+        # rate, leaving a standing error of rate/gain. With it, the error
+        # settles at zero and the correction only has to make up the
+        # difference.
+        omega_cmd = (
+            self.par.heading_gain_per_s * heading_error + setpoint.psi_rate_cmd_rad_s
+        )
+
+        return self._project(believed, omega_cmd, setpoint.v_cmd_mps)
+

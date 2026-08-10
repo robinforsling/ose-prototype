@@ -18,9 +18,10 @@ The manoeuvres are chosen to press against different limits:
   360 at 9 g       a full circle at the structural limit. It cannot be held --
                    sustained rate at 250 m/s is 14.7 deg/s against the 20.1
                    commanded -- so speed bleeds and the circle spirals in.
-                   Peaks near 8 g rather than 9, because a proportional law
-                   chasing a ramp lags by rate/gain, about 67 degrees, and by
-                   the time it has spun up the speed has already decayed.
+                   Reaches the full 9 g because the sweep declares its own
+                   rate and guidance feeds it forward; without that a
+                   proportional law trails a ramp by rate/gain, about 67
+                   degrees, and only ever reached 8 g.
 
   lazy eight       the planar equivalent. The real manoeuvre trades height for
                    speed through opposing 180s; with altitude suppressed the
@@ -28,12 +29,14 @@ The manoeuvres are chosen to press against different limits:
                    and accelerating out through the other, and the ground track
                    crosses itself as a figure eight.
 
-  corner sweep     the vehicle decelerates from 380 m/s while pinned against
-                   its turn-rate limit, so the delivered rate traces the
+  corner sweep     flown on a turn-rate setpoint, asking for 60 deg/s that no
+                   speed can deliver, so the vehicle stays pinned against
+                   omega_max for the whole segment while decelerating from
+                   380 m/s. The delivered rate therefore traces the
                    corner-speed curve and peaks where the lift and structural
-                   limits meet. It lands on v_corner to within 0.1 m/s of the
-                   closed-form prediction, which is the sharpest check in this
-                   repository that the turn-performance model is self-consistent.
+                   limits meet, landing on v_corner exactly. That is the
+                   sharpest check in this repository that the turn-performance
+                   model is self-consistent.
 
   ground track      where it went, with the trail and current heading
   heading, airspeed  commanded against true -- the tracking task itself
@@ -106,7 +109,11 @@ import matplotlib
 import numpy as np
 
 from ose.integration import step_rk4
-from ose.interfaces import HeadingSpeedSetpoint, OwnStateEstimate
+from ose.interfaces import (
+    HeadingSpeedSetpoint,
+    OwnStateEstimate,
+    TurnRateSpeedSetpoint,
+)
 from ose.resource.reference_configs.reference_vehicle import reference_fighter
 from ose.resource.vehicle import VehicleState
 from ose.subsystem.reference_configs.reference_vehicle_guidance import STANDARD
@@ -126,6 +133,11 @@ class Segment:
     duration_s: float
     v_cmd_mps: float
     turn_rate_deg_s: float = 0.0      # 0 holds the inherited heading
+    # Fly this one on a turn-rate setpoint instead of a heading one. Needed
+    # only where the commanded rate is deliberately unreachable: a heading
+    # command cannot express that, because the setpoint laps the vehicle and
+    # the wrapped error reverses the turn.
+    rate_setpoint: bool = False
 
 
 MISSION: list[Segment] = [
@@ -156,18 +168,15 @@ MISSION: list[Segment] = [
     # meet, then falling as g/v shrinks. Sweeping through beats sampling three
     # fixed speeds, because the peak lands wherever it lands.
     #
-    # 22 deg/s, chosen by measurement rather than guessed, and the reason is
-    # a real limitation of this setpoint type: a heading setpoint cannot say
-    # "turn as hard as you can". Command a rate above the achievable one and
-    # the setpoint laps the vehicle, the heading error wraps through 180 and
-    # changes sign, and guidance dutifully reverses. At 60 deg/s that gave a
-    # sawtooth and put the apparent peak 12 m/s away from corner speed. At 22
-    # the lapping is occasional, and the recoveries are in fact what drive the
-    # vehicle onto omega_max, so the peak lands exactly on v_corner. Holding a
-    # saturated turn properly wants a turn-rate setpoint -- an argument for a
-    # second member of guidance.setpoint.v1.
+    # rate_setpoint=True, and this segment is why TurnRateSpeedSetpoint
+    # exists. A heading command cannot say "turn as hard as you can": ask for
+    # a rate above the achievable one and the setpoint laps the vehicle, the
+    # heading error wraps through 180 and changes sign, and guidance reverses.
+    # That gave a sawtooth, five reversals, and only 80 percent of the segment
+    # saturated. With no heading to chase there is no error to wrap: 60 deg/s
+    # now pins against omega_max for the whole segment, zero reversals.
     Segment("accelerate for corner run", 45.0, 380.0, turn_rate_deg_s=4.0),
-    Segment("corner sweep", 95.0, 140.0, turn_rate_deg_s=22.0),
+    Segment("corner sweep", 95.0, 140.0, turn_rate_deg_s=60.0, rate_setpoint=True),
     Segment("recover", 20.0, 220.0),
 ]
 T_END = sum(seg.duration_s for seg in MISSION)
@@ -193,10 +202,19 @@ def segment_at(t_s: float):
     return SCHEDULE[-1]
 
 
-def setpoint_at(t_s: float) -> HeadingSpeedSetpoint:
+def setpoint_at(t_s: float):
     t0, _, seg, psi0 = segment_at(t_s)
+    if seg.rate_setpoint:
+        return TurnRateSpeedSetpoint(
+            math.radians(seg.turn_rate_deg_s), seg.v_cmd_mps
+        )
     return HeadingSpeedSetpoint(
-        math.radians(psi0 + seg.turn_rate_deg_s * (t_s - t0)), seg.v_cmd_mps
+        math.radians(psi0 + seg.turn_rate_deg_s * (t_s - t0)),
+        seg.v_cmd_mps,
+        # The sweep's own rate, fed forward. Without it a proportional law
+        # settles rate/gain behind a moving setpoint -- 67 degrees for the
+        # 9 g circle -- and the vehicle never reaches the commanded turn.
+        psi_rate_cmd_rad_s=math.radians(seg.turn_rate_deg_s),
     )
 
 
@@ -280,8 +298,14 @@ def fly() -> dict[str, np.ndarray]:
         # the corner run alone commands over 5000 degrees -- while the state's
         # heading wraps to +-180. Plotting the two unwrapped compares a ramp
         # against a sawtooth and shows nothing.
+        # NaN while a turn-rate setpoint is active: no heading is being
+        # commanded then, and matplotlib leaves a gap rather than drawing a
+        # line through a number that does not exist. Inventing one -- the
+        # current heading, say -- would suggest guidance was holding it.
         rec.psi_cmd.append(
             math.degrees(math.remainder(setpoint.psi_cmd_rad, 2.0 * math.pi))
+            if isinstance(setpoint, HeadingSpeedSetpoint)
+            else float("nan")
         )
         rec.v_cmd.append(setpoint.v_cmd_mps)
         rec.omega_req.append(math.degrees(sat.requested.omega_rad_s))

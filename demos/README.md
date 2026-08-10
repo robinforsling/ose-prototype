@@ -48,12 +48,18 @@ watching a mission go past once tells you much less than stopping on the
 moment a limit binds and stepping through it. Space plays and pauses, the
 arrow keys step, and dragging the bar seeks.
 
-The mission presses on different limits in turn: a 360 at the structural
-load-factor limit that cannot be held and spirals in as speed bleeds; a planar
-lazy eight, trading airspeed rather than height between opposing loops, whose
-ground track crosses itself; and a corner-speed sweep, decelerating from
-380 m/s pinned against the turn-rate limit so the delivered rate traces the
-corner curve and peaks at `v_corner` -- within 0.1 m/s of the closed form.
+The mission presses on different limits in turn: a 360 at the 9 g structural
+limit that cannot be held and spirals in as speed bleeds; a planar lazy eight,
+trading airspeed rather than height between opposing loops, whose ground track
+crosses itself; and a corner-speed sweep, decelerating from 380 m/s pinned
+against the turn-rate limit for the whole segment so the delivered rate traces
+the corner curve and peaks at `v_corner`, exactly.
+
+It uses both setpoint types. Sweeps declare their own turn rate so guidance can
+feed it forward, without which a proportional law trails a moving setpoint by
+rate/gain and the 9 g circle only reached 8 g. The corner sweep uses a
+turn-rate setpoint, because a heading command cannot ask for more turn than the
+airframe has.
 
 Saturation shows in both directions: the turn rate against the 9 g structural
 limit, and thrust the other way during deceleration, where guidance asks for

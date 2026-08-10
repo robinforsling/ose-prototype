@@ -42,6 +42,13 @@ component to make that finding visible to anyone.
 later waypoint-pursuit mode is a new type and a new branch, not a change to
 the protocol or a redesign of existing callers.
 
+That paid off sooner than expected. `TurnRateSpeedSetpoint` was added as a
+second type once a demo needed a maximum-rate turn, which a heading command
+cannot express -- ask for more turn than the airframe has and the setpoint
+laps the vehicle, the heading error wraps through 180 degrees and changes
+sign, and guidance reverses. It arrived as one new record and one new branch,
+with no change to the protocol or to existing callers.
+
 `mass_kg` is a plain parameter to `command()`, supplied by the caller, not
 derived from `own_state`. This is stated as a simplification, not hidden:
 nothing in this repository estimates mass yet, and inventing an estimate
@@ -72,7 +79,11 @@ believed mass instead. Until then, any demo or test using `VehicleGuidance`
 is implicitly assuming perfect mass knowledge and should not be read as
 evidence that guidance works under mass uncertainty.
 
-The control law has no integral term, so a persistent disturbance would
-leave a steady-state error uncorrected. Accepted for now: the setpoint
-stand-in and the missing mass estimate are both bigger gaps than controller
-structure, and revisiting the law is cheap once those exist.
+The control law has no integral term, so a persistent disturbance still
+leaves a steady-state error uncorrected. The feedforward term added later
+does not change that and should not be mistaken for it: feedforward cancels
+the lag from a setpoint that is *known* to be moving, and an integrator
+would cancel an error whose cause is *unknown*. The first is exact and
+cheap because the commander supplies the rate; the second needs state and
+anti-windup. Accepted for now -- the missing mass estimate is a bigger gap
+than controller structure, and revisiting the law is cheap once it exists.
