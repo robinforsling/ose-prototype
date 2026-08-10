@@ -70,6 +70,36 @@ class TimeEstimate:
         return math.sqrt(max(self.covariance[0, 0], 0.0))
 
 
+@dataclass(frozen=True)
+class MassEstimate:
+    """The platform's belief about its own mass -- vehicle.mass.v1.
+
+    Published by the vehicle manager, which is the only component entitled to
+    say what the platform weighs. Everything above it consumes this rather
+    than being handed a true mass, which is what ADR 0011 recorded as the
+    outstanding simplification in guidance.
+
+    Broken out by contribution rather than published as one number, because
+    the contributions differ in kind and a consumer may care which is which:
+    dry mass is a design constant, payload is a configuration decision, and
+    only fuel is measured and therefore uncertain. Summing them here and
+    publishing the parts as well costs nothing and keeps the reasoning
+    visible.
+
+    mass_sigma_kg is the honest part. Today it is exactly the sigma that
+    travelled with the fuel measurement, since the other two terms are known
+    constants -- see invariant 4 in CLAUDE.md, and note that this component
+    does not get to invent a number of its own.
+    """
+
+    t_s: float
+    mass_kg: float                   # dry + payload + fuel
+    mass_sigma_kg: float
+    dry_mass_kg: float               # design constant, exact
+    payload_mass_kg: float           # configuration, exact
+    fuel_mass_kg: float              # measured, uncertain
+
+
 # ---------------------------------------------------------------------------
 # Measurement records
 #
@@ -134,10 +164,14 @@ class FuelMeasurement:
 # ---------------------------------------------------------------------------
 # Guidance setpoints
 #
-# Stand in for planning.action.v1 until the single-ship layer's action
-# planner exists. VehicleGuidance.command() dispatches on setpoint type, the
-# same reason ingest() does: a further mode (e.g. waypoint pursuit) can be
-# added as a new type without changing the protocol.
+# What travels in ActionSet.motion, below: the single-ship action planner
+# decides one of these and vehicle guidance flies it. VehicleGuidance.command()
+# dispatches on setpoint type, the same reason ingest() does, so a further
+# mode can be added as a new type without changing the protocol.
+#
+# There is deliberately no waypoint setpoint. The planner decides WHERE to go
+# and guidance decides HOW to fly there, so a route is converted to a bearing
+# a layer up, where the route is known -- see single_ship/action_planner.py.
 # ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
