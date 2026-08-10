@@ -13,8 +13,11 @@ run. Debugging a multi-platform simulation without it is guesswork.
 
 `demos/demo_live_flight.py` is a throwaway prototype of this, flying a sequence
 of guidance setpoints and rendering either to a live window or to video. It
-also stands in for the simulation core, which does not exist. Neither is meant
-to survive as written, but five things it ran into are worth carrying over.
+also stands in for the simulation core, which does not exist.
+`demos/demo_live_route.py` is the same machinery driven by the action planner
+instead of a script, so the whole stack built so far is in the loop; the
+transport controls both share live in `demos/_player.py`. None of it is meant
+to survive as written, but six things they ran into are worth carrying over.
 
 **Simulate first, render second.** The prototype's loop records everything and
 returns; the renderer reads the recording afterwards. Interleaving them couples
@@ -43,6 +46,15 @@ and not enough to work out why. Pause, single-step, scrub and a speed control
 turned it from a demonstration into an instrument. Keeping the recording in
 memory is what makes seeking trivial, which is the first lesson paying for
 itself.
+
+**Draw the decision, not only the trajectory.** Once a planner is in the loop a
+track alone stops being enough: an infeasible corner and a deliberate orbit
+draw the same shape. The route demo has to show the route as authored, which
+waypoint is active, the capture radius holding at that instant, and the
+interval where the planner has stopped publishing motion at all — otherwise a
+plan that failed looks like a plan that finished. The rule generalises: for
+every component that decides something, render what it decided and what it
+decided it against, beside the outcome.
 
 **The renderer reads truth and must stay write-only.** It is a tool rather than
 a component, so ADR 0008 does not deny it truth — but nothing it computes may
