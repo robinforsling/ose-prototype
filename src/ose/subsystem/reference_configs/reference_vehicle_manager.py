@@ -28,4 +28,10 @@ STANDARD = VehicleManagerParameters(
     tsfc_walk_per_sqrt_s=2.0e-5,
     # Unmodelled burn. Small against a 1.5 kg/s cruise flow.
     fuel_walk_kg_per_sqrt_s=0.02,
+
+    # Three sigma on the promised envelope. Worth nothing once the filter has
+    # converged -- three sigma of 2 kg against 15 tonnes -- and worth 600 kg
+    # before the first gauge reading, which is when a planner most needs to
+    # be told what the platform is actually confident of.
+    capability_margin_sigma=3.0,
 )

@@ -431,6 +431,115 @@ def test_the_filter_beats_the_raw_gauge():
 
 
 # --------------------------------------------------------------------------
+# The promised envelope
+# --------------------------------------------------------------------------
+
+def test_the_bound_is_never_wider_than_the_estimate(vehicle, manager):
+    """The property that makes a single signed margin correct.
+
+    capability_bound() adds mass rather than applying a per-channel rule,
+    and that is only sound because heavier is uniformly worse: a heavier
+    aircraft turns no faster, stalls no slower, and the airframe speed limit
+    does not move with mass at all. If any channel were anti-conservative in
+    mass the margin would widen the claim somewhere while narrowing it
+    elsewhere, and the whole approach would be wrong.
+
+    Swept across the envelope rather than checked at one point, because the
+    binding limit changes with speed -- structural at high speed, lift at low
+    -- and the property has to hold in both regimes.
+    """
+    for v_mps in (100.0, 150.0, 200.0, 250.0, 300.0, 400.0, 500.0, 590.0):
+        est = _estimate(v_mps=v_mps)
+        point = manager.capability(est)
+        bound = manager.capability_bound(est)
+
+        assert bound.omega_available_rad_s <= point.omega_available_rad_s + 1e-12
+        assert bound.v_min_achievable_mps >= point.v_min_achievable_mps - 1e-12
+        assert bound.v_max_achievable_mps <= point.v_max_achievable_mps + 1e-12
+
+
+def test_the_margin_bites_only_when_the_belief_is_poor(vehicle):
+    """A margin that never changes anything is decoration, and one that
+    always changes things is a tax. This one is scaled by the live
+    uncertainty, so it does neither.
+
+    Before the first gauge reading the sigma is the configured 200 kg and
+    three of them is 600 kg, worth about four per cent of the turn rate.
+    After the filter converges to a few kilograms it is worth almost nothing,
+    and the platform stops promising less than it can do.
+    """
+    est = _estimate(v_mps=150.0)
+    manager = VehicleManager(vehicle, STANDARD)
+
+    def narrowing() -> float:
+        point = manager.capability(est).omega_available_rad_s
+        bound = manager.capability_bound(est).omega_available_rad_s
+        return 1.0 - bound / point
+
+    before = narrowing()
+    assert before > 0.02, "the margin does nothing even with a 200 kg sigma"
+
+    for k in range(1, 31):
+        t = float(k)
+        manager.predict(t, 60_000.0)
+        manager.ingest(FuelMeasurement(t, 4000.0 - 1.5 * t, 20.0))
+
+    after = narrowing()
+    assert after < 0.005, "the margin still costs performance after convergence"
+    assert after < before
+
+
+def test_a_zero_margin_is_the_point_estimate(vehicle):
+    """The margin is a configuration choice, not something baked in, so
+    turning it off must recover the point estimate exactly."""
+    est = _estimate(v_mps=150.0)
+    manager = VehicleManager(vehicle, _params(capability_margin_sigma=0.0))
+
+    assert manager.capability_bound(est).omega_available_rad_s == pytest.approx(
+        manager.capability(est).omega_available_rad_s
+    )
+
+
+def test_feedforward_and_enforcement_do_not_use_the_bound(vehicle):
+    """Only the promised envelope carries the margin.
+
+    Thrust computed for an aircraft heavier than the real one is not
+    cautious, it accelerates; and clipping against the bound would report the
+    estimator's doubt as though it were the airframe's limit, which would
+    make a Saturation finding mean two different things. Both must therefore
+    be evaluated at the believed mass.
+
+    Run with a 200 kg sigma so the point estimate and the bound are far
+    enough apart for the difference to be visible.
+    """
+    est = _estimate(v_mps=150.0)
+    manager = VehicleManager(vehicle, STANDARD)          # sigma still 200 kg
+    believed = manager.mass_kg
+
+    # Feedforward: the thrust for straight flight must be the one the
+    # believed mass needs, not the heavier bound's.
+    straight = manager.capability(est, omega_rad_s=0.0)
+    assert straight.thrust_required_N == pytest.approx(
+        vehicle.thrust_required_N(150.0, believed, 0.0)
+    )
+    assert straight.thrust_required_N != pytest.approx(
+        vehicle.thrust_required_N(150.0, believed + 600.0, 0.0)
+    )
+
+    # Enforcement: a turn rate the airframe can fly at the believed mass must
+    # not be clipped merely because the platform is unsure of its mass.
+    reachable = manager.capability(est).omega_available_rad_s
+    just_inside = VehicleCommand(60_000.0, 0.999 * reachable)
+    assert just_inside.omega_rad_s > manager.capability_bound(est).omega_available_rad_s
+
+    _, sat = manager.project_command(est, just_inside)
+    assert not sat.omega_clipped, (
+        "enforcement clipped against the promised envelope rather than the "
+        "airframe -- a saturation finding would then mean estimator doubt"
+    )
+
+
+# --------------------------------------------------------------------------
 # Sole consumer of the vehicle model
 # --------------------------------------------------------------------------
 

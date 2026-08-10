@@ -83,6 +83,14 @@ class VehicleGuidance:
         vehicle -> manager (adds mass) -> guidance (adds navigation), each
         layer adding exactly what it knows.
 
+        This is the envelope guidance *promises*, so it asks the manager for
+        the bound rather than the point estimate: a planner deciding whether
+        a leg is flyable should be told what the platform is confident of,
+        not its best guess. The control law below does the opposite and uses
+        the point estimate, because feedforward computed for a mass the
+        aircraft does not have is wrong rather than cautious. See
+        VehicleManager.capability_bound().
+
         The navigation half is read from the covariance travelling with
         own_state rather than by querying a navigation component. That
         follows the rule ADR 0009 set for measurements -- the consumer uses
@@ -92,7 +100,7 @@ class VehicleGuidance:
         navigation's uncertainty *is right now*, degraded by a GNSS outage
         or not, where a static claim from the estimator would not be.
         """
-        envelope = self.manager.capability(own_state)
+        envelope = self.manager.capability_bound(own_state)
 
         return GuidanceCapability(
             max_turn_rate_rad_s=envelope.omega_available_rad_s,
@@ -103,6 +111,9 @@ class VehicleGuidance:
             max_speed_mps=envelope.v_max_achievable_mps,
             heading_hold_sigma_rad=math.sqrt(max(own_state.covariance[2, 2], 0.0)),
             speed_hold_sigma_mps=math.sqrt(max(own_state.covariance[3, 3], 0.0)),
+            # Self-describing: a consumer can tell a promised envelope from a
+            # best guess without knowing how this component was configured.
+            mass_margin_sigma=self.manager.par.capability_margin_sigma,
         )
 
     def command(

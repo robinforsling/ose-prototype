@@ -150,6 +150,14 @@ filter over `[fuel_kg, tsfc_error]`, predicting on commanded thrust and
 correcting on each gauge reading; the burn-coefficient error is a state
 because a bias modelled as process noise makes a filter overconfident.
 
+**`capability()` for what you compute with, `capability_bound()` for what you
+promise** (ADR 0016). The bound widens the envelope by the live mass
+uncertainty and is what guidance publishes upward; feedforward and enforcement
+use the point estimate, because thrust computed for a mass the aircraft does
+not have is wrong rather than cautious, and clipping against a margin would
+make a `Saturation` finding mean estimator doubt instead of an airframe
+limit.
+
 Not implemented: the simulation core, the service registry, the composition
 binder, the descriptor validator, and every component type other than the above
 — no sensors beyond navigation, no communicators, no effectors, no tracker or

@@ -158,6 +158,12 @@ uncertainty is checked by an ensemble ANEES test through the run, two-sided.
 asking whether a command is admissible must not commit the platform to having
 flown it.
 
+`capability_bound()` reports the envelope at `mass + margin * sigma` -- what
+the platform will promise -- while `capability()` reports it at the believed
+mass, which is what feedforward and enforcement must use. Adding mass is
+uniformly conservative because heavier is worse in every channel an envelope
+publishes, and a test sweeps the speed range to assert it. See ADR 0016.
+
 The manager also answers vehicle questions at that mass -- `capability()`,
 including the parametrised turn-rate form guidance feeds thrust forward on,
 and `project_command()` -- and is the only component permitted to bind
@@ -243,7 +249,9 @@ Implemented today by every resource, and by one subsystem component:
   rate), a tuple of `MeasurementChannel(name, sigma, units)` -- one per quantity
   measured -- and an `available` flag that tracks denial.
 
-- `VehicleGuidance.capability(own_state)` returns
+- `VehicleGuidance.capability(own_state)` returns the *promised* envelope --
+  the manager's bound, not its point estimate, with `mass_margin_sigma`
+  saying so. It returns
   `GuidanceCapability`, the one capability model here that is *composed*
   rather than reported: reachable setpoints come from the vehicle's
   envelope, hold accuracy from the navigation covariance travelling with

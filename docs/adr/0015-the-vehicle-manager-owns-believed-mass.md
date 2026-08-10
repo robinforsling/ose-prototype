@@ -1,6 +1,6 @@
 # 0015. The vehicle manager owns the platform's believed mass
 
-Status: accepted
+Status: accepted, extended by ADR 0016
 Date: 2026-08-10
 
 Amends ADR 0011 (the mass simplification it recorded is resolved) and ADR 0013
@@ -51,9 +51,11 @@ three vehicle questions above at the mass it believes.
 
 Mass is `dry + payload + fuel`. Dry mass is a vehicle design constant and
 payload is a configuration decision, so both are exact; only the fuel term is
-measured. The published `mass_sigma_kg` is therefore exactly the sigma that
-travelled with the `FuelMeasurement`, per invariant 4, and the manager does not
-substitute a configured number of its own.
+measured. The published `mass_sigma_kg` is therefore the fuel term's alone.
+(As shipped here it was exactly the sigma that travelled with the
+`FuelMeasurement`. Under ADR 0016 it comes from the filter's covariance, and
+the measurement's declared sigma sets the gain rather than the output; the
+manager still substitutes no configured number of its own, per invariant 4.)
 
 `VehicleGuidance` binds to the manager — a peer in the same layer on the same
 platform — instead of to `Vehicle2D`. It no longer takes `mass_kg`, no longer
@@ -77,7 +79,8 @@ do, which is the simulation core's job living outside the components per ADR
 0004; and the manager itself.
 
 The estimator is a sum, not a filter. The last fuel reading is used as it
-stands.
+stands. *(Superseded by ADR 0016: a two-state filter now predicts on commanded
+thrust and corrects on each reading.)*
 
 ## Consequences
 
@@ -87,6 +90,13 @@ nothing to reach for. `FuelGauge` has a consumer for the first time, and the
 demos now run the full chain `FuelGauge -> VehicleManager -> VehicleGuidance`;
 over the route demo the vehicle burns about 420 kg and the belief stays within
 roughly 65 kg of truth, which is gauge noise rather than drift.
+
+**Superseded by ADR 0016 as of 2026-08-11.** Fuel is now tracked by a
+two-state filter that predicts on commanded thrust and corrects on each
+measurement, and the sigma is a bound rather than a floor. The paragraph below
+describes the sum-only version this record shipped, and the reasoning that
+made a filter the next step; it is left as written because the staleness it
+predicted is exactly what showed up.
 
 **The belief is stale between measurements, and the published sigma does not
 say so.** Mass falls continuously at a rate the platform could predict, because

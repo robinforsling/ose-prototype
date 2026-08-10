@@ -130,6 +130,10 @@ class VehicleManagerParameters:
     # Unmodelled burn -- bleed air, leaks, anything the thrust-proportional
     # term does not capture.
     fuel_walk_kg_per_sqrt_s: float
+    # How many sigma of mass uncertainty capability_bound() adds before
+    # reporting an envelope. See that method for why the margin is added
+    # rather than subtracted, and why only the promised envelope carries it.
+    capability_margin_sigma: float
 
 
 class VehicleManager:
@@ -292,6 +296,43 @@ class VehicleManager:
         """
         return self.vehicle.capability(
             self.believed_state(own_state), omega_rad_s=omega_rad_s
+        )
+
+    def capability_bound(
+        self, own_state: OwnStateEstimate, omega_rad_s: float = 0.0
+    ) -> Capability:
+        """The envelope the platform is willing to promise, not the one it
+        expects.
+
+        Evaluated at mass + margin * sigma rather than at the believed mass.
+        Heavier is uniformly worse across every channel an envelope
+        publishes -- a heavier aircraft turns no faster, stalls no slower,
+        and the airframe speed limit does not move -- so adding the margin
+        narrows the claim in every direction at once and can never widen it.
+        A test asserts that, because the property is what makes a single
+        signed margin correct rather than needing a per-channel rule.
+
+        This is the only method that applies the margin, and deliberately so.
+        Feedforward must use the best estimate: thrust computed for an
+        aircraft heavier than the real one is not cautious, it simply
+        accelerates. Enforcement likewise clips against what the airframe
+        can do, not against what the platform is confident of, or a
+        Saturation finding would report the estimator's doubt as though it
+        were the vehicle's limit and ADR 0006 would stop meaning anything.
+
+        So: capability() for what you compute with, capability_bound() for
+        what you promise upward.
+
+        The margin is invisible once the filter has converged -- three sigma
+        of a 2 kg uncertainty against 15 tonnes changes nothing measurable.
+        It earns its place exactly when the belief is poor: before the first
+        gauge reading, where sigma is the configured 200 kg, and during a
+        gauge outage, where it grows without bound.
+        """
+        sigma = math.sqrt(max(self.P[I_FUEL, I_FUEL], 0.0))
+        heavier = self.mass_kg + self.par.capability_margin_sigma * sigma
+        return self.vehicle.capability(
+            own_state.as_vehicle_state(heavier), omega_rad_s=omega_rad_s
         )
 
     def project_command(

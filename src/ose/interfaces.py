@@ -419,6 +419,14 @@ class GuidanceCapability:
     heading_hold_sigma_rad: float
     speed_hold_sigma_mps: float
 
+    # How many sigma of mass uncertainty the reachable-setpoint bounds above
+    # were widened by before being reported. Zero means they are the point
+    # estimate. Carried so that a promised envelope is distinguishable from a
+    # best guess by the consumer rather than only by whoever configured the
+    # platform -- the numbers coincide once a filter has converged, and a
+    # planner should not have to guess which it is holding.
+    mass_margin_sigma: float = 0.0
+
     def admits(self, setpoint: HeadingSpeedSetpoint) -> bool:
         """Whether the commanded speed is one the vehicle can hold at all.
 

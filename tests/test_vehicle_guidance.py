@@ -284,6 +284,46 @@ def test_turn_rate_setpoint_still_holds_speed(vehicle, guidance):
 # Capability: composed from the vehicle and from navigation
 # --------------------------------------------------------------------------
 
+def test_published_capability_is_the_promised_envelope_not_the_estimate(
+    vehicle, guidance, manager
+):
+    """Guidance publishes what the platform is confident of, because a
+    planner deciding whether a leg is flyable should not be handed a best
+    guess. The control law does the opposite -- see
+    test_the_control_law_still_uses_the_point_estimate -- and the split is
+    the whole content of ADR 0016.
+
+    Checked with the initial 200 kg sigma, where the two differ.
+    """
+    est = _perfect_estimate(0.0, VehicleState(0.0, 0.0, 0.0, 150.0, 16000.0))
+    cap = guidance.capability(est)
+
+    assert cap.max_turn_rate_rad_s == pytest.approx(
+        manager.capability_bound(est).omega_available_rad_s
+    )
+    assert cap.max_turn_rate_rad_s < manager.capability(est).omega_available_rad_s
+    # And the record says which it is, so a consumer need not know how the
+    # platform was configured to tell a promise from a guess.
+    assert cap.mass_margin_sigma == MANAGER_STANDARD.capability_margin_sigma
+
+
+def test_the_control_law_still_uses_the_point_estimate(vehicle, guidance, manager):
+    """Feedforward computed for a mass the aircraft does not have is wrong,
+    not cautious: it would command thrust for a heavier aeroplane and the
+    real one would accelerate away from its speed setpoint."""
+    state = VehicleState(0.0, 0.0, 0.0, 150.0, 16000.0)
+    est = _perfect_estimate(0.0, state)
+    hold = HeadingSpeedSetpoint(state.psi_rad, state.v_mps)
+
+    cmd, _ = guidance.command(0.0, hold, est)
+
+    # On a settled hold the speed error is zero, so the command is the pure
+    # feedforward and can be compared against the vehicle's own figure.
+    assert cmd.thrust_N == pytest.approx(
+        vehicle.thrust_required_N(150.0, manager.mass_kg, cmd.omega_rad_s), rel=1e-9
+    )
+
+
 def test_capability_reachability_comes_from_the_vehicle(vehicle, guidance):
     state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
     envelope = vehicle.capability(state)
