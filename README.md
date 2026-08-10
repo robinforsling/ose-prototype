@@ -9,7 +9,8 @@ The emphasis is integration, not fidelity.
 
 **Status: early.** The baseline vehicle model; three resource-layer navigation
 sensors (IMU, GNSS, air data), a resource-layer black-box integrated nav unit,
-and a subsystem-layer INS/GNSS estimator; a resource-layer clock with a
+a subsystem-layer INS/GNSS estimator, and a navigation manager that is the
+platform's single publisher of own-state; a resource-layer clock with a
 dead-reckoning-only subsystem-layer time estimator (no correction source
 exists yet); a resource-layer fuel gauge; and a subsystem-layer vehicle
 guidance component that enforces the vehicle's admissible sets before
@@ -54,6 +55,7 @@ src/ose/resource/air_data.py                      air data sensor model
 src/ose/resource/integrated_navigation_unit.py    black-box integrated nav unit
 src/ose/resource/clock.py                         platform clock model
 src/ose/resource/fuel_gauge.py                    remaining-fuel sensor
+src/ose/subsystem/navigation_manager.py           one own-state publisher per platform
 src/ose/subsystem/navigation_state_estimator.py   INS/GNSS error-state Kalman filter
 src/ose/subsystem/time_state_estimator.py         dead-reckoning platform clock estimator
 src/ose/subsystem/vehicle_guidance.py             heading/speed-hold guidance, enforces admissibility

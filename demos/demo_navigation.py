@@ -1,8 +1,9 @@
 """
 Exercises the INS/GNSS navigation estimator against the vehicle model.
 
-Constructs the four components explicitly -- Imu, GnssReceiver, AirDataSensor,
-InsGnssEstimator -- and drives them through the ordering contract described in
+Constructs the navigation system explicitly -- Imu, GnssReceiver and
+AirDataSensor feeding an InsGnssEstimator, published through a
+NavigationManager -- and drives it through the ordering contract described in
 ADR 0009: corrections at t, then the published estimate for t, then
 prediction to t + dt.
 
@@ -35,6 +36,7 @@ from ose.resource.reference_configs.reference_gnss import STANDARD as GNSS_STAND
 from ose.resource.reference_configs.reference_imu import TACTICAL_GRADE
 from ose.resource.reference_configs.reference_vehicle import reference_fighter
 from ose.resource.vehicle import Disturbance, VehicleCommand, VehicleState
+from ose.subsystem.navigation_manager import NavigationManager
 from ose.subsystem.navigation_state_estimator import InitialUncertainty, InsGnssEstimator
 
 DT = 0.02
@@ -87,7 +89,12 @@ def run():
     v0 = state.v_mps * np.array([math.cos(psi0), math.sin(psi0)]) + init_rng.normal(
         0.0, initial.velocity_sigma_mps, size=2
     )
-    estimator = InsGnssEstimator(p0, psi0, v0, initial_uncertainty=initial)
+    # The platform's navigation system: a manager publishing the single
+    # vehicle.state.v1, over an estimator fed by the three sensors. Consumers
+    # bind to the manager and never to the estimator underneath (ADR 0014).
+    navigation = NavigationManager(
+        InsGnssEstimator(p0, psi0, v0, initial_uncertainty=initial)
+    )
 
     log = {k: [] for k in (
         "t", "e_pos", "s_pos", "e_psi", "s_psi", "e_v", "s_v",
@@ -105,11 +112,11 @@ def run():
         air_m = air.sample(t, state) if air.due(t) else None
 
         if fix is not None:
-            estimator.ingest(fix)
+            navigation.ingest(fix)
         if air_m is not None:
-            estimator.ingest(air_m)
-        est = estimator.estimate(t)                # the published estimate refers to t
-        estimator.ingest(imu_m)                     # prediction to t + dt
+            navigation.ingest(air_m)
+        est = navigation.estimate(t)                # the published estimate refers to t
+        navigation.ingest(imu_m)                    # prediction to t + dt
 
         e_pos = math.hypot(est.p_x_m - state.p_x_m, est.p_y_m - state.p_y_m)
         e_psi = math.remainder(est.psi_rad - state.psi_rad, 2.0 * math.pi)

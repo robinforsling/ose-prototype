@@ -15,7 +15,7 @@ renaming one is not, and requires a version increment.
 | `truth.query.v1` | core to resource | Privileged read of ground-truth state. Grantable only to `layer: resource`. | planned |
 | `power.bus.v1` | vehicle to resource | Abstract power draw negotiation, electrical and cooling combined. | planned |
 | `vehicle.command.v1` | subsystem to resource | Commanded thrust and turn rate. | **implemented** |
-| `vehicle.state.v1` | resource or subsystem to above | Own-ship state as the platform believes it, with covariance. | **implemented** |
+| `vehicle.state.v1` | subsystem to above | Own-ship state as the platform believes it, with covariance. Published by `NavigationManager`, one per platform. | **implemented** |
 | `sensing.imu.v1` | resource to subsystem | Specific force and angular rate, with declared uncertainty. | **implemented** |
 | `sensing.gnss.v1` | resource to subsystem | Position and optional velocity fix, with declared uncertainty. | **implemented** |
 | `sensing.airdata.v1` | resource to subsystem | Airspeed, with declared uncertainty. | **implemented** |
@@ -54,8 +54,9 @@ via `project_command()` before publishing it, and reports any clipping via
 position, heading, airspeed, ground velocity, wind estimate, a 4x4 covariance
 over `[p_x, p_y, psi, v_air]`, and a GNSS availability flag.
 
-Two kinds of publisher exist, and a consumer cannot tell which produced a
-given estimate from its shape alone:
+Consumers bind to `NavigationManager` (subsystem layer), the platform's
+single publisher of this interface, and to nothing below it. A *navigation
+system* is the manager plus whatever produces the estimate underneath:
 
 - `InsGnssEstimator` (subsystem layer), which additionally satisfies
   `NavigationEstimator` -- it is fed a measurement stream via `ingest()`
@@ -65,6 +66,10 @@ given estimate from its shape alone:
   resource and subsystem layers into one black-box component that reads
   truth directly. Valid scaffolding when navigation is not the component
   under test; not a baseline for any claim about navigation performance.
+
+Exactly one of those, never both. The manager does not fuse them: they are
+alternatives, and merging a fiction with a model would report an estimate
+better than either while looking self-consistent. See ADR 0014.
 
 The covariance is part of the contract, not an optional extra. A consumer that
 ignores it is choosing to, and a producer that supplies an inconsistent one

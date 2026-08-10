@@ -25,6 +25,7 @@ the full history, so nothing is lost by keeping the working copy accurate.
 | [0011](0011-vehicle-guidance-decides-not-enforces.md) | Vehicle guidance decides what to command, not what is admissible | accepted |
 | [0012](0012-capability-is-a-tested-multi-channel-claim.md) | Capability is a tested, multi-channel claim | accepted, extended by 0013 |
 | [0013](0013-guidance-capability-composes-two-layers.md) | Guidance capability composes the vehicle's and navigation's | accepted |
+| [0014](0014-one-navigation-publisher-per-platform.md) | One navigation publisher per platform, and it does not fuse | accepted |
 
 ## Template
 

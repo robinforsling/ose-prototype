@@ -77,7 +77,10 @@ Implemented: the baseline vehicle model; three resource-layer navigation
 sensors (`Imu`, `GnssReceiver`, `AirDataSensor`) and the resource-layer
 black-box `IntegratedNavUnit`; the subsystem-layer `InsGnssEstimator`, an
 error-state Kalman filter fed by the sensors' published measurements (ADR
-0009); a resource-layer `Clock`; the subsystem-layer `TimeEstimator`, a
+0009), published to the rest of the platform through a subsystem-layer
+`NavigationManager` -- one own-state publisher per platform, which selects a
+source but deliberately does not fuse alternatives (ADR 0014); a resource-layer
+`Clock`; the subsystem-layer `TimeEstimator`, a
 dead-reckoning-only estimator of the platform clock's offset and drift, with
 no correction source yet (ADR 0010); and the subsystem-layer
 `VehicleGuidance`, a heading/speed-hold controller that enforces the
