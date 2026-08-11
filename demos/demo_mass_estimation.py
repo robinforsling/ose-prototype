@@ -88,8 +88,8 @@ from ose.equipment.fuel_gauge import FuelGauge
 from ose.equipment.reference_configs.reference_fuel_gauge import (
     STANDARD as FUEL_GAUGE_STANDARD,
 )
-from ose.equipment.reference_configs.reference_vehicle import reference_fighter
-from ose.equipment.vehicle import Vehicle2D, VehicleCommand, VehicleState
+from ose.equipment.reference_configs.vehicle.planar_point_mass import reference_fighter
+from ose.equipment.vehicle import PlanarPointMass, VehicleCommand, VehicleState
 from ose.integration import step_rk4
 from ose.interfaces import OwnStateEstimate
 from ose.subsystem.reference_configs.reference_vehicle_manager import (
@@ -149,7 +149,7 @@ def _estimate(t_s: float, state: VehicleState) -> OwnStateEstimate:
 
 def fly() -> dict:
     nominal = reference_fighter()
-    vehicle = Vehicle2D(
+    vehicle = PlanarPointMass(
         dataclasses.replace(
             nominal.theta,
             c_tsfc=BELIEVED_TSFC_KG_PER_N_S * (1.0 + TRUE_TSFC_ERROR),

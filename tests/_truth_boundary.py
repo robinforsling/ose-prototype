@@ -32,7 +32,12 @@ import importlib
 from pathlib import Path
 
 EQUIPMENT_PACKAGE = "ose.equipment"
-TRUTH_MODULE = f"{EQUIPMENT_PACKAGE}.vehicle"
+# A package since the second vehicle model was planned, so the guard has to
+# cover its submodules too: importing VehicleState from
+# ose.equipment.vehicle.planar_point_mass is the same leak as importing it
+# from ose.equipment.vehicle, and an equality test would have missed it.
+# Checked -- before this was widened, that import passed.
+TRUTH_PACKAGE = f"{EQUIPMENT_PACKAGE}.vehicle"
 
 # The types that carry ground truth. A cyber-layer component holding one of
 # these is wrong regardless of what it does with it (ADR 0008). VehicleCommand
@@ -49,7 +54,19 @@ def _assert_guard_is_live() -> None:
     The whole failure mode above is a string that names nothing. Importing it
     turns that into an error at the point of use.
     """
-    importlib.import_module(TRUTH_MODULE)
+    module = importlib.import_module(TRUTH_PACKAGE)
+    missing = TRUTH_TYPES - set(vars(module))
+    assert not missing, (
+        f"{TRUTH_PACKAGE} no longer exposes {sorted(missing)}; this guard is "
+        "looking for names that have moved and would match nothing"
+    )
+
+
+def is_truth_package(module: str | None) -> bool:
+    """The package or anything under it."""
+    return module is not None and (
+        module == TRUTH_PACKAGE or module.startswith(TRUTH_PACKAGE + ".")
+    )
 
 
 def component_path(*parts: str) -> Path:
@@ -69,9 +86,12 @@ def assert_no_truth_types(path: Path) -> None:
     truth -- a subsystem component holding a model reference, for instance."""
     _assert_guard_is_live()
     for node in ast.walk(_tree(path)):
-        if isinstance(node, ast.ImportFrom) and node.module == TRUTH_MODULE:
+        if isinstance(node, ast.ImportFrom) and is_truth_package(node.module):
             leaked = {a.name for a in node.names} & TRUTH_TYPES
-            assert not leaked, f"{path.name} imports truth-carrying types: {leaked}"
+            assert not leaked, (
+                f"{path.name} imports truth-carrying types from {node.module}: "
+                f"{leaked}"
+            )
 
 
 def assert_no_equipment_imports(path: Path) -> None:
@@ -93,3 +113,37 @@ def assert_no_truth_parameters(path: Path) -> None:
             params = [a.arg for a in node.args.args + node.args.kwonlyargs]
             leaked = [p for p in params if p.startswith("true_")]
             assert not leaked, f"public method {node.name} takes truth: {leaked}"
+
+
+def vehicle_model_names() -> frozenset[str]:
+    """Every vehicle model class, discovered rather than listed.
+
+    A model is a class defined in a module under ose.equipment.vehicle that is
+    not a dataclass -- the dataclasses there are records (state, command,
+    parameters, capability), the plain classes are the models themselves.
+
+    Discovered because the alternative is a hand-written list, and the rule
+    this feeds is "no component above the equipment layer binds a vehicle
+    model". Naming one model would let the second one through silently, which
+    is the same failure as a test that checks the channels a consumer happens
+    to read. test_every_equipment_module_defines_a_component_with_capability
+    was rewritten for exactly this reason after a hand-written list omitted
+    IntegratedNavUnit.
+    """
+    import dataclasses
+    import inspect
+    import pkgutil
+
+    package = importlib.import_module(f"{EQUIPMENT_PACKAGE}.vehicle")
+    names = set()
+    for info in pkgutil.iter_modules(package.__path__):
+        module = importlib.import_module(f"{package.__name__}.{info.name}")
+        for attr, obj in vars(module).items():
+            if (
+                inspect.isclass(obj)
+                and obj.__module__ == module.__name__
+                and not dataclasses.is_dataclass(obj)
+            ):
+                names.add(attr)
+    assert names, "no vehicle models discovered -- the walk is looking in the wrong place"
+    return frozenset(names)

@@ -15,7 +15,7 @@ import math
 import numpy as np
 import pytest
 
-from ose.equipment.reference_configs.reference_vehicle import reference_fighter
+from ose.equipment.reference_configs.vehicle.planar_point_mass import reference_fighter
 from ose.equipment.vehicle import VehicleCommand, VehicleState
 from ose.integration import rk4_step, step_rk4
 

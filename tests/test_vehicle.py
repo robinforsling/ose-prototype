@@ -11,7 +11,8 @@ import math
 import numpy as np
 import pytest
 
-from ose.equipment.reference_configs.reference_vehicle import (
+from ose.environment import Environment
+from ose.equipment.reference_configs.vehicle.planar_point_mass import (
     FIGHTER_GEOMETRY,
     FIGHTER_LIMITS,
     reference_fighter,
@@ -23,9 +24,8 @@ from ose.equipment.vehicle import (
     VehicleGeometry,
     VehicleState,
 )
-from ose.environment import Environment
-from ose.reference_configs.reference_environment import ISA_SEA_LEVEL
 from ose.integration import step_rk4
+from ose.reference_configs.reference_environment import ISA_SEA_LEVEL
 
 G = 9.80665
 

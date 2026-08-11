@@ -13,7 +13,7 @@ import pytest
 from ose import interfaces
 from ose.equipment.fuel_gauge import FuelGauge
 from ose.equipment.reference_configs.reference_fuel_gauge import STANDARD
-from ose.equipment.reference_configs.reference_vehicle import reference_fighter
+from ose.equipment.reference_configs.vehicle.planar_point_mass import reference_fighter
 from ose.equipment.vehicle import VehicleState
 
 

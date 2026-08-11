@@ -85,7 +85,7 @@ dead-reckoning-only estimator of the platform clock's offset and drift, with
 no correction source yet (ADR 0010); and the subsystem-layer
 `VehicleGuidance`, a heading/speed-hold controller that enforces the
 vehicle's admissible sets before publishing a command, the first real
-consumer of `Vehicle2D.project_command()` and the first real producer of
+consumer of `PlanarPointMass.project_command()` and the first real producer of
 `vehicle.command.v1` (ADR 0011).
 
 Every equipment-layer component answers `capability()`, a self-assessment of

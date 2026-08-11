@@ -9,7 +9,7 @@ All source files must sit in the same directory, since the demos import
 
 ```
 ose/
-  vehicle.py             baseline 2D vehicle model
+  vehicle/               vehicle models, one module per model
   navigation.py          navigation systems (additive noise, INS/GNSS)
   demo_vehicle.py        turn envelope + open-loop manoeuvre
   demo_navigation.py     INS/GNSS with a GNSS outage

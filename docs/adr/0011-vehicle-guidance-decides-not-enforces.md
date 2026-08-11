@@ -11,7 +11,7 @@ assurance layer. Until now nothing occupied that role: both demos that fly
 the vehicle model played it inline, with a comment saying so
 (`demo_vehicle.py`'s `simulate()`: "The guidance layer -- here, this
 open-loop script -- is responsible for keeping the command admissible"), and
-`Vehicle2D.project_command()` / `Saturation` existed but had no real caller.
+`PlanarPointMass.project_command()` / `Saturation` existed but had no real caller.
 
 Guidance also needs a state to steer from. It sits in the subsystem layer,
 so per ADR 0008 it may not read `VehicleState` or `Disturbance` directly --
@@ -32,7 +32,7 @@ the estimate to a believed `VehicleState` via `as_vehicle_state()`, computes
 a raw command by
 proportional control on heading and speed error (drag feedforward on the
 thrust channel), and hands that raw command to
-`Vehicle2D.project_command()`. The `Saturation` it returns is passed back to
+`PlanarPointMass.project_command()`. The `Saturation` it returns is passed back to
 the caller rather than inspected and discarded -- the whole point of ADR
 0006 was that clipping should be a visible finding, and this is the first
 component to make that finding visible to anyone.
@@ -56,7 +56,7 @@ would be worse than being honest that today's callers must supply the true
 value directly.
 
 **Superseded by ADR 0015.** A `VehicleManager` now owns the platform's
-believed mass, guidance binds to it instead of to `Vehicle2D`, and there is
+believed mass, guidance binds to it instead of to `PlanarPointMass`, and there is
 no `mass_kg` parameter. The two paragraphs above describe how this component
 was first built; `as_vehicle_state()` moved to the manager with the mass.
 
@@ -65,7 +65,7 @@ was first built; `as_vehicle_state()` moved to the manager with the mass.
 The truth boundary is exercised by something other than an estimator for
 the first time: guidance never imports `VehicleState` or `Disturbance`,
 checked by `test_guidance_cannot_see_truth` the same way as the two
-estimators. `Vehicle2D.project_command()` and `Saturation` have their first
+estimators. `PlanarPointMass.project_command()` and `Saturation` have their first
 real caller, and `test_reports_saturation_when_setpoint_exceeds_envelope` is
 the first test in the repository that exercises a command actually being
 clipped and that clipping being reported rather than silently applied.

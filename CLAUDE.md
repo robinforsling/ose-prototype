@@ -162,7 +162,7 @@ planner following a route of waypoints. Integrators live in
 composed from the vehicle's envelope and the navigation covariance it steers
 on.
 
-**`VehicleManager` is the only component that may bind `Vehicle2D`** (ADR
+**`VehicleManager` is the only component that may bind `PlanarPointMass`** (ADR
 0015). It owns the platform's believed mass — dry + payload + fuel, where only
 fuel is measured — and answers vehicle questions at that mass, so nothing above
 it takes a mass parameter. An import test enforces this; `ose/integration.py`

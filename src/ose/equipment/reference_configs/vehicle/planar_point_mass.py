@@ -19,7 +19,7 @@ from __future__ import annotations
 import math
 
 from ose.environment import Environment
-from ose.equipment.vehicle import Constraints, Vehicle2D, VehicleGeometry
+from ose.equipment.vehicle import Constraints, PlanarPointMass, VehicleGeometry
 from ose.reference_configs.reference_environment import ISA_SEA_LEVEL
 
 # Generic fighter-like airframe. Plausible, not a real aircraft.
@@ -43,7 +43,7 @@ FIGHTER_LIMITS = Constraints(
 )
 
 
-def reference_fighter(environment: Environment = ISA_SEA_LEVEL) -> Vehicle2D:
+def reference_fighter(environment: Environment = ISA_SEA_LEVEL) -> PlanarPointMass:
     """The reference fighter, at sea level unless told otherwise.
 
     The environment is an argument because it is not part of the airframe:
@@ -53,6 +53,6 @@ def reference_fighter(environment: Environment = ISA_SEA_LEVEL) -> Vehicle2D:
     atmosphere is itself a named reference config and every demo wants it --
     the pairing is a convenience, not a property of the vehicle.
     """
-    return Vehicle2D(
+    return PlanarPointMass(
         FIGHTER_GEOMETRY.to_parameters(environment), FIGHTER_LIMITS, environment
     )

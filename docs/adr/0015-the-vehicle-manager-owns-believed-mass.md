@@ -29,7 +29,7 @@ at all. It published a `FuelMeasurement` carrying a declared sigma, and nothing
 read it.
 
 A first sketch had the new component publish a mass and nothing more, with
-guidance keeping its `Vehicle2D` reference. That does not work. Guidance asks
+guidance keeping its `PlanarPointMass` reference. That does not work. Guidance asks
 the vehicle three different things, and only one of them is a capability read:
 it needs the envelope, a *parametrised* query for the thrust that holds a given
 turn rate (the feedforward that fixed the 1330 kN command), and
@@ -41,9 +41,9 @@ queries takes a state whose `mass_kg` field is the unestimated quantity.
 ## Decision
 
 `VehicleManager` (`subsystem/vehicle_manager.py`) owns the platform's believed
-mass and is the only component permitted to bind `Vehicle2D`.
+mass and is the only component permitted to bind `PlanarPointMass`.
 
-It is best understood as **`Vehicle2D` with the mass argument closed over by a
+It is best understood as **`PlanarPointMass` with the mass argument closed over by a
 believed value** — a partial application, not a pass-through. It consumes
 `FuelMeasurement`, publishes `vehicle.mass.v1` as a `MassEstimate`, owns the
 `as_vehicle_state()` conversion that guidance used to perform, and answers the
@@ -58,11 +58,11 @@ the measurement's declared sigma sets the gain rather than the output; the
 manager still substitutes no configured number of its own, per invariant 4.)
 
 `VehicleGuidance` binds to the manager — a peer in the same layer on the same
-platform — instead of to `Vehicle2D`. It no longer takes `mass_kg`, no longer
+platform — instead of to `PlanarPointMass`. It no longer takes `mass_kg`, no longer
 constructs a believed `VehicleState`, and contributes only what it alone knows:
 how tightly navigation can hold what the vehicle can reach.
 
-    Vehicle2D            physics, needs a mass
+    PlanarPointMass      physics, needs a mass
       +- VehicleManager      binds believed mass
            +- VehicleGuidance    adds navigation uncertainty
                 +- WaypointPlanner
@@ -71,7 +71,7 @@ Each layer adds exactly what it knows.
 
 The sole-consumer rule is enforced as an import rule, because "only the manager
 consumes vehicle capability" is not decidable at a call site without type
-inference, while "only the manager holds a `Vehicle2D`" is, and it is the same
+inference, while "only the manager holds a `PlanarPointMass`" is, and it is the same
 rule with a checkable edge. Three exemptions, each for its own reason: the
 equipment layer owns the vehicle and `Imu` is a peer rather than a consumer
 above it; `ose/integration.py` steps the model instead of asking it what it can
@@ -120,7 +120,7 @@ A reader should take the lesson generally: any test that flies long enough for
 mass to matter, and does not wire up a gauge, is testing a stale belief.
 
 **The manager is an indirection that must forward every future vehicle
-query.** Adding a channel to `Vehicle2D` now means editing two files, and a
+query.** Adding a channel to `PlanarPointMass` now means editing two files, and a
 consumer wanting something the manager does not forward has to change the
 manager rather than reach past it. That is the price of the boundary, and it is
 deliberately not softened by leaving a public accessor for the underlying

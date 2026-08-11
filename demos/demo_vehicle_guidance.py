@@ -40,7 +40,7 @@ from ose.equipment.fuel_gauge import FuelGauge
 from ose.equipment.reference_configs.reference_fuel_gauge import (
     STANDARD as FUEL_GAUGE_STANDARD,
 )
-from ose.equipment.reference_configs.reference_vehicle import reference_fighter
+from ose.equipment.reference_configs.vehicle.planar_point_mass import reference_fighter
 from ose.equipment.vehicle import VehicleState
 from ose.integration import step_rk4
 from ose.interfaces import HeadingSpeedSetpoint, OwnStateEstimate

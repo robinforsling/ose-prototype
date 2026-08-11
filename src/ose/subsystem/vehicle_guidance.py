@@ -10,7 +10,7 @@ with ast. Guidance never reads truth: its only state input is an
 OwnStateEstimate published by the navigation manager.
 
 It binds to a VehicleManager, a peer in the same layer on the same platform,
-and not to Vehicle2D. That is the change ADR 0015 made. Guidance used to hold
+and not to PlanarPointMass. That is the change ADR 0015 made. Guidance used to hold
 the vehicle model directly and take mass_kg as a plain parameter, which left
 the truth boundary intact here and breached in every *composition* of this
 component: nothing estimated mass, so every caller reached for the true

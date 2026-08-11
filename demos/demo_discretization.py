@@ -22,7 +22,7 @@ import numpy as np
 from scipy.integrate import solve_ivp
 from scipy.linalg import expm
 
-from ose.equipment.reference_configs.reference_vehicle import reference_fighter
+from ose.equipment.reference_configs.vehicle.planar_point_mass import reference_fighter
 from ose.equipment.vehicle import NO_DISTURBANCE, VehicleCommand, VehicleState
 from ose.integration import step_rk4
 
@@ -186,7 +186,7 @@ def main() -> None:
     print(
         "\nThe linear model is exact to first order and degrades with horizon,"
         "\nwhich is the expected and useful behaviour for a filter or an MPC."
-        "\nNothing in vehicle.py was modified to produce any of the above."
+        "\nNothing in the vehicle model was modified to produce any of the above."
     )
 
 

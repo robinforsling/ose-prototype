@@ -1,5 +1,12 @@
 """
-Two-dimensional vehicle model: dynamics, constraints, capability.
+Planar point-mass vehicle model: dynamics, constraints, capability.
+
+One propulsion setting, so no discrete mode. The model document's
+two-mode formulation -- nominal and boost -- is a separate model and will
+be a separate module beside this one, not a flag here: a switched system
+has a different state vector, a different parameter vector and mode
+dependent constraints, and folding that into this file would make the
+baseline carry machinery it never uses.
 
 Implements the baseline (nominal-mode) model, with two additions to the
 constraints and capability layers that are discussed in the accompanying notes:
@@ -230,7 +237,7 @@ class Saturation:
 # The model
 # --------------------------------------------------------------------------
 
-class Vehicle2D:
+class PlanarPointMass:
     """Baseline nominal-mode vehicle.
 
     Three public surfaces, deliberately kept separate:

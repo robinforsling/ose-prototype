@@ -6,7 +6,7 @@ Companion to demo_live_flight.py. That one drives guidance directly from a
 scripted sequence of setpoints; this one puts the single-ship action planner
 in front of it, so the loop is the full stack:
 
-    WaypointPlanner  ->  ActionSet  ->  VehicleGuidance  ->  Vehicle2D  ->  RK4
+    WaypointPlanner  ->  ActionSet  ->  VehicleGuidance  ->  PlanarPointMass  ->  RK4
     (single-ship)                       (subsystem)          (equipment)
 
 Nobody tells the aircraft what heading to fly. The planner is given a route of
@@ -101,7 +101,7 @@ from ose.equipment.fuel_gauge import FuelGauge
 from ose.equipment.reference_configs.reference_fuel_gauge import (
     STANDARD as FUEL_GAUGE_STANDARD,
 )
-from ose.equipment.reference_configs.reference_vehicle import reference_fighter
+from ose.equipment.reference_configs.vehicle.planar_point_mass import reference_fighter
 from ose.equipment.vehicle import VehicleState
 from ose.integration import step_rk4
 from ose.interfaces import ActionSet, HeadingSpeedSetpoint, OwnStateEstimate

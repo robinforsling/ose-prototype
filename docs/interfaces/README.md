@@ -183,7 +183,7 @@ present and fails if one is added without a direction. See ADR 0016.
 The manager also answers vehicle questions at that mass -- `capability()`,
 including the parametrised turn-rate form guidance feeds thrust forward on,
 and `project_command()` -- and is the only component permitted to bind
-`Vehicle2D`. That rule is enforced as an import check; see ADR 0015 for why it
+`PlanarPointMass`. That rule is enforced as an import check; see ADR 0015 for why it
 is phrased that way and for the three exemptions.
 
 ### `guidance.setpoint.v1`
@@ -269,7 +269,7 @@ and the binder treats it as opaque; see `docs/40-composition-spec.md` section
 
 Implemented today by every equipment component, and by one subsystem component:
 
-- `Vehicle2D.capability(state, omega_rad_s, disturbance)` returns `Capability`,
+- `PlanarPointMass.capability(state, omega_rad_s, disturbance)` returns `Capability`,
   a fourteen-field record covering thrust, acceleration bounds, turn performance,
   characteristic speeds, fuel and endurance. It is a function of state, so it
   changes as fuel burns.

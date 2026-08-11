@@ -12,11 +12,11 @@ without executing it. `docs/10-concepts.md` claimed every component published
 one.
 
 An audit found the claim was largely aspirational. One of seven equipment components had
-a capability model at all (`Vehicle2D`), it was exposed through no interface --
-`Capability` was defined inside `vehicle.py`, making it a vehicle-specific type
+a capability model at all (`PlanarPointMass`), it was exposed through no interface --
+`Capability` was defined inside the vehicle module, making it a vehicle-specific type
 rather than a contract -- it had no tests, and its only consumer was a demo
 printing a report. Nothing could ask an arbitrary component what it could do,
-so a binder or planner would have had to special-case `Vehicle2D`, which is
+so a binder or planner would have had to special-case `PlanarPointMass`, which is
 precisely the coupling capability exists to remove.
 
 A first attempt gave sensors a `SensorCapability` carrying one

@@ -14,7 +14,7 @@ Two levels are offered deliberately:
              component (an effector with its own flyout dynamics, say) must
              not need a second copy of Runge-Kutta.
 
-  step_rk4   a typed convenience for Vehicle2D, built on rk4_step. It lives
+  step_rk4   a typed convenience for PlanarPointMass, built on rk4_step. It lives
              here rather than in vehicle.py precisely so the vehicle module
              ships dynamics and nothing else; it is the seam the simulation
              core will eventually subsume.
@@ -22,7 +22,7 @@ Two levels are offered deliberately:
 On state normalisation: a generic integrator cannot know that a particular
 element of the state vector is an angle needing wrapping, so it does not
 guess. The component knows, and says so through a `normalise` callable --
-`Vehicle2D.normalise_state` for the vehicle. Integrating without it still
+`PlanarPointMass.normalise_state` for the vehicle. Integrating without it still
 produces correct dynamics, just an unwrapped heading that grows without
 bound.
 """
@@ -36,7 +36,7 @@ import numpy as np
 from ose.equipment.vehicle import (
     NO_DISTURBANCE,
     Disturbance,
-    Vehicle2D,
+    PlanarPointMass,
     VehicleCommand,
     VehicleState,
 )
@@ -66,7 +66,7 @@ def rk4_step(
 
 
 def step_rk4(
-    vehicle: Vehicle2D,
+    vehicle: PlanarPointMass,
     state: VehicleState,
     command: VehicleCommand,
     dt_s: float,

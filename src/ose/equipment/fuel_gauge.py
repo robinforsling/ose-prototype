@@ -9,7 +9,7 @@ Unlike Imu or Clock, this sensor has no drift term and needs none: it reads
 a quantity (remaining fuel), not a rate that must be integrated to be
 useful, so a single additive white-noise term is the whole error model.
 mass_dry_kg is a vehicle design constant (a Constraints field), not runtime
-truth, so holding it here is no different from Imu holding a Vehicle2D
+truth, so holding it here is no different from Imu holding a PlanarPointMass
 reference for drag_N.
 
 Rate-limiting is the caller's responsibility -- sample() is expected to be

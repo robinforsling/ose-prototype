@@ -6,7 +6,7 @@ how many operating modes an engine has. It is declared here, next to the
 component that will be driven with it, and it is the platform's BELIEF about
 its engine -- deliberately a separate number from the coefficient the vehicle
 actually burns at, even though the two currently agree. Deriving it from
-Vehicle2D.theta.c_tsfc would make the prediction exact by construction and
+PlanarPointMass.theta.c_tsfc would make the prediction exact by construction and
 every consistency test vacuous;
 test_no_cyber_component_reads_the_true_burn_coefficient enforces that.
 

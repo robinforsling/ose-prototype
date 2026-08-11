@@ -33,7 +33,8 @@ import numpy as np
 import pytest
 
 from _truth_boundary import (
-    TRUTH_MODULE,
+    is_truth_package,
+    vehicle_model_names,
     assert_no_truth_parameters,
     assert_no_truth_types,
     component_path,
@@ -41,8 +42,8 @@ from _truth_boundary import (
 
 from ose.equipment.fuel_gauge import FuelGauge
 from ose.equipment.reference_configs.reference_fuel_gauge import STANDARD as GAUGE
-from ose.equipment.reference_configs.reference_vehicle import reference_fighter
-from ose.equipment.vehicle import Vehicle2D, VehicleCommand, VehicleState
+from ose.equipment.reference_configs.vehicle.planar_point_mass import reference_fighter
+from ose.equipment.vehicle import PlanarPointMass, VehicleCommand, VehicleState
 from ose.integration import step_rk4
 from ose.interfaces import (
     FuelMeasurement,
@@ -147,7 +148,7 @@ def test_no_cyber_component_reads_the_true_burn_coefficient():
 
     # Not vacuous: the attribute really is spelt this way on the vehicle, so
     # the walk would see it.
-    from ose.equipment.reference_configs.reference_vehicle import reference_fighter
+    from ose.equipment.reference_configs.vehicle.planar_point_mass import reference_fighter
     assert hasattr(reference_fighter().theta, "c_tsfc")
 
 
@@ -395,7 +396,7 @@ def _fly_one(seed: int, checkpoints, dt: float, thrust=cruise, gauge_par=GAUGE,
     )
 
     nominal = reference_fighter()
-    vehicle = Vehicle2D(
+    vehicle = PlanarPointMass(
         dataclasses.replace(
             nominal.theta, c_tsfc=BELIEVED_TSFC_KG_PER_N_S * (1.0 + tsfc_error)
         ),
@@ -559,7 +560,7 @@ def test_the_filter_beats_the_raw_gauge():
             truth_rng.normal(0.0, STANDARD.initial_fuel_sigma_kg)
         )
         nominal = reference_fighter()
-        vehicle = Vehicle2D(
+        vehicle = PlanarPointMass(
             dataclasses.replace(
                 nominal.theta, c_tsfc=BELIEVED_TSFC_KG_PER_N_S * (1.0 + tsfc_error)
             ),
@@ -793,7 +794,7 @@ def test_only_the_vehicle_manager_binds_the_vehicle_model():
     """ADR 0015's rule, in the form that can actually be checked.
 
     "Only the vehicle manager consumes vehicle capability" is not decidable
-    from a call site without type inference, but holding a Vehicle2D at all
+    from a call site without type inference, but holding a PlanarPointMass at all
     is, and it is the same rule: a component that cannot reach the model
     cannot query it, and a component that can will eventually need a mass to
     query it with. That is how the mass parameter got into guidance in the
@@ -808,7 +809,7 @@ def test_only_the_vehicle_manager_binds_the_vehicle_model():
                             sitting outside the components, per ADR 0004.
       vehicle_manager.py    the one consumer this rule exists to name.
 
-    Anything else importing Vehicle2D is a component reaching past the
+    Anything else importing PlanarPointMass is a component reaching past the
     manager for a mass-dependent answer.
     """
     root = Path(__file__).resolve().parents[1] / "src" / "ose"
@@ -817,28 +818,27 @@ def test_only_the_vehicle_manager_binds_the_vehicle_model():
         root / "subsystem" / "vehicle_manager.py",
     }
 
+    models = vehicle_model_names()
     holders = []
     for path in sorted(root.rglob("*.py")):
         if path in exempt or "equipment" in path.relative_to(root).parts:
             continue
         tree = ast.parse(path.read_text())
         for node in ast.walk(tree):
-            if (
-                isinstance(node, ast.ImportFrom)
-                and node.module == TRUTH_MODULE
-                and any(a.name == "Vehicle2D" for a in node.names)
-            ):
-                holders.append(str(path.relative_to(root)))
+            if isinstance(node, ast.ImportFrom) and is_truth_package(node.module):
+                bound = {a.name for a in node.names} & models
+                if bound:
+                    holders.append(f"{path.relative_to(root)} ({sorted(bound)})")
 
     assert not holders, (
         "these bind the vehicle model directly instead of going through the "
         f"vehicle manager: {holders}"
     )
 
-    # Not vacuous: the manager really does hold one, so the walk is looking
-    # at the right import and would see another.
+    # Not vacuous: the manager really does bind a model, so the walk is
+    # looking at the right imports and would see another.
     manager_src = (root / "subsystem" / "vehicle_manager.py").read_text()
-    assert "Vehicle2D" in manager_src
+    assert any(m in manager_src for m in models)
 
 
 # --------------------------------------------------------------------------

@@ -53,8 +53,9 @@ src/ose/frames.py                                 rotation utilities, no depende
 src/ose/integration.py                            integrators, external to the components they step
 src/ose/environment.py                            environmental parameters (g, rho), no dependencies
 src/ose/reference_configs/                        reference configs for cross-layer shapes, e.g. environment
-src/ose/equipment/vehicle.py                       baseline 2D vehicle model
-src/ose/equipment/reference_configs/               reference configs for equipment components, e.g. reference_vehicle.py
+src/ose/equipment/vehicle/                        vehicle models, one module per model
+src/ose/equipment/vehicle/planar_point_mass.py    the baseline: planar point mass
+src/ose/equipment/reference_configs/              reference configs for equipment, mirroring the tree above
 src/ose/equipment/imu.py                           IMU sensor model
 src/ose/equipment/gnss.py                          GNSS receiver model
 src/ose/equipment/air_data.py                      air data sensor model

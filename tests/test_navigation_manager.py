@@ -26,7 +26,7 @@ from ose.equipment.integrated_navigation_unit import IntegratedNavUnit
 from ose.equipment.reference_configs.reference_integrated_navigation_unit import (
     STANDARD as INTEGRATED_NAV_STANDARD,
 )
-from ose.equipment.reference_configs.reference_vehicle import reference_fighter
+from ose.equipment.reference_configs.vehicle.planar_point_mass import reference_fighter
 from ose.equipment.vehicle import Disturbance, VehicleState
 from ose.interfaces import ClockMeasurement, OwnStateEstimate
 from ose.subsystem.navigation_manager import NavigationManager

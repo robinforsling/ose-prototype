@@ -10,7 +10,7 @@ the navigation manager, both already-published estimates.
 
 What it is
 ----------
-Vehicle2D with the mass argument closed over by a believed value.
+PlanarPointMass with the mass argument closed over by a believed value.
 
 That is the whole idea, and it is not a pass-through. Every question worth
 asking the vehicle model -- what turn rate is available, what thrust holds
@@ -24,7 +24,7 @@ So the manager owns the believed mass, owns the conversion from an estimate to
 a believed VehicleState, and answers vehicle questions at that mass. Consumers
 never construct a believed state and never see a mass parameter.
 
-    Vehicle2D            physics, needs a mass
+    PlanarPointMass            physics, needs a mass
       +- VehicleManager      binds believed mass    <- this module
            +- VehicleGuidance    adds navigation uncertainty
                 +- WaypointPlanner
@@ -96,7 +96,7 @@ well the coefficient is known, and tsfc_error is the fractional calibration
 error it estimates.
 
 Whatever supplies the coefficient must supply the platform's BELIEF about it.
-Reading Vehicle2D.theta.c_tsfc would be legal -- it is a model parameter, not
+Reading PlanarPointMass.theta.c_tsfc would be legal -- it is a model parameter, not
 truth -- and it would be wrong. Predicting with the same coefficient the
 vehicle burns at makes the prediction exact by construction, so the filter
 would look excellent for a reason that will never hold on a real platform, no
@@ -130,7 +130,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ose.equipment.vehicle import Capability, Saturation, Vehicle2D, VehicleCommand
+from ose.equipment.vehicle import Capability, Saturation, PlanarPointMass, VehicleCommand
 from ose.interfaces import (
     FuelMeasurement,
     MassEstimate,
@@ -179,7 +179,7 @@ class VehicleManagerParameters:
 class VehicleManager:
     """Owns the platform's believed mass and answers vehicle questions at it."""
 
-    def __init__(self, vehicle: Vehicle2D, parameters: VehicleManagerParameters) -> None:
+    def __init__(self, vehicle: PlanarPointMass, parameters: VehicleManagerParameters) -> None:
         self.vehicle = vehicle
         self.par = parameters
 
@@ -321,12 +321,12 @@ class VehicleManager:
 
     # -- vehicle questions, answered at the believed mass -----------------
     #
-    # These are why the component is the sole consumer of Vehicle2D rather
+    # These are why the component is the sole consumer of PlanarPointMass rather
     # than merely a mass publisher. Guidance needs three different things
     # from the vehicle and only one of them is a capability record: it also
     # needs a parametrised thrust query for its feedforward, and enforcement.
     # Republishing a Capability alone would have left guidance holding a
-    # Vehicle2D anyway, and the mass parameter with it.
+    # PlanarPointMass anyway, and the mass parameter with it.
 
     def believed_state(self, own_state: OwnStateEstimate):
         """The estimate, dressed as a VehicleState at the believed mass.
