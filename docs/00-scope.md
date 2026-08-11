@@ -25,7 +25,7 @@ from the same layers and the same component types as blue.
 ## In scope
 
 - Planar (2D) modelling of aerial platforms.
-- Four-layer platform composition: resource, subsystem, single-ship, multi-ship.
+- Four-layer platform composition: equipment, subsystem, single-ship, multi-ship.
 - Low-fidelity probabilistic models of sensing, communication, and effect.
 - Deterministic, reproducible Monte Carlo campaigns.
 - Isolated lab environments for developing components against stubs.
@@ -45,7 +45,7 @@ from the same layers and the same component types as blue.
 
 - Ground-based air defence systems as an additional platform type.
 - Composition GUI, scenario builder, Monte Carlo runner.
-- Sensor, communicator, and effector resource components.
+- Sensor, communicator, and effector equipment components.
 - A model of what actually happens when state or control constraints are
   violated -- departure, structural failure, engine limits -- rather than
   today's silence. `state_violations()` already detects; nothing yet models

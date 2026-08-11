@@ -48,7 +48,7 @@ surrounding fidelity exclusions (high-fidelity aerodynamics, 6-DoF dynamics).
 the vehicle at a station (`docs/40-composition-spec.md`) with their own
 fixed orientation relative to the vehicle body frame. A component's absolute
 pointing is therefore `psi` plus its mounting offset; nothing in the
-resource layer computes pointing independent of the vehicle's own
+equipment layer computes pointing independent of the vehicle's own
 orientation. The composition-spec station schema does not yet carry a
 mounting-orientation field -- this states the assumption ahead of that
 implementation, not a description of it.
@@ -60,17 +60,17 @@ peers within the same layer on the same platform. Nothing binds upward.
 
 | Layer | Contains | Physical? |
 |---|---|---|
-| Resource | Vehicle, navigation sensors, sensors, communicators, effectors | Yes |
+| Equipment | Vehicle, navigation sensors, sensors, communicators, effectors | Yes |
 | Subsystem | Vehicle system, sensor system, effector system, comms system | No |
 | Single-ship | Tracker, situation awareness, action planner | No |
 | Multi-ship | Mission objective management, coordination, tasking | No |
 
-Only the resource layer has a physical part. Everything above is purely cyber.
+Only the equipment layer has a physical part. Everything above is purely cyber.
 
 ## Truth and perception
 
 The simulation core owns true world state and the true forces acting on every
-platform. Only resource-layer components may read it. Everything above consumes
+platform. Only equipment-layer components may read it. Everything above consumes
 published estimates.
 
 This applies to capability as well as to state. The capability model is a
@@ -107,7 +107,7 @@ See ADR 0009 for the navigation split that established this pattern and ADR
 
 ## Capability model
 
-Every resource-layer component publishes a machine-readable statement of what
+Every equipment-layer component publishes a machine-readable statement of what
 it can currently achieve, answerable without simulating it forward. For a
 vehicle this includes available thrust, required thrust, acceleration bounds,
 instantaneous and sustained turn rates, minimum turn radius, characteristic

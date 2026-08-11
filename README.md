@@ -7,17 +7,17 @@ first implementing everything around it.
 
 The emphasis is integration, not fidelity.
 
-**Status: early.** The baseline vehicle model; three resource-layer navigation
-sensors (IMU, GNSS, air data), a resource-layer black-box integrated nav unit,
+**Status: early.** The baseline vehicle model; three equipment-layer navigation
+sensors (IMU, GNSS, air data), a equipment-layer black-box integrated nav unit,
 a subsystem-layer INS/GNSS estimator, and a navigation manager that is the
-platform's single publisher of own-state; a resource-layer clock with a
+platform's single publisher of own-state; a equipment-layer clock with a
 dead-reckoning-only subsystem-layer time estimator (no correction source
-exists yet); a resource-layer fuel gauge feeding a subsystem-layer vehicle
+exists yet); a equipment-layer fuel gauge feeding a subsystem-layer vehicle
 manager that owns the platform's believed mass and is the only consumer of
 the vehicle model; a subsystem-layer vehicle guidance component that
 enforces the vehicle's admissible sets before publishing a command; and a
 single-ship action planner that follows a route of waypoints, are
-implemented and tested. Every resource also answers
+implemented and tested. Every equipment component also answers
 `capability()`, a self-assessment checked against integrated dynamics. The
 simulation core, the service registry, the composition binder, and every other
 component type are described in `docs/` but not yet built.
@@ -53,14 +53,14 @@ src/ose/frames.py                                 rotation utilities, no depende
 src/ose/integration.py                            integrators, external to the components they step
 src/ose/environment.py                            environmental parameters (g, rho), no dependencies
 src/ose/reference_configs/                        reference configs for cross-layer shapes, e.g. environment
-src/ose/resource/vehicle.py                       baseline 2D vehicle model
-src/ose/resource/reference_configs/               reference configs for resource components, e.g. reference_vehicle.py
-src/ose/resource/imu.py                           IMU sensor model
-src/ose/resource/gnss.py                          GNSS receiver model
-src/ose/resource/air_data.py                      air data sensor model
-src/ose/resource/integrated_navigation_unit.py    black-box integrated nav unit
-src/ose/resource/clock.py                         platform clock model
-src/ose/resource/fuel_gauge.py                    remaining-fuel sensor
+src/ose/equipment/vehicle.py                       baseline 2D vehicle model
+src/ose/equipment/reference_configs/               reference configs for equipment components, e.g. reference_vehicle.py
+src/ose/equipment/imu.py                           IMU sensor model
+src/ose/equipment/gnss.py                          GNSS receiver model
+src/ose/equipment/air_data.py                      air data sensor model
+src/ose/equipment/integrated_navigation_unit.py    black-box integrated nav unit
+src/ose/equipment/clock.py                         platform clock model
+src/ose/equipment/fuel_gauge.py                    remaining-fuel sensor
 src/ose/subsystem/navigation_manager.py           one own-state publisher per platform
 src/ose/subsystem/navigation_state_estimator.py   INS/GNSS error-state Kalman filter
 src/ose/subsystem/time_state_estimator.py         dead-reckoning platform clock estimator
@@ -90,8 +90,8 @@ tests/                                            pinning and consistency tests
 
 ## The four things that constrain everything else
 
-**Only the resource layer reads ground truth.** The simulation core owns true
-world state. Resource-layer components read it, corrupt it according to a sensor
+**Only the equipment layer reads ground truth.** The simulation core owns true
+world state. Equipment-layer components read it, corrupt it according to a sensor
 error model, and publish estimates. Everything above consumes only estimates.
 This cannot be relaxed for convenience, including in debugging aids: one leak
 invalidates every result produced afterwards and is nearly impossible to detect

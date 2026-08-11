@@ -21,7 +21,7 @@ Status: draft
               +------------------------------------+
 - - - - - - - - - - - - - - - | - - - - - - - - - - - -  truth boundary
               +------------------------------------+
-              |          Resource layer            |   physical
+              |          Equipment layer            |   physical
               | vehicle, sensors, comms, effectors |
               +------------------------------------+
                               |
@@ -68,18 +68,18 @@ is also what lets the GUI grey out pieces that do not fit.
 **Interfaces are a package containing no implementations.** Components depend on
 `ose.interfaces`; no component depends on another component.
 
-**Only the resource layer reads truth.** Enforced by port type at import time.
+**Only the equipment layer reads truth.** Enforced by port type at import time.
 See ADR 0008.
 
 ## Current state
 
-Implemented: the baseline vehicle model; three resource-layer navigation
-sensors (`Imu`, `GnssReceiver`, `AirDataSensor`) and the resource-layer
+Implemented: the baseline vehicle model; three equipment-layer navigation
+sensors (`Imu`, `GnssReceiver`, `AirDataSensor`) and the equipment-layer
 black-box `IntegratedNavUnit`; the subsystem-layer `InsGnssEstimator`, an
 error-state Kalman filter fed by the sensors' published measurements (ADR
 0009), published to the rest of the platform through a subsystem-layer
 `NavigationManager` -- one own-state publisher per platform, which selects a
-source but deliberately does not fuse alternatives (ADR 0014); a resource-layer
+source but deliberately does not fuse alternatives (ADR 0014); a equipment-layer
 `Clock`; the subsystem-layer `TimeEstimator`, a
 dead-reckoning-only estimator of the platform clock's offset and drift, with
 no correction source yet (ADR 0010); and the subsystem-layer
@@ -88,7 +88,7 @@ vehicle's admissible sets before publishing a command, the first real
 consumer of `Vehicle2D.project_command()` and the first real producer of
 `vehicle.command.v1` (ADR 0011).
 
-Every resource-layer component answers `capability()`, a self-assessment of
+Every equipment-layer component answers `capability()`, a self-assessment of
 what it can currently achieve, checked by tests that integrate the dynamics
 forward and confirm it delivers what it claimed (ADR 0012). `VehicleGuidance`
 both consumes capability -- feedforwarding thrust for the turn the vehicle can
@@ -116,7 +116,7 @@ src/ose/interfaces.py        contracts only
 src/ose/frames.py            rotation utilities, no dependencies
 src/ose/integration.py       integrators, external to components (ADR 0004)
 src/ose/environment.py       environmental parameters (g, rho), no dependencies
-src/ose/resource/            resource-layer components
+src/ose/equipment/            equipment-layer components
 src/ose/subsystem/           subsystem-layer components
 docs/                        scope, concepts, architecture, interfaces
 docs/adr/                    architecture decision records
@@ -126,4 +126,4 @@ tests/                       pinning and consistency tests
 ```
 
 Layer packages `single_ship/` and `multi_ship/` are added as siblings of
-`resource/` when they acquire their first component.
+`equipment/` when they acquire their first component.

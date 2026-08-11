@@ -26,15 +26,15 @@ peers in the same layer on the same platform. **Nothing binds upward.**
 | Multi-ship | Mission objectives, coordination, tasking | No | `ose.multi_ship` |
 | Single-ship | Tracker, situation awareness, action planner | No | `ose.single_ship` |
 | Subsystem | Vehicle system, sensor system, navigation estimator | No | `ose.subsystem` |
-| Resource | Vehicle, IMU, GNSS, sensors, communicators, effectors | Yes | `ose.resource` |
+| Equipment | Vehicle, IMU, GNSS, sensors, communicators, effectors | Yes | `ose.equipment` |
 
-Below the resource layer sits the simulation core, which owns ground truth: the
+Below the equipment layer sits the simulation core, which owns ground truth: the
 clock, kinematics, detection, and engagement resolution.
 
 Layer packages are created when they acquire their first component, not before.
 
 **Deciding where a new component goes.** Does it have a physical part, or does
-it read ground truth? Resource. Does it integrate resources on one platform?
+it read ground truth? Equipment. Does it integrate equipment on one platform?
 Subsystem. Does it decide for one ship? Single-ship. Does it coordinate across
 ships? Multi-ship. If a component seems to span two layers, it is two
 components.
@@ -44,7 +44,7 @@ Authoritative detail: `docs/10-concepts.md`. Diagram and principles:
 
 ## Invariants — do not break these
 
-**1. Only resource-layer components may read ground truth.** Everything above
+**1. Only equipment-layer components may read ground truth.** Everything above
 consumes published estimates. This holds for debugging aids and visualisation
 too: one leak invalidates every result produced afterwards and is nearly
 impossible to detect later. A cyber-layer component whose signature contains a
@@ -136,8 +136,7 @@ Implemented, with tests: the baseline vehicle model; navigation sensors and the
 INS/GNSS estimator; a platform clock and a dead-reckoning time estimator; a fuel
 gauge feeding a vehicle manager; vehicle guidance; and a single-ship action
 planner following a route of waypoints. Integrators live in
-`ose/integration.py`, outside the components they step. Every resource
-publishes a `capability()`, as does `VehicleGuidance`, whose capability is
+`ose/integration.py`, outside the components they step. Every equipment component publishes a `capability()`, as does `VehicleGuidance`, whose capability is
 composed from the vehicle's envelope and the navigation covariance it steers
 on.
 
@@ -145,7 +144,7 @@ on.
 0015). It owns the platform's believed mass — dry + payload + fuel, where only
 fuel is measured — and answers vehicle questions at that mass, so nothing above
 it takes a mass parameter. An import test enforces this; `ose/integration.py`
-and the resource layer are the exemptions. Fuel is tracked by a two-state
+and the equipment layer are the exemptions. Fuel is tracked by a two-state
 filter over `[fuel_kg, tsfc_error]`, predicting on commanded thrust and
 correcting on each gauge reading; the burn-coefficient error is a state
 because a bias modelled as process noise makes a filter overconfident.

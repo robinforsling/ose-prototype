@@ -12,21 +12,21 @@ renaming one is not, and requires a version increment.
 
 | Interface | Direction | Carries | Status |
 |---|---|---|---|
-| `truth.query.v1` | core to resource | Privileged read of ground-truth state. Grantable only to `layer: resource`. | planned |
-| `power.bus.v1` | vehicle to resource | Abstract power draw negotiation, electrical and cooling combined. | planned |
-| `vehicle.command.v1` | subsystem to resource | Commanded thrust and turn rate. | **implemented** |
+| `truth.query.v1` | core to equipment | Privileged read of ground-truth state. Grantable only to `layer: resource`. | planned |
+| `power.bus.v1` | vehicle to equipment | Abstract power draw negotiation, electrical and cooling combined. | planned |
+| `vehicle.command.v1` | subsystem to equipment | Commanded thrust and turn rate. | **implemented** |
 | `vehicle.state.v1` | subsystem to above | Own-ship state as the platform believes it, with covariance. Published by `NavigationManager`, one per platform. | **implemented** |
-| `sensing.imu.v1` | resource to subsystem | Specific force and angular rate, with declared uncertainty. | **implemented** |
-| `sensing.gnss.v1` | resource to subsystem | Position and optional velocity fix, with declared uncertainty. | **implemented** |
-| `sensing.airdata.v1` | resource to subsystem | Airspeed, with declared uncertainty. | **implemented** |
-| `sensing.clock.v1` | resource to subsystem | The platform clock's own elapsed-time reading, with declared uncertainty. | **implemented** |
+| `sensing.imu.v1` | equipment to subsystem | Specific force and angular rate, with declared uncertainty. | **implemented** |
+| `sensing.gnss.v1` | equipment to subsystem | Position and optional velocity fix, with declared uncertainty. | **implemented** |
+| `sensing.airdata.v1` | equipment to subsystem | Airspeed, with declared uncertainty. | **implemented** |
+| `sensing.clock.v1` | equipment to subsystem | The platform clock's own elapsed-time reading, with declared uncertainty. | **implemented** |
 | `platform.time.v1` | subsystem to above | Platform's belief about its own clock: accumulated reading, drift, covariance. | **implemented** |
 | `guidance.setpoint.v1` | within a platform | Commanded heading and speed, or turn rate and speed. Carried inside `planning.action.v1`'s motion field. | **implemented** |
-| `sensing.detections.v1` | resource to subsystem | Time-stamped detections with measurement uncertainty. | planned |
-| `sensing.control.v1` | subsystem to resource | Sensor tasking: pointing, mode, priority. | planned |
+| `sensing.detections.v1` | equipment to subsystem | Time-stamped detections with measurement uncertainty. | planned |
+| `sensing.control.v1` | subsystem to equipment | Sensor tasking: pointing, mode, priority. | planned |
 | `comms.message.v1` | bidirectional | Addressed transport with loss and latency applied. | planned |
-| `effect.request.v1` | subsystem to resource | Employment request against a designated track. | planned |
-| `effect.status.v1` | resource to subsystem | Inventory, readiness, in-flight effector state. | planned |
+| `effect.request.v1` | subsystem to equipment | Employment request against a designated track. | planned |
+| `effect.status.v1` | equipment to subsystem | Inventory, readiness, in-flight effector state. | planned |
 | `tracking.tracks.v1` | subsystem to single-ship | Fused track picture. | planned |
 | `sa.picture.v1` | within single-ship | Assessed situation, threat evaluation. | planned |
 | `planning.action.v1` | single-ship to subsystem | Committed actions for execution, one field per subsystem. | **implemented** |
@@ -68,8 +68,8 @@ system* is the manager plus whatever produces the estimate underneath:
   `NavigationEstimator` -- it is fed a measurement stream via `ingest()`
   rather than reading truth, and is a pure, replayable function of that
   stream. See ADR 0009.
-- `IntegratedNavUnit` (resource layer), a deliberate collapse of the
-  resource and subsystem layers into one black-box component that reads
+- `IntegratedNavUnit` (equipment layer), a deliberate collapse of the
+  equipment and subsystem layers into one black-box component that reads
   truth directly. Valid scaffolding when navigation is not the component
   under test; not a baseline for any claim about navigation performance.
 
@@ -139,7 +139,7 @@ tsfc_error, covariance)`, published by `VehicleManager` (subsystem layer,
 publishes. **Implemented.**
 
 The platform's belief about its own mass, and the only sanctioned answer to
-"what does this aircraft weigh?" above the resource layer. Broken out by
+"what does this aircraft weigh?" above the equipment layer. Broken out by
 contribution because the contributions differ in kind: dry mass is a design
 constant and payload is a configuration decision, both exact, while only fuel
 is estimated. `mass_sigma_kg` is a property derived from the covariance rather
@@ -254,7 +254,7 @@ are the component's peer.
 and the binder treats it as opaque; see `docs/40-composition-spec.md` section
 4.1 and ADR 0012.
 
-Implemented today by every resource, and by one subsystem component:
+Implemented today by every equipment component, and by one subsystem component:
 
 - `Vehicle2D.capability(state, omega_rad_s, disturbance)` returns `Capability`,
   a fourteen-field record covering thrust, acceleration bounds, turn performance,

@@ -21,7 +21,7 @@ the separation in ADR 0006 has been broken.
 
 Navigation is split across four files, one per component (ADR 0009):
 
-`test_navigation_sensors.py` checks that each resource-layer sensor's
+`test_navigation_sensors.py` checks that each equipment-layer sensor's
 declared sigma is honest — sample mean and standard deviation against many
 draws — plus the IMU bias's Gauss-Markov steady state and GNSS
 denial/restoration.
@@ -33,7 +33,7 @@ before the first turn, and must collapse during it), `ast`-parses the module
 to confirm it cannot see truth, and replays a recorded measurement stream
 into a fresh estimator to confirm it is a pure function of that stream.
 
-`test_integrated_navigation_unit.py` checks the resource-layer black-box
+`test_integrated_navigation_unit.py` checks the equipment-layer black-box
 stand-in: protocol conformance and that its declared uncertainty is honest,
 nothing about navigation performance (see its docstring and ADR 0009 for
 why).
@@ -59,7 +59,7 @@ heading and speed.
 capability that the NEES tests apply to covariance. It does not check that
 `capability()` returns plausible numbers; it integrates the dynamics forward
 and checks the vehicle delivers what it claimed — the one thing capability
-promises to answer *without* integrating. It also checks that every resource
+promises to answer *without* integrating. It also checks that every equipment component
 can be asked at all, and that each sensor's declared accuracy agrees with what
 its own measurements carry.
 
