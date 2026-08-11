@@ -34,6 +34,11 @@
 \author{}
 \date{}
 
+% The capability vector has thirteen entries and the extended constraint
+% vector eleven; amsmath's default matrix limit is ten, which silently
+% wraps them into extra rows.
+\setcounter{MaxMatrixCols}{24}
+
 \begin{document}
 
 \maketitle
@@ -696,6 +701,39 @@ period afterwards. The fuel reserve $m_{\mathrm{res}}$ prevents boost from being
 selected when the remaining fuel is committed to recovery. The dwell time
 $\Delta t_{\mathrm{dwell}}$ prevents chattering, which is otherwise a hazard both
 for the planner and for numerical integration of the switched system.
+
+Only the first of the three is physical. An engine genuinely cannot sustain
+boost past its thermal limit, whereas an aircraft can light its afterburner on
+the last hundred kilograms of fuel and can switch modes twice in a second; it
+simply should not. The fuel reserve and the dwell time are therefore declared
+policy, carried in $\veclambda$ alongside $v_{\min}$, which is likewise a
+declared floor rather than an aerodynamic one. The distinction matters to
+anyone configuring a different aircraft: the thermal limit is the entry they
+cannot simply relax.
+
+\begin{remark}[The switching set is declared, not enforced]
+The mode is a discrete input, so \cref{eq:switching-abstract} is an input
+constraint, and the declaration/enforcement separation of the constraints model
+applies to it unchanged: the vehicle \emph{declares} $\Sset_q$ and does not
+enforce it. A
+projection is offered, and because a mode cannot be clipped by degree the way a
+thrust command can, that projection is a fallback to $\mathrm{nom}$ rather than
+a partial reduction. A commanded mode outside $\Sset_q$ that is flown anyway
+remains integrable, is not claimed valid, and shows itself through
+$\Xset_q$: $s$ runs past $s_{\max}$ and is reported. This is the same treatment
+a thrust command above $T^{q}_{\max}$ receives.
+\end{remark}
+
+\begin{remark}[The dwell condition is an argument, not a state]
+$t - t_{q}$ is history rather than state, so a declaration written as a pure
+function of $\vecx$ and $\veclambda$ cannot evaluate it. Two resolutions are
+available: carry $t_{q}$ as an additional state, or supply the elapsed time to
+the declaration as an argument. The latter is preferred here. Adding a state to
+the vector would place a decision-hygiene quantity inside the integrator and
+the Jacobian, where it participates in nothing, and the party that selects the
+mode necessarily observes its own transitions and can supply the interval at no
+cost.
+\end{remark}
 
 \begin{remark}
 \Cref{eq:switching-concrete} is one instantiation of the abstract relation
