@@ -61,6 +61,11 @@ class Supplies:
     """
 
     power_kw: float = 0.0
+    # Vehicles only, like stations and for the same reason: a mass ceiling is
+    # a property of structure. It is the counterpart of Consumes.mass_kg --
+    # the airframe provides a mass budget and what is mounted on it consumes
+    # that budget, exactly as it provides stations that attachments occupy.
+    max_mass_kg: float = 0.0
     stations: tuple[Station, ...] = ()
 
 
@@ -86,8 +91,16 @@ class Attachment:
 
 @dataclass(frozen=True)
 class PlatformSpec:
-    """Section 5, reduced likewise."""
+    """Section 5, reduced likewise.
+
+    empty_mass_kg and fuel_kg are per-instance vehicle parameters in the
+    specification's worked example, not descriptor fields: two platforms of
+    the same type can be loaded differently. The ceiling they are checked
+    against is a descriptor field, because that is a property of the type.
+    """
 
     id: str
     vehicle_type: str
     attachments: tuple[Attachment, ...] = ()
+    empty_mass_kg: float = 0.0
+    fuel_kg: float = 0.0

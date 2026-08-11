@@ -312,7 +312,7 @@ The baseline constraint parameters are collected in
 \begin{equation}
   \veclambda = \begin{bmatrix}
     T_{\min} & T_{\max} & n_{\max} & \omega_{\mathrm{cap}} &
-    v_{\min} & v_{\max} & m_{\mathrm{dry}}
+    v_{\min} & v_{\max} & m_{\mathrm{dry}} & m_{\max}
   \end{bmatrix}^{T},
   \label{eq:lambda}
 \end{equation}
@@ -371,11 +371,22 @@ The admissible state set is
 \begin{equation}
   \Xset(\veclambda) = \left\{
     \vecx \in \R^{5} : v_{\mathrm{s}}(m,1) \le v \le v_{\max},\;
-    v \ge v_{\min},\; m \ge m_{\mathrm{dry}}
+    v \ge v_{\min},\; m_{\mathrm{dry}} \le m \le m_{\max}
   \right\},
   \label{eq:X}
 \end{equation}
 where $v_{\mathrm{s}}$ is the stall speed defined in \cref{eq:v-stall}.
+
+\begin{remark}[The mass ceiling is a loading constraint, not a flight one]
+$m \le m_{\max}$ is the only element of $\Xset$ that cannot be violated by
+how the vehicle is flown. Mass falls monotonically as fuel burns, so a
+trajectory beginning inside the set stays inside it, and no control input can
+push it out. It is stated here because it is a property of the airframe and
+belongs with the airframe's other limits, and because it gives a scenario that
+hand-builds an overloaded initial state the same finding that a badly
+specified platform receives from the composition-time mass budget. Enforcing
+it is a composition concern; declaring it is the vehicle's.
+\end{remark}
 
 \begin{remark}[Enforcement is delegated]
 \label{rem:enforcement}
@@ -618,7 +629,7 @@ The constraint parameters are extended with mode dependent propulsion limits:
     T_{\min} & T^{\mathrm{nom}}_{\max} & T^{\mathrm{boost}}_{\max} &
     n_{\max} & \omega_{\mathrm{cap}} &
     v_{\min} & v^{\mathrm{nom}}_{\max} & v^{\mathrm{boost}}_{\max} &
-    m_{\mathrm{dry}} & m_{\mathrm{res}} & s_{\max}
+    m_{\mathrm{dry}} & m_{\max} & m_{\mathrm{res}} & s_{\max}
   \end{bmatrix}^{T},
 \end{equation}
 with
@@ -642,7 +653,7 @@ and the mode dependent state set is
   \Xset_q(\veclambda) = \left\{
     \vecx : v_{\mathrm{s}}(m,1) \le v \le v^{q}_{\max},\;
     v \ge v_{\min},\;
-    m \ge m_{\mathrm{dry}},\;
+    m_{\mathrm{dry}} \le m \le m_{\max},\;
     0 \le s \le s_{\max}
   \right\}.
 \end{equation}

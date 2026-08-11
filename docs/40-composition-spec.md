@@ -120,6 +120,7 @@ consumes:
 # neither is privileged.
 supplies:
   power_kw: number               # any equipment component
+  max_mass_kg: number            # vehicles only: the whole-aircraft ceiling
   stations:                      # vehicles only
     - name: string
       type: enum
@@ -647,17 +648,6 @@ Monte Carlo campaign eventually raises.
 - Is `rate_group` the right abstraction, or should components declare a raw
   `update_rate_hz` and let the scheduler bucket them? Named groups are easier for
   contributors to reason about and easier to sweep in a campaign.
-- The mass budget of section 6.1 checks attachment masses against "the
-  vehicle's maximum", and nothing declares one. The vehicle's constraint
-  vector carries `mass_dry_kg` and no upper bound, the model document's lambda
-  has seven entries and none is a maximum mass, and the worked example above
-  gives a vehicle `empty_mass_kg` and `fuel_initial_kg` but no ceiling.
-  Section 5 says the envelope includes "empty and maximum mass", so the intent
-  is there and the declaration is not. Adding one is a change to the vehicle
-  model's lambda and therefore to the model document, which is a modelling
-  decision rather than a validator one. Until then the load checks verify the
-  structural half -- mass per station against that station's declared limit --
-  and not the whole-aircraft half.
 - `consumes.power_kw` is per operating mode and `supplies.power_kw` is a
   single number. That asymmetry does not survive a switched engine: a vehicle
   whose generator is driven by the engine supplies different power in nominal

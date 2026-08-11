@@ -40,6 +40,9 @@ FIGHTER_LIMITS = Constraints(
     v_min_mps=90.0,
     v_max_mps=600.0,
     mass_dry_kg=12000.0,
+    # 12 t of airframe, 4 t of internal fuel and room for about 3.5 t of
+    # stores. Fictional and plausible, like everything else here.
+    mass_max_kg=19500.0,
 )
 
 

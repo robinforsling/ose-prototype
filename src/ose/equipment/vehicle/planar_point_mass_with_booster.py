@@ -416,6 +416,11 @@ class PlanarPointMassWithBooster:
             )
         if state.mass_kg < self.lam.nominal.mass_dry_kg:
             out.append(f"mass {state.mass_kg:.0f} below dry mass")
+        if state.mass_kg > self.lam.nominal.mass_max_kg:
+            out.append(
+                f"mass {state.mass_kg:.0f} above maximum "
+                f"{self.lam.nominal.mass_max_kg:.0f} kg"
+            )
         if state.thermal > self.lam.thermal_max:
             out.append(
                 f"thermal state {state.thermal:.2f} above limit "

@@ -240,6 +240,22 @@ def test_rk4_is_fourth_order(vehicle, state):
     assert e_coarse / e_fine > 8.0
 
 
+def test_an_overloaded_state_is_reported(vehicle):
+    """m <= m_max is the one element of X that flying cannot violate -- mass
+    falls monotonically as fuel burns, so a trajectory starting inside stays
+    inside. It is declared and reported anyway, so that a scenario which
+    hand-builds an overloaded initial state gets the same finding a badly
+    specified platform gets from the composition-time mass budget."""
+    ceiling = FIGHTER_LIMITS.mass_max_kg
+    fine = VehicleState(0.0, 0.0, 0.0, 250.0, ceiling - 100.0)
+    over = VehicleState(0.0, 0.0, 0.0, 250.0, ceiling + 100.0)
+
+    assert not any("above maximum" in v for v in vehicle.state_violations(fine))
+    violations = vehicle.state_violations(over)
+    assert any("above maximum" in v for v in violations)
+    assert any(str(int(ceiling)) in v for v in violations)
+
+
 def test_fuel_flow_stops_at_dry_mass(vehicle):
     """Below dry mass the vehicle must not keep burning fuel."""
     empty = VehicleState(0.0, 0.0, 0.0, 250.0, vehicle.lam.mass_dry_kg)

@@ -26,6 +26,7 @@ from ose.composition import (
     Station,
     Supplies,
     check_load,
+    check_mass_budget,
     check_power_budget,
     check_stations,
 )
@@ -37,6 +38,7 @@ FIGHTER = ComponentDescriptor(
     category="vehicle",
     supplies=Supplies(
         power_kw=40.0,
+        max_mass_kg=19500.0,
         stations=(
             Station("nose", "nose", mass_limit_kg=300.0),
             Station("wing_inner_left", "wing", mass_limit_kg=1200.0),
@@ -83,8 +85,16 @@ CATALOGUE = {
 }
 
 
-def _platform(*attachments: Attachment) -> PlatformSpec:
-    return PlatformSpec("blue_01", FIGHTER.type, attachments)
+EMPTY_KG = 12000.0
+FUEL_KG = 4000.0
+
+
+def _platform(*attachments: Attachment, **overrides) -> PlatformSpec:
+    return PlatformSpec(
+        "blue_01", FIGHTER.type, attachments,
+        empty_mass_kg=overrides.get("empty_mass_kg", EMPTY_KG),
+        fuel_kg=overrides.get("fuel_kg", FUEL_KG),
+    )
 
 
 # --------------------------------------------------------------------------
@@ -151,6 +161,76 @@ def test_an_unknown_component_is_a_finding_not_a_crash():
     platform = _platform(Attachment("nose", "sensor.radar.nonexistent"))
     findings = check_load(platform, CATALOGUE)
     assert any("not in the catalogue" in f.message for f in findings)
+
+
+# --------------------------------------------------------------------------
+# The whole-aircraft mass budget
+# --------------------------------------------------------------------------
+
+def test_the_mass_budget_catches_what_station_limits_do_not():
+    """The two mass checks are independent and neither implies the other.
+
+    Three missiles per pylon is 510 kg against a 1200 kg limit, so every
+    station is happy -- and 12 t empty plus 4 t of fuel plus 2 040 kg of
+    stores is 18 040 kg, still under 19 500. Spread the same load wider and
+    the stations stay happy while the aircraft does not.
+    """
+    within = _platform(
+        Attachment("wing_inner_left", MISSILE.type, quantity=3),
+        Attachment("wing_inner_left", MISSILE.type, quantity=3),
+        Attachment("wing_inner_left", MISSILE.type, quantity=3),
+        Attachment("wing_inner_left", MISSILE.type, quantity=3),
+    )
+    # 12 x 170 = 2040 kg on one pylon: over its 1200 kg limit, under the total.
+    assert [f.rule for f in check_stations(within, CATALOGUE)] == ["station"]
+    assert check_mass_budget(within, CATALOGUE) == []
+
+    # And the converse: light enough per station, too heavy in total.
+    heavy = _platform(
+        Attachment("wing_inner_left", MISSILE.type, quantity=6),
+        fuel_kg=6800.0,
+    )
+    assert check_stations(heavy, CATALOGUE) == [], "1020 kg is under the 1200 limit"
+    findings = check_mass_budget(heavy, CATALOGUE)
+    assert len(findings) == 1 and findings[0].rule == "mass"
+    assert "19500" in findings[0].message
+
+
+def test_the_mass_budget_names_its_terms():
+    """A finding a contributor can act on says which part is too heavy."""
+    heavy = _platform(Attachment("nose", RADAR.type), fuel_kg=7500.0)
+    message = check_mass_budget(heavy, CATALOGUE)[0].message
+    for term in ("12000", "7500", "180", "19500"):
+        assert term in message
+
+
+def test_an_undeclared_maximum_is_reported_not_skipped():
+    """A vehicle with no ceiling cannot be checked, and saying so is the only
+    honest answer. Returning no findings would read as 'this platform is
+    fine', which is exactly the silent pass this check exists to prevent --
+    and it is the state every vehicle was in before m_max was added to
+    lambda."""
+    unlimited = ComponentDescriptor(
+        type="vehicle.fighter.unlimited", layer="equipment", category="vehicle",
+        supplies=Supplies(power_kw=40.0, stations=FIGHTER.supplies.stations),
+    )
+    catalogue = {**CATALOGUE, unlimited.type: unlimited}
+    platform = PlatformSpec("blue_01", unlimited.type, (), 12000.0, 4000.0)
+
+    findings = check_mass_budget(platform, catalogue)
+    assert len(findings) == 1
+    assert "no maximum mass" in findings[0].message
+
+
+def test_the_budget_is_checked_at_full_fuel():
+    """The worst case, and the only one checkable without knowing the mission.
+    Mass falls monotonically afterwards, so a platform legal at take-off stays
+    legal."""
+    at_limit = _platform(Attachment("nose", RADAR.type), fuel_kg=7300.0)
+    over = _platform(Attachment("nose", RADAR.type), fuel_kg=7400.0)
+
+    assert check_mass_budget(at_limit, CATALOGUE) == []   # 19480 kg
+    assert check_mass_budget(over, CATALOGUE) != []       # 19580 kg
 
 
 # --------------------------------------------------------------------------
@@ -247,7 +327,9 @@ def test_findings_accumulate_rather_than_stopping_at_the_first():
     )
     findings = check_load(platform, CATALOGUE)
     assert len(findings) >= 2
-    assert {f.rule for f in findings} == {"station"}
+    assert {f.rule for f in findings} == {"station"}, (
+        "a station problem should not produce mass or power findings"
+    )
 
 
 def test_check_load_runs_every_check():

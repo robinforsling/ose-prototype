@@ -264,6 +264,14 @@ def test_the_speed_ceiling_is_mode_dependent(vehicle):
     assert not any("above" in v for v in vehicle.state_violations(_at(fast, Mode.BOOST)))
 
 
+def test_the_mass_ceiling_is_inherited_from_the_composed_limits(vehicle):
+    """BoostConstraints composes the baseline's Constraints, so m_max is
+    declared once and both models report against the same number."""
+    ceiling = FIGHTER_BOOST_LIMITS.nominal.mass_max_kg
+    over = BoostState(0.0, 0.0, 0.0, 250.0, ceiling + 100.0, 0.0, Mode.NOMINAL)
+    assert any("above maximum" in v for v in vehicle.state_violations(over))
+
+
 # --------------------------------------------------------------------------
 # Capability
 # --------------------------------------------------------------------------

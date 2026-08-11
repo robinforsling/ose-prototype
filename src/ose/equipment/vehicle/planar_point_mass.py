@@ -302,6 +302,11 @@ class PlanarPointMass:
             out.append(f"airspeed {state.v_mps:.1f} above {self.lam.v_max_mps:.1f} m/s")
         if state.mass_kg < self.lam.mass_dry_kg:
             out.append(f"mass {state.mass_kg:.0f} below dry mass")
+        if state.mass_kg > self.lam.mass_max_kg:
+            out.append(
+                f"mass {state.mass_kg:.0f} above maximum "
+                f"{self.lam.mass_max_kg:.0f} kg"
+            )
         return out
 
     def v_min_achievable_mps(self, mass_kg: float) -> float:

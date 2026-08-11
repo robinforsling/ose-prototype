@@ -24,6 +24,7 @@ from ose.composition.descriptor import (  # noqa: F401
 from ose.composition.load_check import (  # noqa: F401
     Finding,
     check_load,
+    check_mass_budget,
     check_power_budget,
     check_stations,
 )

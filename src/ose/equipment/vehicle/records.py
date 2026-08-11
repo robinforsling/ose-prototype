@@ -91,6 +91,17 @@ class Constraints:
     v_min_mps: float            # hard floor, independent of stall       [m/s]
     v_max_mps: float
     mass_dry_kg: float
+    # Maximum total mass: airframe, fuel and everything mounted on it.
+    #
+    # Unlike every other entry here this one can only be violated by how the
+    # platform was LOADED, never by how it is flown -- mass falls
+    # monotonically as fuel burns, so a state that starts inside stays
+    # inside. It is declared here anyway, rather than left to the composition
+    # checks, for two reasons: it is a property of the airframe and belongs
+    # with the airframe's other limits, and a scenario that hand-builds an
+    # overloaded initial state deserves the same finding a badly specified
+    # platform gets.
+    mass_max_kg: float
 
 
 @dataclass(frozen=True)

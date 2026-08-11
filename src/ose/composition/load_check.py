@@ -5,23 +5,22 @@ Checks 1 and 3 of docs/40-composition-spec.md section 6.1. Both are answerable
 from the descriptors alone, before anything is constructed and long before the
 clock starts.
 
+Two questions about mass, not one
+---------------------------------
+A platform can be within every station's limit and over its total, by
+spreading the load, or over one station's limit while comfortably under its
+total. Both are checked: mass per station against that station's declared
+mass_limit_kg, and the whole aircraft against the vehicle's maximum.
+
+That maximum did not exist when these checks were first written -- lambda
+carried mass_dry_kg and no upper bound, and the worked example gave a vehicle
+an empty mass and a fuel load but no ceiling, while section 5 of the
+specification said the envelope included "empty and maximum mass". The intent
+was there and the declaration was not. It is now m_max in lambda, which made
+this a modelling change before it could be a validator one.
+
 What is NOT here, and why
 -------------------------
-Check 2, the mass budget, is specified as "empty mass, plus fuel, plus the sum
-of attachment masses times quantity, is within the vehicle's maximum" -- and
-nothing declares that maximum. The vehicle's constraint vector carries
-mass_dry_kg and no upper bound, the model document's lambda has seven entries
-and none of them is a maximum mass, and the specification's own worked example
-gives a vehicle empty_mass_kg and fuel_initial_kg but no ceiling. Section 5 of
-the specification says the envelope includes "empty and maximum mass", so the
-intent exists; the declaration does not.
-
-Attachment masses ARE summed here, per station, against that station's
-mass_limit_kg, which is declared. So the structural half of the mass question
-is checked and the whole-aircraft half is not. Adding a maximum would be a
-change to the vehicle model's lambda and therefore to the model document,
-which is a modelling decision rather than a validator one.
-
 Checks 4 to 7 -- port satisfaction, the truth boundary, layer discipline and
 parameter bounds -- need the port graph and the parameter schema, neither of
 which is modelled yet.
@@ -51,7 +50,7 @@ CRUISE = "cruise"
 class Finding:
     """One reason a platform cannot be built as specified."""
 
-    rule: str                       # "station" | "power"
+    rule: str                       # "station" | "mass" | "power"
     message: str
 
     def __str__(self) -> str:       # pragma: no cover - convenience only
@@ -185,11 +184,57 @@ def check_power_budget(
     return out
 
 
+def check_mass_budget(
+    platform: PlatformSpec, catalogue: Mapping[str, ComponentDescriptor]
+) -> list[Finding]:
+    """Check 2. Empty mass, plus fuel, plus attachment masses times quantity,
+    within the vehicle's maximum.
+
+    The whole-aircraft counterpart to the per-station limit checked above.
+    Both are needed and neither implies the other: a platform can be within
+    every station's limit and over its total, by spreading the load, or over
+    a single station's limit while comfortably under its total.
+
+    Checked at full fuel, which is the worst case and the only one that can
+    be checked without knowing the mission. Mass falls monotonically
+    thereafter, so a platform that is legal at take-off stays legal.
+    """
+    vehicle = _vehicle(platform, catalogue)
+    if vehicle is None:
+        return [Finding("mass",
+                        f"vehicle type {platform.vehicle_type!r} is not in the catalogue")]
+
+    ceiling = vehicle.supplies.max_mass_kg
+    if ceiling <= 0.0:
+        return [Finding(
+            "mass",
+            f"{vehicle.type} declares no maximum mass, so the mass budget "
+            "cannot be checked",
+        )]
+
+    carried = sum(
+        catalogue[a.type].consumes.mass_kg * a.quantity
+        for a in platform.attachments
+        if a.type in catalogue
+    )
+    total = platform.empty_mass_kg + platform.fuel_kg + carried
+    if total > ceiling:
+        return [Finding(
+            "mass",
+            f"platform masses {total:.0f} kg "
+            f"({platform.empty_mass_kg:.0f} empty + {platform.fuel_kg:.0f} fuel "
+            f"+ {carried:.0f} carried) against a maximum of {ceiling:.0f} kg",
+        )]
+    return []
+
+
 def check_load(
     platform: PlatformSpec, catalogue: Mapping[str, ComponentDescriptor]
 ) -> list[Finding]:
     """Every load check, gathered. See the module docstring for what is not
     included and why."""
-    return check_stations(platform, catalogue) + check_power_budget(
-        platform, catalogue
+    return (
+        check_stations(platform, catalogue)
+        + check_mass_budget(platform, catalogue)
+        + check_power_budget(platform, catalogue)
     )

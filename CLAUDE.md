@@ -180,10 +180,9 @@ make a `Saturation` finding mean estimator doubt instead of an airframe
 limit.
 
 Partly implemented: the composition-time load checks live in
-`ose/composition/` -- station compatibility and the power budget, over
-descriptor records rather than YAML, since the repository has no schema
-library and parsing is separable from the rules. The mass budget is blocked on
-the vehicle declaring a maximum mass, which nothing does.
+`ose/composition/` -- station compatibility, the mass budget and the power
+budget, over descriptor records rather than YAML, since the repository has no
+schema library and parsing is separable from the rules.
 
 Not implemented: the simulation core, the service registry, the composition
 binder, the rest of the descriptor validator, and every component type other than the above
