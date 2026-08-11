@@ -12,7 +12,7 @@ renaming one is not, and requires a version increment.
 
 | Interface | Direction | Carries | Status |
 |---|---|---|---|
-| `truth.query.v1` | core to equipment | Privileged read of ground-truth state. Grantable only to `layer: resource`. | planned |
+| `truth.query.v1` | core to equipment | Privileged read of ground-truth state. Grantable only to `layer: equipment`. | planned |
 | `power.bus.v1` | vehicle to equipment | Abstract power draw negotiation, electrical and cooling combined. | planned |
 | `vehicle.command.v1` | subsystem to equipment | Commanded thrust and turn rate. | **implemented** |
 | `vehicle.state.v1` | subsystem to above | Own-ship state as the platform believes it, with covariance. Published by `NavigationManager`, one per platform. | **implemented** |

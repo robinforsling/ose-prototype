@@ -68,22 +68,22 @@ is the subset used in the worked example.
 
 | Interface | Direction | Carries |
 |---|---|---|
-| `truth.query.v1` | core → resource | Privileged read of ground-truth world state. Only resource-layer components may hold this port. |
-| `power.bus.v1` | vehicle → resource | Abstract power draw negotiation (electrical plus cooling, combined). |
-| `vehicle.command.v1` | subsystem → resource | Commanded speed, turn rate, throttle. |
-| `vehicle.state.v1` | resource → subsystem | Own-ship state as the platform believes it to be, from navigation sensors. |
-| `sensing.detections.v1` | resource → subsystem | Time-stamped detections with measurement uncertainty. |
-| `sensing.control.v1` | subsystem → resource | Sensor tasking: pointing, mode, priority. |
+| `truth.query.v1` | core → equipment | Privileged read of ground-truth world state. Only equipment-layer components may hold this port. |
+| `power.bus.v1` | vehicle → equipment | Abstract power draw negotiation (electrical plus cooling, combined). |
+| `vehicle.command.v1` | subsystem → equipment | Commanded speed, turn rate, throttle. |
+| `vehicle.state.v1` | equipment → subsystem | Own-ship state as the platform believes it to be, from navigation sensors. |
+| `sensing.detections.v1` | equipment → subsystem | Time-stamped detections with measurement uncertainty. |
+| `sensing.control.v1` | subsystem → equipment | Sensor tasking: pointing, mode, priority. |
 | `comms.message.v1` | bidirectional | Addressed message transport with loss and latency applied. |
-| `effect.request.v1` | subsystem → resource | Employment request against a designated track. |
-| `effect.status.v1` | resource → subsystem | Inventory, readiness, in-flight effector state. |
+| `effect.request.v1` | subsystem → equipment | Employment request against a designated track. |
+| `effect.status.v1` | equipment → subsystem | Inventory, readiness, in-flight effector state. |
 | `tracking.tracks.v1` | subsystem → single-ship | Fused track picture. |
 | `sa.picture.v1` | single-ship → single-ship | Assessed situation, threat evaluation. |
 | `planning.action.v1` | single-ship → subsystem | Committed actions for execution. |
 | `coord.intent.v1` | multi-ship → single-ship | Assigned role, tasking, constraints. |
 
 The truth boundary is enforced by port type. `truth.query.v1` is only grantable
-to components whose descriptor declares `layer: resource`. The binder refuses it
+to components whose descriptor declares `layer: equipment`. The binder refuses it
 to anything else. This is the one rule that must never be relaxed for
 convenience.
 
@@ -96,12 +96,12 @@ descriptor_version: 1
 
 type: string            # unique type name, e.g. sensor.radar.pulse_doppler
 version: string         # semver of this component implementation
-layer: enum             # resource | subsystem | single_ship | multi_ship
+layer: enum             # equipment | subsystem | single_ship | multi_ship
 category: enum          # vehicle | sensor | nav_sensor | communicator | effector | cyber
 summary: string
 implementation: string  # importable Python path to the factory
 
-# Physical resources this component consumes when mounted. Resource layer only.
+# Physical resources this component consumes when mounted. Equipment layer only.
 consumes:
   mass_kg: number
   power_kw:                      # per operating mode
@@ -177,7 +177,7 @@ platform:
 
   # Bottom-up. Each layer may only bind to the layer below it, or to peers
   # within the same layer on the same platform.
-  resource:
+  equipment:
     vehicle:
       type: string
       version: string
@@ -217,7 +217,7 @@ A binding value resolves a required port to a providing port:
 ```
 
 Component IDs are platform-local. `vehicle` and attachment station names are
-reserved as implicit component IDs at the resource layer, so
+reserved as implicit component IDs at the equipment layer, so
 `radar_main.detections` and `vehicle.state` both resolve.
 
 Where exactly one component on the platform provides the required interface, the
@@ -240,8 +240,8 @@ platform:
   affiliation: blue
   name: Lead
 
-  # ---- Resource layer: the only layer with a physical part -------------
-  resource:
+  # ---- Equipment layer: the only layer with a physical part ------------
+  equipment:
     vehicle:
       type: vehicle.fighter.generic_2d
       version: "1.2.0"
@@ -298,7 +298,7 @@ platform:
         version: "0.5.2"
         quantity: 2
 
-  # ---- Subsystem layer: integrates resources. Purely cyber. ------------
+  # ---- Subsystem layer: integrates equipment. Purely cyber. ------------
   subsystem:
     - id: vehicle_system
       type: subsystem.vehicle_system.basic
@@ -379,7 +379,7 @@ Composition-time checks, all before the clock starts:
    surprise.
 4. **Port satisfaction.** Every non-optional `requires` resolves to exactly one
    `provides` with a matching interface name and major version.
-5. **Truth boundary.** No component with `layer` other than `resource` holds a
+5. **Truth boundary.** No component with `layer` other than `equipment` holds a
    `truth.query.v1` port.
 6. **Layer discipline.** No binding skips a layer or points upward.
 7. **Parameter bounds.** Every supplied parameter is declared in the descriptor
@@ -489,7 +489,7 @@ campaign:
   master_seed: 20260808
 
   sweep:
-    - path: platforms[blue_01].resource.attachments[nose].parameters.reference_range_m
+    - path: platforms[blue_01].equipment.attachments[nose].parameters.reference_range_m
       values: [60000, 80000, 100000]
     - path: formations[blue_flight].multi_ship[coordination].parameters.objective
       values: [deny_penetration, preserve_force]
@@ -556,7 +556,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 
 Affiliation = Literal["blue", "red", "yellow"]
-Layer = Literal["resource", "subsystem", "single_ship", "multi_ship"]
+Layer = Literal["equipment", "subsystem", "single_ship", "multi_ship"]
 StationType = Literal["nose", "fuselage", "wing", "internal", "conformal"]
 
 
@@ -601,11 +601,11 @@ class Descriptor(BaseModel):
     rate_group: Literal["fast", "medium", "slow", "event"]
 
     @model_validator(mode="after")
-    def truth_port_is_resource_only(self):
+    def truth_port_is_equipment_only(self):
         holds_truth = any(r.interface.startswith("truth.") for r in self.requires)
-        if holds_truth and self.layer != "resource":
+        if holds_truth and self.layer != "equipment":
             raise ValueError(
-                f"{self.type}: truth.* ports are only grantable to resource-layer "
+                f"{self.type}: truth.* ports are only grantable to equipment-layer "
                 f"components, not {self.layer}"
             )
         return self
