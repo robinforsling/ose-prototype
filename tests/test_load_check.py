@@ -1,0 +1,264 @@
+"""Tests for the composition-time load checks.
+
+These check a *rule*, not a model, so there is no uncertainty to be honest
+about and no dynamics to integrate. What they have to get right instead is
+that every failure the specification names is actually detected, and that a
+platform which should be buildable is not rejected.
+
+The two that matter most are the ones a naive implementation gets wrong:
+
+test_supply_is_summed_across_the_platform -- reading the vehicle's figure
+alone would under-count, which is what makes a generator a component rather
+than a vehicle parameter (ADR 0016 changed the specification for this).
+
+test_a_station_is_checked_against_its_total_load -- two attachments can share
+a station, so a per-entry check passes while the station is overloaded.
+"""
+
+import pytest
+
+from ose.composition import (
+    Attachment,
+    ComponentDescriptor,
+    Consumes,
+    Finding,
+    PlatformSpec,
+    Station,
+    Supplies,
+    check_load,
+    check_power_budget,
+    check_stations,
+)
+from ose.composition.load_check import operating_modes
+
+FIGHTER = ComponentDescriptor(
+    type="vehicle.fighter.generic_2d",
+    layer="equipment",
+    category="vehicle",
+    supplies=Supplies(
+        power_kw=40.0,
+        stations=(
+            Station("nose", "nose", mass_limit_kg=300.0),
+            Station("wing_inner_left", "wing", mass_limit_kg=1200.0),
+            Station("nav_bay", "internal", mass_limit_kg=60.0),
+        ),
+    ),
+)
+
+RADAR = ComponentDescriptor(
+    type="sensor.radar.pulse_doppler",
+    layer="equipment",
+    category="sensor",
+    consumes=Consumes(
+        mass_kg=180.0,
+        power_kw={"cruise": 12.0, "combat": 28.0},
+        station_type="nose",
+    ),
+)
+
+MISSILE = ComponentDescriptor(
+    type="effector.missile.bvr_generic",
+    layer="equipment",
+    category="effector",
+    consumes=Consumes(mass_kg=170.0, station_type="wing"),
+)
+
+INS = ComponentDescriptor(
+    type="nav_sensor.ins_gnss",
+    layer="equipment",
+    category="nav_sensor",
+    consumes=Consumes(mass_kg=14.0, power_kw={"cruise": 0.3}, station_type="internal"),
+)
+
+GENERATOR = ComponentDescriptor(
+    type="power.generator.turbine_driven",
+    layer="equipment",
+    category="vehicle",
+    consumes=Consumes(mass_kg=45.0, station_type="internal"),
+    supplies=Supplies(power_kw=60.0),
+)
+
+CATALOGUE = {
+    d.type: d for d in (FIGHTER, RADAR, MISSILE, INS, GENERATOR)
+}
+
+
+def _platform(*attachments: Attachment) -> PlatformSpec:
+    return PlatformSpec("blue_01", FIGHTER.type, attachments)
+
+
+# --------------------------------------------------------------------------
+# A platform that should build
+# --------------------------------------------------------------------------
+
+def test_a_sound_platform_produces_no_findings():
+    """The check has to be able to say yes, or it is useless."""
+    platform = _platform(
+        Attachment("nose", RADAR.type),
+        Attachment("wing_inner_left", MISSILE.type, quantity=2),
+        Attachment("nav_bay", INS.type),
+    )
+    assert check_load(platform, CATALOGUE) == []
+
+
+# --------------------------------------------------------------------------
+# Stations
+# --------------------------------------------------------------------------
+
+def test_a_station_the_vehicle_does_not_have_is_rejected():
+    platform = _platform(Attachment("tail_cone", RADAR.type))
+    findings = check_stations(platform, CATALOGUE)
+    assert len(findings) == 1
+    assert "tail_cone" in findings[0].message
+    assert findings[0].rule == "station"
+
+
+def test_a_station_of_the_wrong_type_is_rejected():
+    """The radar wants a nose station; nav_bay exists but is internal."""
+    platform = _platform(Attachment("nav_bay", RADAR.type))
+    messages = [f.message for f in check_stations(platform, CATALOGUE)]
+    assert any("needs a 'nose' station" in m for m in messages)
+
+
+def test_a_station_is_checked_against_its_total_load():
+    """Two attachments can share a station, and each can be legal while the
+    pair is not. Two entries of four missiles are 680 kg apiece against a
+    1200 kg pylon -- fine separately, 1360 kg together. A check that tested
+    each entry against the limit would pass this."""
+    platform = _platform(
+        Attachment("wing_inner_left", MISSILE.type, quantity=4),
+        Attachment("wing_inner_left", MISSILE.type, quantity=4),
+    )
+    findings = check_stations(platform, CATALOGUE)
+
+    assert len(findings) == 1
+    assert "1360" in findings[0].message and "1200" in findings[0].message
+
+
+def test_quantity_multiplies_the_mass():
+    """Per the specification's wording: attachment masses times quantity."""
+    seven = _platform(Attachment("wing_inner_left", MISSILE.type, quantity=7))
+    eight = _platform(Attachment("wing_inner_left", MISSILE.type, quantity=8))
+
+    assert check_stations(seven, CATALOGUE) == [], "7 x 170 = 1190 kg, under 1200"
+    assert check_stations(eight, CATALOGUE) != [], "8 x 170 = 1360 kg, over 1200"
+
+
+def test_an_unknown_component_is_a_finding_not_a_crash():
+    """A specification naming a type nobody has is a load error like any
+    other, and reporting it beats raising: one run should surface everything
+    wrong with a platform."""
+    platform = _platform(Attachment("nose", "sensor.radar.nonexistent"))
+    findings = check_load(platform, CATALOGUE)
+    assert any("not in the catalogue" in f.message for f in findings)
+
+
+# --------------------------------------------------------------------------
+# Power
+# --------------------------------------------------------------------------
+
+def test_power_is_checked_in_every_mode_not_just_cruise():
+    """The radar fits the budget in cruise at 12 kW and does not in combat at
+    28 kW plus the rest. A check that looked only at cruise would pass."""
+    platform = _platform(
+        Attachment("nose", RADAR.type), Attachment("nav_bay", INS.type)
+    )
+    # 40 kW supplied; cruise draws 12.3, combat draws 28.
+    assert check_power_budget(platform, CATALOGUE) == []
+
+    hungry = ComponentDescriptor(
+        type="sensor.radar.hungry", layer="equipment", category="sensor",
+        consumes=Consumes(mass_kg=180.0, power_kw={"cruise": 12.0, "combat": 55.0},
+                          station_type="nose"),
+    )
+    catalogue = {**CATALOGUE, hungry.type: hungry}
+    platform = _platform(Attachment("nose", hungry.type))
+
+    findings = check_power_budget(platform, catalogue)
+    assert len(findings) == 1
+    assert "'combat'" in findings[0].message
+    assert findings[0].rule == "power"
+
+
+def test_supply_is_summed_across_the_platform():
+    """A generator is a component, not a vehicle parameter (ADR 0016). Reading
+    the vehicle's figure alone would reject a platform that carries its own
+    supply."""
+    hungry = ComponentDescriptor(
+        type="sensor.radar.hungry", layer="equipment", category="sensor",
+        consumes=Consumes(mass_kg=180.0, power_kw={"combat": 80.0},
+                          station_type="nose"),
+    )
+    catalogue = {**CATALOGUE, hungry.type: hungry}
+
+    without = _platform(Attachment("nose", hungry.type))
+    assert check_power_budget(without, catalogue) != [], "40 kW cannot feed 80 kW"
+
+    # The same radar, with a 60 kW generator aboard: 100 kW supplied.
+    with_gen = _platform(
+        Attachment("nose", hungry.type), Attachment("nav_bay", GENERATOR.type)
+    )
+    assert check_power_budget(with_gen, catalogue) == []
+
+
+def test_a_component_silent_about_a_mode_draws_nothing_in_it():
+    """A descriptor should not have to enumerate every mode the platform has
+    just to say it is idle in most of them."""
+    platform = _platform(
+        Attachment("nose", RADAR.type),      # has a 'combat' entry
+        Attachment("nav_bay", INS.type),     # does not
+    )
+    assert "combat" in operating_modes(platform, CATALOGUE)
+    assert check_power_budget(platform, CATALOGUE) == []
+
+
+def test_cruise_is_always_checked():
+    """A platform whose attachments are all silent about modes still has to
+    fly. Discovering modes purely from the descriptors would give an empty set
+    and a check that passes by having nothing to look at."""
+    quiet = ComponentDescriptor(
+        type="effector.dumb", layer="equipment", category="effector",
+        consumes=Consumes(mass_kg=10.0, station_type="wing"),
+    )
+    catalogue = {**CATALOGUE, quiet.type: quiet}
+    platform = PlatformSpec("blue_01", FIGHTER.type,
+                            (Attachment("wing_inner_left", quiet.type),))
+
+    assert operating_modes(platform, catalogue) == ["cruise"]
+
+
+def test_power_quantity_multiplies_too():
+    """Four radars draw four radars' worth."""
+    platform = _platform(Attachment("nose", RADAR.type, quantity=4))
+    findings = check_power_budget(platform, CATALOGUE)
+    assert any("'combat'" in f.message for f in findings)   # 4 x 28 = 112 kW
+
+
+# --------------------------------------------------------------------------
+# The shape of the answer
+# --------------------------------------------------------------------------
+
+def test_findings_accumulate_rather_than_stopping_at_the_first():
+    """One run should say everything that is wrong. A validator that raises on
+    the first problem makes fixing a platform an iterative guessing game."""
+    platform = _platform(
+        Attachment("tail_cone", RADAR.type),                      # no such station
+        Attachment("wing_inner_left", MISSILE.type, quantity=9),  # overloaded
+    )
+    findings = check_load(platform, CATALOGUE)
+    assert len(findings) >= 2
+    assert {f.rule for f in findings} == {"station"}
+
+
+def test_check_load_runs_every_check():
+    """A platform failing on two different rules should hear about both."""
+    hungry = ComponentDescriptor(
+        type="sensor.radar.hungry", layer="equipment", category="sensor",
+        consumes=Consumes(mass_kg=400.0, power_kw={"cruise": 90.0},
+                          station_type="nose"),
+    )
+    catalogue = {**CATALOGUE, hungry.type: hungry}
+    platform = _platform(Attachment("nose", hungry.type))
+
+    rules = {f.rule for f in check_load(platform, catalogue)}
+    assert rules == {"station", "power"}, "one rule masked the other"

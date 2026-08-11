@@ -647,6 +647,23 @@ Monte Carlo campaign eventually raises.
 - Is `rate_group` the right abstraction, or should components declare a raw
   `update_rate_hz` and let the scheduler bucket them? Named groups are easier for
   contributors to reason about and easier to sweep in a campaign.
+- The mass budget of section 6.1 checks attachment masses against "the
+  vehicle's maximum", and nothing declares one. The vehicle's constraint
+  vector carries `mass_dry_kg` and no upper bound, the model document's lambda
+  has seven entries and none is a maximum mass, and the worked example above
+  gives a vehicle `empty_mass_kg` and `fuel_initial_kg` but no ceiling.
+  Section 5 says the envelope includes "empty and maximum mass", so the intent
+  is there and the declaration is not. Adding one is a change to the vehicle
+  model's lambda and therefore to the model document, which is a modelling
+  decision rather than a validator one. Until then the load checks verify the
+  structural half -- mass per station against that station's declared limit --
+  and not the whole-aircraft half.
+- `consumes.power_kw` is per operating mode and `supplies.power_kw` is a
+  single number. That asymmetry does not survive a switched engine: a vehicle
+  whose generator is driven by the engine supplies different power in nominal
+  and in boost, and there is nowhere to say so. Making supplies per-mode is
+  the obvious fix and is a format change, so it waits until the descriptor
+  validator has consumers to migrate.
 - A power generator consumes fuel, and `consumes` has no fuel field. Fuel is
   also the wrong shape for the power budget above: that check is about
   instantaneous capacity, while fuel is a rate drawn against a finite tank, so

@@ -72,6 +72,7 @@ src/ose/subsystem/vehicle_manager.py              believed mass; the only consum
 src/ose/subsystem/vehicle_guidance.py             heading/speed-hold guidance, enforces admissibility
 src/ose/subsystem/reference_configs/              reference configs for subsystem components
 src/ose/single_ship/action_planner.py             waypoint-following action planner
+src/ose/composition/                              composition-time load checks over descriptors
 src/ose/single_ship/reference_configs/            reference configs for single-ship components
 docs/                                             scope, concepts, architecture, tooling
 docs/adr/                                         architecture decision records
