@@ -37,13 +37,6 @@ class OwnStateEstimate:
     covariance: np.ndarray                   # 4x4, over [p_x, p_y, psi, v_air]
     gnss_available: bool = True
 
-    def as_vehicle_state(self, mass_kg: float) -> VehicleState:
-        """Believed vehicle state. Mass is not estimated by navigation; it is
-        taken from the fuel accounting of the vehicle system."""
-        return VehicleState(
-            self.p_x_m, self.p_y_m, self.psi_rad, self.v_air_mps, mass_kg
-        )
-
     @property
     def position_sigma_m(self) -> float:
         return math.sqrt(max(self.covariance[0, 0] + self.covariance[1, 1], 0.0))
@@ -68,6 +61,31 @@ class TimeEstimate:
     @property
     def offset_sigma_s(self) -> float:
         return math.sqrt(max(self.covariance[0, 0], 0.0))
+
+
+@dataclass(frozen=True)
+class PlatformBeliefs:
+    """What the platform believes about itself that navigation does not
+    estimate.
+
+    The vehicle manager's product, and the argument a vehicle model needs to
+    dress an OwnStateEstimate as one of its own states. Navigation supplies
+    position, heading and airspeed; everything else in a state vector comes
+    from here.
+
+    A model reads the fields it has and ignores the rest -- the baseline never
+    looks at `thermal`, the two-mode model does. That is cheap in a way a
+    shared state vector would not be: an unused belief costs nothing, whereas
+    an unused STATE would sit in the baseline's Jacobian and integrator with
+    nothing maintaining it. Which is why states are per-model and beliefs are
+    not.
+
+    Grows by adding fields as the platform learns to believe more things.
+    """
+
+    mass_kg: float
+    thermal: float = 0.0
+    mode: object | None = None      # the model's own mode type, or None
 
 
 @dataclass(frozen=True)

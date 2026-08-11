@@ -86,7 +86,21 @@ class Mode(Enum):
 
 @dataclass
 class BoostState:
-    """x = [p_x, p_y, psi, v, m, s]."""
+    """x = [p_x, p_y, psi, v, m, s], plus the mode currently engaged.
+
+    The mode is part of the state, not of the command, and the model document
+    is already written that way: S_q(x, lambda) describes transitions FROM the
+    current mode, so the current mode is a discrete state and only the
+    REQUESTED mode is an input. That is the ordinary hybrid-systems
+    formulation, and it is what makes every method here take the same
+    arguments as the baseline's -- which is what lets one vehicle manager
+    serve both models without asking which it holds.
+
+    It is excluded from to_array(). The integrator advances the six continuous
+    states; the mode is held constant across a step by construction, so a
+    caller closes over it and hands it back to from_array(). Integrating
+    across a switch would integrate a discontinuity.
+    """
 
     p_x_m: float
     p_y_m: float
@@ -94,8 +108,14 @@ class BoostState:
     v_mps: float
     mass_kg: float
     thermal: float              # s, dimensionless, 0 is cold and 1 is the limit
+    mode: "Mode" = None         # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.mode is None:
+            self.mode = Mode.NOMINAL
 
     def to_array(self) -> np.ndarray:
+        """The continuous states only. The mode is discrete and held."""
         return np.array(
             [self.p_x_m, self.p_y_m, self.psi_rad, self.v_mps, self.mass_kg,
              self.thermal],
@@ -103,8 +123,8 @@ class BoostState:
         )
 
     @classmethod
-    def from_array(cls, a: np.ndarray) -> "BoostState":
-        return cls(*(float(v) for v in a))
+    def from_array(cls, a: np.ndarray, mode: "Mode" = None) -> "BoostState":
+        return cls(*(float(v) for v in a), mode=mode or Mode.NOMINAL)
 
 
 @dataclass(frozen=True)
@@ -168,6 +188,37 @@ class PlanarPointMassWithBooster:
         self.lam = constraints
         self.eta = environment
 
+    @property
+    def dry_mass_kg(self) -> float:
+        """The airframe's mass without fuel or payload.
+
+        Exposed by the model rather than left for a consumer to find in
+        lambda, because lambda's shape is model specific -- a switched model
+        composes the baseline's limits inside its own record -- and a
+        consumer navigating that structure would be coupled to the model it
+        is meant to be independent of.
+        """
+        return self.lam.nominal.mass_dry_kg
+
+    def state_from(self, estimate, beliefs) -> BoostState:
+        """Dress a published own-state estimate as this model's state.
+
+        Same contract as the baseline's, and the reason both have one: a
+        consumer holding either model calls this and gets a state it can use,
+        without knowing how many elements that state has. This model reads two
+        more beliefs than the baseline -- the thermal accumulator and the mode
+        currently engaged -- neither of which navigation estimates.
+        """
+        return BoostState(
+            estimate.p_x_m,
+            estimate.p_y_m,
+            estimate.psi_rad,
+            estimate.v_air_mps,
+            beliefs.mass_kg,
+            beliefs.thermal,
+            beliefs.mode or Mode.NOMINAL,
+        )
+
     # ---------------- aerodynamics, unchanged from the baseline -----------
 
     def drag_N(self, v_mps: float, mass_kg: float, omega_rad_s: float) -> float:
@@ -211,11 +262,11 @@ class PlanarPointMassWithBooster:
 
     # ---------------- mode-dependent dynamics -----------------------------
 
-    def thermal_rate(self, state: BoostState, mode: Mode) -> float:
+    def thermal_rate(self, state: BoostState) -> float:
         """sigma_q(s). Published as a derivative so a consumer integrates it
         (ADR 0004) -- the vehicle manager dead-reckons the thermal belief this
         way rather than reimplementing the law."""
-        if mode is Mode.BOOST:
+        if state.mode is Mode.BOOST:
             return 1.0 / self.theta.tau_h_s
         return -state.thermal / self.theta.tau_c_s
 
@@ -223,7 +274,6 @@ class PlanarPointMassWithBooster:
         self,
         state: BoostState,
         command: VehicleCommand,
-        mode: Mode,
         disturbance: Disturbance = NO_DISTURBANCE,
     ) -> np.ndarray:
         """xdot = f_q(x, u, theta, eta) + G(x) w, equation f-mode.
@@ -239,7 +289,7 @@ class PlanarPointMassWithBooster:
 
         drag = self.drag_N(v, m, omega)
         burning = m > self.lam.nominal.mass_dry_kg
-        mdot = -self.theta.c_tsfc(mode) * T if burning else 0.0
+        mdot = -self.theta.c_tsfc(state.mode) * T if burning else 0.0
 
         return np.array(
             [
@@ -248,7 +298,7 @@ class PlanarPointMassWithBooster:
                 omega + disturbance.omega_dist_rad_s,
                 (T - drag + disturbance.force_long_N) / m,
                 mdot,
-                self.thermal_rate(state, mode),
+                self.thermal_rate(state),
             ],
             dtype=float,
         )
@@ -281,20 +331,32 @@ class PlanarPointMassWithBooster:
         return frozenset(Mode) if can_boost else frozenset({Mode.NOMINAL})
 
     def project_command(
-        self, state: BoostState, command: VehicleCommand, mode: Mode,
+        self,
+        state: BoostState,
+        command: VehicleCommand,
         since_transition_s: float = math.inf,
-    ) -> tuple[VehicleCommand, Mode, Saturation]:
+    ) -> tuple[VehicleCommand, Saturation]:
         """Project onto U_q(x, lambda) and S_q. OFFERED, NOT APPLIED.
 
+        The requested mode rides on the command; the current one is in the
+        state. That is the q+ and q of the model document, and it is why this
+        takes the same arguments as the baseline's project_command -- a
+        consumer need not know which model it is holding.
+
         A mode cannot be clipped by degree the way thrust can -- there is no
-        "less boost" -- so an inadmissible mode falls back to NOMINAL, which
-        is what the document's S_q = {nominal} otherwise already says.
+        "less boost" -- so an inadmissible request falls back to NOMINAL,
+        which is what the document's S_q = {nominal} otherwise already says.
+        The delivered mode is returned on the command, so a caller that flies
+        what it is given flies a consistent pair.
         """
         notes: list[str] = []
-        delivered_mode = mode
-        if mode not in self.admissible_modes(state, since_transition_s):
+        requested = command.mode or state.mode
+        delivered_mode = requested
+        if requested not in self.admissible_modes(state, since_transition_s):
             delivered_mode = Mode.NOMINAL
-            notes.append(f"mode {mode.value} not admissible, fell back to nominal")
+            notes.append(
+                f"mode {requested.value} not admissible, fell back to nominal"
+            )
 
         thrust_max = self.lam.thrust_max_N(delivered_mode)
         thrust = min(max(command.thrust_N, self.lam.nominal.thrust_min_N), thrust_max)
@@ -314,8 +376,7 @@ class PlanarPointMassWithBooster:
             )
 
         return (
-            VehicleCommand(thrust, omega),
-            delivered_mode,
+            VehicleCommand(thrust, omega, mode=delivered_mode),
             Saturation(
                 thrust_clipped=thrust != command.thrust_N,
                 omega_clipped=omega != command.omega_rad_s,
@@ -324,16 +385,17 @@ class PlanarPointMassWithBooster:
             ),
         )
 
-    def state_violations(self, state: BoostState, mode: Mode) -> list[str]:
+    def state_violations(self, state: BoostState) -> list[str]:
         """X_q(lambda). Reported, never corrected."""
         out: list[str] = []
         v_floor = max(self.lam.nominal.v_min_mps, self.v_stall_mps(state.mass_kg))
         if state.v_mps < v_floor:
             out.append(f"speed {state.v_mps:.1f} below floor {v_floor:.1f} m/s")
-        v_ceiling = self.lam.v_max_mps(mode)
+        v_ceiling = self.lam.v_max_mps(state.mode)
         if state.v_mps > v_ceiling:
             out.append(
-                f"speed {state.v_mps:.1f} above {mode.value} limit {v_ceiling:.1f} m/s"
+                f"speed {state.v_mps:.1f} above {state.mode.value} limit "
+                f"{v_ceiling:.1f} m/s"
             )
         if state.mass_kg < self.lam.nominal.mass_dry_kg:
             out.append(f"mass {state.mass_kg:.0f} below dry mass")
@@ -348,10 +410,10 @@ class PlanarPointMassWithBooster:
 
     # ---------------- capability ------------------------------------------
 
-    def thrust_available_N(self, state: BoostState, mode: Mode) -> float:
+    def thrust_available_N(self, state: BoostState) -> float:
         if state.mass_kg <= self.lam.nominal.mass_dry_kg:
             return 0.0
-        return self.lam.thrust_max_N(mode)
+        return self.lam.thrust_max_N(state.mode)
 
     def omega_sustained_rad_s(
         self, v_mps: float, mass_kg: float, mode: Mode
@@ -374,19 +436,18 @@ class PlanarPointMassWithBooster:
     def capability(
         self,
         state: BoostState,
-        mode: Mode,
-        since_transition_s: float = math.inf,
         omega_rad_s: float = 0.0,
+        since_transition_s: float = math.inf,
     ) -> BoostCapability:
         """c = g_q(x, theta, eta, lambda, w), section 5.4."""
         v, m = state.v_mps, state.mass_kg
-        thrust_av = self.thrust_available_N(state, mode)
+        thrust_av = self.thrust_available_N(state)
         drag = self.drag_N(v, m, omega_rad_s)
         omega_av = self.omega_max_rad_s(v, m)
         n_av = min(self.lift_limited_load_factor(v, m), self.lam.nominal.n_structural)
         fuel = max(m - self.lam.nominal.mass_dry_kg, 0.0)
         thrust_req = self.thrust_required_N(v, m, omega_rad_s)
-        c_tsfc = self.theta.c_tsfc(mode)
+        c_tsfc = self.theta.c_tsfc(state.mode)
 
         return BoostCapability(
             thrust_available_N=thrust_av,
@@ -394,7 +455,7 @@ class PlanarPointMassWithBooster:
             accel_max_mps2=(thrust_av - drag) / m,
             accel_min_mps2=(self.lam.nominal.thrust_min_N - drag) / m,
             omega_available_rad_s=omega_av,
-            omega_sustained_rad_s=self.omega_sustained_rad_s(v, m, mode),
+            omega_sustained_rad_s=self.omega_sustained_rad_s(v, m, state.mode),
             turn_radius_min_m=v / omega_av if omega_av > 0.0 else math.inf,
             load_factor_available=n_av,
             v_stall_mps=self.v_stall_mps(m),
@@ -408,7 +469,7 @@ class PlanarPointMassWithBooster:
             v_min_achievable_mps=max(
                 self.lam.nominal.v_min_mps, self.v_stall_mps(m)
             ),
-            v_max_achievable_mps=self.lam.v_max_mps(mode),
+            v_max_achievable_mps=self.lam.v_max_mps(state.mode),
             boost_available=Mode.BOOST in self.admissible_modes(
                 state, since_transition_s
             ),

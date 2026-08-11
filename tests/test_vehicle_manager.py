@@ -43,7 +43,10 @@ from _truth_boundary import (
 from ose.equipment.fuel_gauge import FuelGauge
 from ose.equipment.reference_configs.reference_fuel_gauge import STANDARD as GAUGE
 from ose.equipment.reference_configs.vehicle.planar_point_mass import reference_fighter
-from ose.equipment.vehicle import PlanarPointMass, VehicleCommand, VehicleState
+from ose.equipment.reference_configs.vehicle.planar_point_mass_with_booster import (
+    reference_boosted_fighter,
+)
+from ose.equipment.vehicle import Mode, PlanarPointMass, VehicleCommand, VehicleState
 from ose.integration import step_rk4
 from ose.interfaces import (
     FuelMeasurement,
@@ -672,9 +675,10 @@ def test_the_promise_excludes_the_channels_the_margin_would_corrupt(manager):
     """
     est = _estimate()
     point = manager.capability(est)
-    heavier = manager.vehicle.capability(
-        est.as_vehicle_state(manager.capability_bound(est).mass_kg)
+    margined = dataclasses.replace(
+        manager.beliefs(), mass_kg=manager.capability_bound(est).mass_kg
     )
+    heavier = manager.vehicle.capability(manager.vehicle.state_from(est, margined))
 
     # Anti-conservative: the margined mass reports MORE of both.
     assert heavier.fuel_mass_kg > point.fuel_mass_kg
@@ -784,6 +788,117 @@ def test_feedforward_and_enforcement_do_not_use_the_promise(vehicle):
         "enforcement clipped against the promised envelope rather than the "
         "airframe -- a saturation finding would then mean estimator doubt"
     )
+
+
+# --------------------------------------------------------------------------
+# One manager, either model
+# --------------------------------------------------------------------------
+
+def _boosted():
+    return VehicleManager(reference_boosted_fighter(), STANDARD)
+
+
+def test_the_manager_serves_either_model_without_asking_which(vehicle):
+    """The modularity claim, checked rather than asserted in a docstring.
+
+    Identical calls against a five-state model and a six-state one. If this
+    needed a branch, guidance and the planner would need one too, and
+    swapping a boosted vehicle in would ripple to the top of the stack.
+    """
+    est = _estimate()
+    for manager in (VehicleManager(vehicle, STANDARD), _boosted()):
+        believed = manager.believed_state(est)
+        assert believed.mass_kg == pytest.approx(manager.mass_kg)
+        assert manager.capability(est).omega_available_rad_s > 0.0
+        assert manager.capability_bound(est).max_turn_rate_rad_s > 0.0
+        cmd, sat = manager.project_command(est, VehicleCommand(60_000.0, 0.0))
+        assert cmd.thrust_N > 0.0 and not sat.any
+        manager.predict(1.0, 60_000.0, BELIEVED_TSFC_KG_PER_N_S, est)
+        assert manager.mass(1.0).mass_kg < 16_000.0
+
+
+def test_the_model_builds_its_own_state_shape(vehicle):
+    """Five elements against six and a mode. The manager names neither."""
+    est = _estimate()
+    assert len(VehicleManager(vehicle, STANDARD).believed_state(est).to_array()) == 5
+    assert len(_boosted().believed_state(est).to_array()) == 6
+    assert _boosted().believed_state(est).mode is Mode.NOMINAL
+
+
+def test_the_thermal_belief_is_dead_reckoned_from_the_commanded_mode():
+    """The mass pattern, applied to the other consumable: something is spent
+    at a rate the platform can predict and nothing measures it.
+
+    The LAW stays on the model -- the manager integrates thermal_rate() and
+    does not recompute sigma_q, which would be reimplementing a rule the
+    vehicle owns.
+    """
+    est = _estimate()
+    manager = _boosted()
+    assert manager.beliefs().thermal == 0.0
+
+    manager.select_mode(0.0, Mode.BOOST)
+    for k in range(1, 151):                      # 15 s of boost at dt = 0.1
+        manager.predict(0.1 * k, 60_000.0, BELIEVED_TSFC_KG_PER_N_S, est)
+    hot = manager.beliefs().thermal
+    assert hot == pytest.approx(15.0 / 30.0, abs=0.02)   # tau_h = 30 s
+
+    manager.select_mode(15.0, Mode.NOMINAL)
+    for k in range(151, 301):
+        manager.predict(0.1 * k, 60_000.0, BELIEVED_TSFC_KG_PER_N_S, est)
+    assert manager.beliefs().thermal < hot, "the thermal state did not recover"
+
+
+def test_a_single_mode_model_never_grows_a_thermal_belief(vehicle):
+    """The baseline has no thermal law, so there is nothing to integrate and
+    the belief stays put. No branch in the manager says so -- it asks the
+    model for a rate and the baseline has none."""
+    est = _estimate()
+    manager = VehicleManager(vehicle, STANDARD)
+    for k in range(1, 101):
+        manager.predict(0.1 * k, 60_000.0, BELIEVED_TSFC_KG_PER_N_S, est)
+    assert manager.beliefs().thermal == 0.0
+
+
+def test_predicting_without_a_state_is_an_error_for_a_thermal_model():
+    """A silent no-op would be the worse failure: the thermal belief would
+    never move, boost would look free, and capability would over-report how
+    long it could be held with nothing failing. The argument stays optional
+    so a single-mode platform need not pass it."""
+    with pytest.raises(ValueError, match="thermal"):
+        _boosted().predict(1.0, 60_000.0, BELIEVED_TSFC_KG_PER_N_S)
+
+    # The baseline has no thermal state, so omitting it is fine.
+    VehicleManager(reference_fighter(), STANDARD).predict(
+        1.0, 60_000.0, BELIEVED_TSFC_KG_PER_N_S
+    )
+
+
+def test_the_manager_tracks_time_since_the_last_mode_change():
+    """What the switching set needs and cannot hold itself. Re-selecting the
+    same mode is not a transition."""
+    manager = _boosted()
+    manager.select_mode(10.0, Mode.BOOST)
+    assert manager.since_mode_change_s(13.0) == pytest.approx(3.0)
+
+    manager.select_mode(13.0, Mode.BOOST)            # same mode, no transition
+    assert manager.since_mode_change_s(13.0) == pytest.approx(3.0)
+
+    manager.select_mode(13.0, Mode.NOMINAL)
+    assert manager.since_mode_change_s(13.0) == pytest.approx(0.0)
+
+
+def test_the_believed_mode_reaches_the_model(vehicle):
+    """The manager carries the mode without interpreting it, and the model
+    interprets it. Available thrust is the visible consequence."""
+    est = _estimate()
+    manager = _boosted()
+
+    nominal = manager.capability(est).thrust_available_N
+    manager.select_mode(0.0, Mode.BOOST)
+    boosted = manager.capability(est).thrust_available_N
+
+    assert boosted > nominal
 
 
 # --------------------------------------------------------------------------

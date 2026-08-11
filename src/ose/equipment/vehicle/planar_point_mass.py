@@ -103,6 +103,36 @@ class PlanarPointMass:
         self.lam = constraints
         self.eta = environment
 
+    @property
+    def dry_mass_kg(self) -> float:
+        """The airframe's mass without fuel or payload.
+
+        Exposed by the model rather than left for a consumer to find in
+        lambda, because lambda's shape is model specific -- a switched model
+        composes the baseline's limits inside its own record -- and a
+        consumer navigating that structure would be coupled to the model it
+        is meant to be independent of.
+        """
+        return self.lam.mass_dry_kg
+
+    def state_from(self, estimate, beliefs) -> VehicleState:
+        """Dress a published own-state estimate as this model's state.
+
+        The model owns the shape of its own state, so the model is what turns
+        an estimate plus the platform's beliefs into one. Navigation supplies
+        position, heading and airspeed; mass comes from the beliefs. This
+        model has no use for the other beliefs and ignores them.
+
+        Not a truth read: every value came from an estimate or a belief.
+        """
+        return VehicleState(
+            estimate.p_x_m,
+            estimate.p_y_m,
+            estimate.psi_rad,
+            estimate.v_air_mps,
+            beliefs.mass_kg,
+        )
+
     # ---------------- aerodynamics ----------------
 
     def drag_N(self, v_mps: float, mass_kg: float, omega_rad_s: float) -> float:

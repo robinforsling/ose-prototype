@@ -16,6 +16,7 @@ enforce, and integrating a mode outside S_q produces a visible finding rather
 than a silent substitution.
 """
 
+import dataclasses
 import math
 
 import numpy as np
@@ -36,6 +37,13 @@ from ose.equipment.vehicle import (
     VehicleCommand,
 )
 from ose.integration import rk4_step
+
+
+
+def _at(state: BoostState, mode: Mode) -> BoostState:
+    """The same state, in a given mode. The mode is a discrete state, so a
+    test that varies only the mode says so by rebuilding the state."""
+    return dataclasses.replace(state, mode=mode)
 
 
 @pytest.fixture
@@ -99,8 +107,8 @@ def test_boost_improves_the_sustained_turn_not_the_instantaneous_one(vehicle):
 def test_boost_burns_more_fuel_for_the_same_thrust(vehicle, state):
     """c_tsfc_boost > c_tsfc_nom, and it is the mode alone that changes."""
     command = VehicleCommand(100e3, 0.0)
-    nom = vehicle.derivative(state, command, Mode.NOMINAL)
-    boost = vehicle.derivative(state, command, Mode.BOOST)
+    nom = vehicle.derivative(_at(state, Mode.NOMINAL), command)
+    boost = vehicle.derivative(_at(state, Mode.BOOST), command)
 
     assert boost[4] < nom[4] < 0.0                       # mdot, both negative
     assert boost[4] == pytest.approx(-6.0e-5 * 100e3)
@@ -114,13 +122,11 @@ def test_the_thermal_state_fills_under_boost_and_recovers_otherwise(vehicle):
     cold = BoostState(0.0, 0.0, 0.0, 250.0, 16000.0, 0.0)
     warm = BoostState(0.0, 0.0, 0.0, 250.0, 16000.0, 0.6)
 
-    assert vehicle.thermal_rate(cold, Mode.BOOST) == pytest.approx(1.0 / 30.0)
-    assert vehicle.thermal_rate(cold, Mode.NOMINAL) == pytest.approx(0.0)
-    assert vehicle.thermal_rate(warm, Mode.NOMINAL) == pytest.approx(-0.6 / 90.0)
+    assert vehicle.thermal_rate(_at(cold, Mode.BOOST)) == pytest.approx(1.0 / 30.0)
+    assert vehicle.thermal_rate(_at(cold, Mode.NOMINAL)) == pytest.approx(0.0)
+    assert vehicle.thermal_rate(_at(warm, Mode.NOMINAL)) == pytest.approx(-0.6 / 90.0)
     # Recovery is slower than accumulation, which is what makes boost costly.
-    assert abs(vehicle.thermal_rate(warm, Mode.NOMINAL)) < vehicle.thermal_rate(
-        warm, Mode.BOOST
-    )
+    assert abs(vehicle.thermal_rate(_at(warm, Mode.NOMINAL))) < vehicle.thermal_rate(_at(warm, Mode.BOOST))
 
 
 def test_sustained_boost_reaches_the_thermal_limit_in_tau_h(vehicle, state):
@@ -130,7 +136,7 @@ def test_sustained_boost_reaches_the_thermal_limit_in_tau_h(vehicle, state):
     command = VehicleCommand(150e3, 0.0)
 
     def f(x):
-        return vehicle.derivative(BoostState.from_array(x), command, Mode.BOOST)
+        return vehicle.derivative(BoostState.from_array(x, Mode.BOOST), command)
 
     x = state.to_array()
     dt = 0.1
@@ -176,31 +182,35 @@ def test_an_inadmissible_mode_is_reported_not_refused(vehicle):
     hot = BoostState(0.0, 0.0, 0.0, 250.0, 16000.0, 1.0)
     command = VehicleCommand(150e3, 0.0)
 
-    _, delivered, saturation = vehicle.project_command(hot, command, Mode.BOOST, 10.0)
+    cmd, saturation = vehicle.project_command(
+        hot, VehicleCommand(150e3, 0.0, mode=Mode.BOOST), 10.0)
+    delivered = cmd.mode
     assert delivered is Mode.NOMINAL
     assert any("not admissible" in note for note in saturation.notes)
 
     # But the model still integrates boost if boost is what it is given.
-    ignored = vehicle.derivative(hot, command, Mode.BOOST)
+    ignored = vehicle.derivative(_at(hot, Mode.BOOST), command)
     assert ignored[5] > 0.0, "thermal state kept accumulating, as commanded"
     assert ignored[4] == pytest.approx(-6.0e-5 * 150e3), "burned at the boost rate"
 
     over = BoostState(0.0, 0.0, 0.0, 250.0, 16000.0, 1.4)
-    assert any("thermal" in v for v in vehicle.state_violations(over, Mode.BOOST))
+    assert any("thermal" in v for v in vehicle.state_violations(_at(over, Mode.BOOST)))
 
 
 def test_the_thrust_ceiling_follows_the_delivered_mode(vehicle, state):
     """A command is clipped against the mode actually flown, not the one
     requested -- otherwise a denied boost would still raise the ceiling."""
     hot = BoostState(0.0, 0.0, 0.0, 250.0, 16000.0, 1.0)
-    ask = VehicleCommand(170e3, 0.0)          # inside boost, outside nominal
+    ask = VehicleCommand(170e3, 0.0, mode=Mode.BOOST)   # inside boost, outside nominal
 
-    cmd, mode, sat = vehicle.project_command(state, ask, Mode.BOOST, 10.0)
+    cmd, sat = vehicle.project_command(state, ask, 10.0)
+    mode = cmd.mode
     assert mode is Mode.BOOST
     assert cmd.thrust_N == pytest.approx(170e3)
     assert not sat.thrust_clipped
 
-    cmd, mode, sat = vehicle.project_command(hot, ask, Mode.BOOST, 10.0)
+    cmd, sat = vehicle.project_command(hot, ask, 10.0)
+    mode = cmd.mode
     assert mode is Mode.NOMINAL
     assert cmd.thrust_N == pytest.approx(FIGHTER_BOOST_LIMITS.nominal.thrust_max_N)
     assert sat.thrust_clipped
@@ -210,8 +220,8 @@ def test_the_speed_ceiling_is_mode_dependent(vehicle):
     """v_max_boost > v_max_nom, so the same state is a violation in one mode
     and not the other."""
     fast = BoostState(0.0, 0.0, 0.0, 650.0, 16000.0, 0.2)
-    assert any("above" in v for v in vehicle.state_violations(fast, Mode.NOMINAL))
-    assert not any("above" in v for v in vehicle.state_violations(fast, Mode.BOOST))
+    assert any("above" in v for v in vehicle.state_violations(_at(fast, Mode.NOMINAL)))
+    assert not any("above" in v for v in vehicle.state_violations(_at(fast, Mode.BOOST)))
 
 
 # --------------------------------------------------------------------------
@@ -221,14 +231,14 @@ def test_the_speed_ceiling_is_mode_dependent(vehicle):
 def test_capability_is_a_capability(vehicle, state):
     """Subclassing keeps a consumer typed to Capability working; only a
     consumer that cares about boost needs the wider type."""
-    c = vehicle.capability(state, Mode.NOMINAL)
+    c = vehicle.capability(_at(state, Mode.NOMINAL))
     assert isinstance(c, BoostCapability)
     assert isinstance(c, Capability)
 
 
 def test_boost_shortens_endurance_and_raises_available_thrust(vehicle, state):
-    nom = vehicle.capability(state, Mode.NOMINAL)
-    boost = vehicle.capability(state, Mode.BOOST)
+    nom = vehicle.capability(_at(state, Mode.NOMINAL))
+    boost = vehicle.capability(_at(state, Mode.BOOST))
 
     assert boost.thrust_available_N > nom.thrust_available_N
     assert boost.endurance_s < nom.endurance_s
@@ -241,7 +251,7 @@ def test_capability_reports_how_long_boost_could_be_held(vehicle):
     is the full tau_h, and it falls to zero at the limit."""
     for thermal, expected in ((0.0, 30.0), (0.5, 15.0), (1.0, 0.0)):
         s = BoostState(0.0, 0.0, 0.0, 250.0, 16000.0, thermal)
-        c = vehicle.capability(s, Mode.NOMINAL, since_transition_s=10.0)
+        c = vehicle.capability(_at(s, Mode.NOMINAL), since_transition_s=10.0)
         assert c.boost_time_remaining_s == pytest.approx(expected)
 
 
@@ -250,7 +260,7 @@ def test_capability_reports_whether_boost_is_selectable(vehicle):
     admissible_modes rather than being a second opinion about it."""
     for thermal, dwell in ((0.0, 10.0), (1.0, 10.0), (0.0, 1.0)):
         s = BoostState(0.0, 0.0, 0.0, 250.0, 16000.0, thermal)
-        c = vehicle.capability(s, Mode.NOMINAL, since_transition_s=dwell)
+        c = vehicle.capability(_at(s, Mode.NOMINAL), since_transition_s=dwell)
         assert c.boost_available == (
             Mode.BOOST in vehicle.admissible_modes(s, dwell)
         )

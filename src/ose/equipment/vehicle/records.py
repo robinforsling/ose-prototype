@@ -121,10 +121,19 @@ NO_DISTURBANCE = Disturbance()
 
 @dataclass
 class VehicleCommand:
-    """u = [T, omega]"""
+    """u = [T, omega], and for a switched model the mode being requested.
+
+    A model with one propulsion setting ignores the mode; a model with two
+    reads it as q+, the mode asked for, against the q it finds in the state.
+    An unused field on a command costs nothing -- unlike an unused state,
+    which would sit in the Jacobian and the integrator -- so this is shared
+    rather than split per model, and every project_command takes the same
+    arguments as a result.
+    """
 
     thrust_N: float
     omega_rad_s: float
+    mode: object | None = None
 
 
 @dataclass

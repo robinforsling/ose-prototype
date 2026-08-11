@@ -126,6 +126,7 @@ the contributions separately so it can be extended without a version bump.
 from __future__ import annotations
 
 import math
+import dataclasses
 from dataclasses import dataclass
 
 import numpy as np
@@ -135,6 +136,7 @@ from ose.interfaces import (
     FuelMeasurement,
     MassEstimate,
     OwnStateEstimate,
+    PlatformBeliefs,
     PromisedEnvelope,
 )
 
@@ -192,9 +194,23 @@ class VehicleManager:
         self._t = 0.0
         self._last_ingest_time = -math.inf
 
+        # The platform's other beliefs. Mode is opaque here on purpose: this
+        # component carries it between whoever selects it and the model that
+        # interprets it, and has no opinion about what the values mean. A
+        # single-mode model never sets it and never reads it.
+        self._mode: object | None = None
+        self._thermal = 0.0
+        self._mode_changed_at_s = 0.0
+
     # -- prediction -------------------------------------------------------
 
-    def predict(self, t_s: float, thrust_N: float, tsfc_kg_per_N_s: float) -> None:
+    def predict(
+        self,
+        t_s: float,
+        thrust_N: float,
+        tsfc_kg_per_N_s: float,
+        own_state: OwnStateEstimate | None = None,
+    ) -> None:
         """Propagate the fuel belief to t_s, burning at the commanded thrust.
 
         Both the thrust and the coefficient are held constant across the
@@ -245,7 +261,69 @@ class VehicleManager:
         ])
         self.P = Phi @ self.P @ Phi.T + Qc * dt
         self.P = 0.5 * (self.P + self.P.T)
+
+        self._predict_thermal(own_state, dt)
         self._t = t_s
+
+    def _predict_thermal(self, own_state: OwnStateEstimate | None, dt: float) -> None:
+        """Dead-reckon the thermal accumulator, if the model has one.
+
+        Same shape as the mass belief: something is consumed at a rate the
+        platform can predict, nothing measures it, so the belief is
+        propagated. Mass burns at the commanded thrust; the thermal state
+        fills at the commanded mode.
+
+        The LAW belongs to the model, which publishes it as a rate (ADR 0004),
+        and this component only integrates it. Recomputing sigma_q here would
+        be a consumer reimplementing a rule the vehicle already owns, which is
+        the mistake guidance made with the stall floor.
+
+        There is no correction source, so this is prediction only -- the
+        TimeEstimator situation. The covariance is not tracked because nothing
+        yet consumes a thermal uncertainty; when something does, it belongs in
+        the filter alongside fuel rather than bolted on here.
+        """
+        rate = getattr(self.vehicle, "thermal_rate", None)
+        if rate is None:
+            return                      # the model has nothing to accumulate
+        if own_state is None:
+            # Loudly, because the alternative is a thermal belief that never
+            # moves: boost would look free, capability would over-report how
+            # long it could be held, and nothing would fail. The argument is
+            # optional only so that a single-mode platform need not pass it.
+            raise ValueError(
+                "predict() needs own_state for a model with a thermal state, "
+                "or the belief silently never accumulates"
+            )
+        believed = self.vehicle.state_from(own_state, self.beliefs())
+        self._thermal = max(self._thermal + rate(believed) * dt, 0.0)
+
+    # -- the propulsion mode ----------------------------------------------
+
+    def select_mode(self, t_s: float, mode: object) -> None:
+        """Record the mode the platform is now in.
+
+        Carried, not decided and not interpreted. The decision is a planning
+        one -- the thermal budget and the fuel reserve are finite and
+        contested, so a guidance loop chasing a speed setpoint must not be
+        able to spend them. This component holds the mode because it already
+        holds the beliefs a model needs, and because holding it is what lets
+        it track the time since the last transition that the switching set
+        asks for.
+        """
+        if mode != self._mode:
+            self._mode_changed_at_s = t_s
+        self._mode = mode
+
+    def since_mode_change_s(self, t_s: float) -> float:
+        """What the model's switching set needs and cannot hold itself.
+
+        t - t_q is history, not state, and a pure declaration cannot reach it.
+        Adding a state to carry it would pay for a decision-hygiene rule with
+        the integrator, so the model takes it as an argument and this
+        component -- which sees every transition -- supplies it.
+        """
+        return t_s - self._mode_changed_at_s
 
     # -- correction -------------------------------------------------------
 
@@ -299,7 +377,7 @@ class VehicleManager:
     def mass_kg(self) -> float:
         """The believed mass, as a bare number, for internal use and for
         callers that genuinely want only the scalar."""
-        return self.par.payload_mass_kg + self.vehicle.lam.mass_dry_kg + self._fuel_kg
+        return self.par.payload_mass_kg + self.vehicle.dry_mass_kg + self._fuel_kg
 
     def mass(self, t_s: float) -> MassEstimate:
         """Publish vehicle.mass.v1.
@@ -312,7 +390,7 @@ class VehicleManager:
         return MassEstimate(
             t_s=t_s,
             mass_kg=self.mass_kg,
-            dry_mass_kg=self.vehicle.lam.mass_dry_kg,
+            dry_mass_kg=self.vehicle.dry_mass_kg,
             payload_mass_kg=self.par.payload_mass_kg,
             fuel_mass_kg=self._fuel_kg,
             tsfc_error=self._tsfc_error,
@@ -328,16 +406,31 @@ class VehicleManager:
     # Republishing a Capability alone would have left guidance holding a
     # PlanarPointMass anyway, and the mass parameter with it.
 
-    def believed_state(self, own_state: OwnStateEstimate):
-        """The estimate, dressed as a VehicleState at the believed mass.
+    def beliefs(self) -> PlatformBeliefs:
+        """Everything this component believes about the platform that
+        navigation does not estimate."""
+        return PlatformBeliefs(
+            mass_kg=self.mass_kg,
+            thermal=self._thermal,
+            mode=self._mode,
+        )
 
-        The single home for as_vehicle_state(). Guidance called it before,
-        which is what forced a mass parameter through every signature above
-        it. Returned rather than kept private because the demos and the
-        eventual simulation core need it, but note that it is a *believed*
-        state: the values came from an estimate, not a privileged query.
+    def believed_state(self, own_state: OwnStateEstimate):
+        """The estimate, dressed as the model's own state at the beliefs this
+        component holds.
+
+        The model builds it, because the model owns the shape of its state --
+        five elements for a point mass, six and a mode for a switched one.
+        This component supplies what navigation does not estimate and never
+        names a state type, which is what lets it serve either model without
+        asking which it holds.
+
+        Returned rather than kept private because the demos and the eventual
+        simulation core need it, but note that it is a *believed* state: the
+        values came from an estimate and from beliefs, not from a privileged
+        query.
         """
-        return own_state.as_vehicle_state(self.mass_kg)
+        return self.vehicle.state_from(own_state, self.beliefs())
 
     def capability(
         self, own_state: OwnStateEstimate, omega_rad_s: float = 0.0
@@ -390,7 +483,10 @@ class VehicleManager:
         """
         sigma = math.sqrt(max(self.P[I_FUEL, I_FUEL], 0.0))
         heavier = self.mass_kg + self.par.capability_margin_sigma * sigma
-        envelope = self.vehicle.capability(own_state.as_vehicle_state(heavier))
+        margined = dataclasses.replace(self.beliefs(), mass_kg=heavier)
+        envelope = self.vehicle.capability(
+            self.vehicle.state_from(own_state, margined)
+        )
 
         return PromisedEnvelope(
             max_turn_rate_rad_s=envelope.omega_available_rad_s,
