@@ -11,7 +11,7 @@ exchangeable model components.
 ## Decision
 
 ROS 2 and HLA are rejected. FMI is deferred, and if adopted will be an optional
-adapter at the resource layer rather than the integration backbone.
+adapter at the equipment layer rather than the integration backbone.
 
 ## Consequences
 

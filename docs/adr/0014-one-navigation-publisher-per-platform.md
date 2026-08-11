@@ -6,7 +6,7 @@ Date: 2026-08-10
 ## Context
 
 Two components published `vehicle.state.v1`: `InsGnssEstimator` in the
-subsystem layer, and `IntegratedNavUnit` in the resource layer as the
+subsystem layer, and `IntegratedNavUnit` in the equipment layer as the
 deliberate layer collapse ADR 0009 describes. A consumer could bind to either,
 and nothing prevented a platform being configured with both -- sensors and an
 estimator alongside a black box that ignores them.
@@ -46,10 +46,10 @@ them and raises `TypeError` for those that do not, because sensors publishing
 into a black box that ignores them is a configuration error that a silent
 no-op would hide behind plausible output.
 
-`IntegratedNavUnit` stays in the resource layer and keeps reading truth. The
+`IntegratedNavUnit` stays in the equipment layer and keeps reading truth. The
 manager cannot drive it -- `update()` takes ground truth, which a subsystem
 component may not touch -- so the simulation core updates it as it does any
-resource, and the manager only reads the estimate it publishes.
+other equipment, and the manager only reads the estimate it publishes.
 
 The choice of source is made at composition time and never revisited at
 runtime. Runtime arbitration -- hold several, publish whichever is currently

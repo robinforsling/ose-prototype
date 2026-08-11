@@ -1,4 +1,4 @@
-# 0009. Split navigation across the resource and subsystem layers
+# 0009. Split navigation across the equipment and subsystem layers
 
 Status: accepted
 Date: 2026-08-09
@@ -6,8 +6,8 @@ Date: 2026-08-09
 ## Context
 
 `InsGnssNavigation` combined sensor error models with the estimation filter in
-one resource-layer component. The filter is predominantly cyber and, by the
-layer definitions in `docs/10-concepts.md`, does not belong in the resource
+one equipment-layer component. The filter is predominantly cyber and, by the
+layer definitions in `docs/10-concepts.md`, does not belong in the equipment
 layer.
 
 The decisive symptom was the signature:
@@ -28,7 +28,7 @@ so the filter silently knew the true error statistics of its own sensors.
 
 ## Decision
 
-Split into sensors (resource layer: `Imu`, `GnssReceiver`, `AirDataSensor`)
+Split into sensors (equipment layer: `Imu`, `GnssReceiver`, `AirDataSensor`)
 and an estimator (subsystem layer: `InsGnssEstimator`), communicating only
 through measurement records (`ImuMeasurement`, `GnssFix`,
 `AirDataMeasurement`) defined in `interfaces.py`. Every record carries its own
@@ -40,7 +40,7 @@ The estimator's public interface (`ingest`/`estimate`, the
 `NavigationEstimator` protocol) contains no truth-carrying type. This is
 enforced by `test_estimator_cannot_see_truth`, which parses
 `subsystem/navigation_state_estimator.py` with `ast` and fails if it imports
-`VehicleState` or `Disturbance` from `ose.resource.vehicle`, or if any public
+`VehicleState` or `Disturbance` from `ose.equipment.vehicle`, or if any public
 method takes a parameter named `true_*`.
 
 `ingest` dispatches on measurement type rather than exposing named per-type
@@ -58,11 +58,11 @@ checks the resulting estimates are identical to floating-point equality.
 
 The filter's assumed IMU-bias behaviour and its wind process model
 (`EstimatorParameters`) are now the estimator's own prior, separate from
-whatever the true sensor in `resource/imu.py` actually does; only the
+whatever the true sensor in `equipment/imu.py` actually does; only the
 white-noise part of the process model is taken from the incoming
 measurement's declared sigma.
 
-`IntegratedNavUnit` (`resource/integrated_nav.py`) replaces
+`IntegratedNavUnit` (`equipment/integrated_nav.py`) replaces
 `AdditiveNoiseNavigation` as a deliberate collapse of both layers into one
 black-box component: valid scaffolding when navigation is not the component
 under test, not a baseline for any claim about navigation performance. It

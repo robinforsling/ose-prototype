@@ -25,4 +25,4 @@ architectural problem.
 
 A contributor wishing to supply a component in another language has no route in
 at present. See ADR 0003 for what was rejected, and note that FMI import at the
-resource layer remains the intended escape hatch if this becomes pressing.
+equipment layer remains the intended escape hatch if this becomes pressing.

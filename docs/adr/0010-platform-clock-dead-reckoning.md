@@ -10,9 +10,9 @@ drifts, and every timestamp used to align measurements ultimately depends on
 that oscillator being roughly right. Until now, `valid_time_s` on every
 measurement record has been the simulation's ambient true time -- a
 convenience, not a claim that any platform actually has perfect access to it.
-Introducing a `Clock` resource is the first component to model that
-this access is imperfect, following the same resource/subsystem split as
-navigation (ADR 0009): a resource-layer sensor corrupts truth into a
+Introducing a `Clock` is the first component to model that
+this access is imperfect, following the same equipment/subsystem split as
+navigation (ADR 0009): a equipment-layer sensor corrupts truth into a
 measurement record carrying its own declared uncertainty; a subsystem-layer
 estimator consumes that record and never sees truth.
 
@@ -27,7 +27,7 @@ error, not a limitation of this implementation.
 
 ## Decision
 
-`Clock` (`resource/clock.py`) corrupts true elapsed time with two error
+`Clock` (`equipment/clock.py`) corrupts true elapsed time with two error
 sources: `drift`, a fractional frequency offset modelled as a first-order
 Gauss-Markov process (`drift_sigma`/`drift_tau_s`), the same structure as
 `Imu`'s accelerometer and gyro bias; and a fixed per-reading white-noise

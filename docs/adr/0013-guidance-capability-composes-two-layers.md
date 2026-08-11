@@ -3,7 +3,7 @@
 Status: accepted, amended by ADR 0015 and ADR 0016
 Date: 2026-08-10
 
-Extends ADR 0012, which established the capability contract for resource-layer
+Extends ADR 0012, which established the capability contract for equipment-layer
 components. This record covers the first subsystem-layer capability model and
 the composition rule it required. ADR 0012's other decisions -- the unfixed
 return type, per-channel accuracy, capability as a tested claim -- stand
@@ -11,8 +11,8 @@ unchanged and apply here too.
 
 ## Context
 
-Capability began as a resource-layer idea, on the reasoning that the categories
-`docs/40-composition-spec.md` defines envelopes for are all resource-layer, and
+Capability began as a equipment-layer idea, on the reasoning that the categories
+`docs/40-composition-spec.md` defines envelopes for are all equipment-layer, and
 that nothing had yet needed to ask a filter or a guidance law what it could
 achieve.
 
@@ -63,7 +63,7 @@ Capability composes across the layer boundary, which is the property that
 makes the modularity claim real rather than decorative. Swapping a
 tactical-grade IMU for a worse one widens the navigation covariance, which
 widens the guidance hold sigma, without a line changing in guidance. A planner
-reading `GuidanceCapability` sees the consequence of a resource-layer
+reading `GuidanceCapability` sees the consequence of a equipment-layer
 substitution three layers down.
 
 The hold sigmas are floors, not guarantees, and this is the most likely way

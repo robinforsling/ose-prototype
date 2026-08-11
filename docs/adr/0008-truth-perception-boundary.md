@@ -1,4 +1,4 @@
-# 0008. Only the resource layer may read ground truth
+# 0008. Only the equipment layer may read ground truth
 
 Status: accepted
 Date: 2026-08-09
@@ -10,9 +10,9 @@ sensors.
 
 ## Decision
 
-Only components declaring `layer: resource` may hold a port of type `truth.*`.
+Only components declaring `layer: equipment` may hold a port of type `truth.*`.
 This is enforced by the descriptor validator at import time, not by convention.
-Everything above the resource layer consumes published estimates.
+Everything above the equipment layer consumes published estimates.
 
 The rule extends to capability assessment. The capability model is a function of
 the disturbance, which is a property of the environment; evaluating it with true

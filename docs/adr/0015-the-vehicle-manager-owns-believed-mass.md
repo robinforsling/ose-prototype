@@ -73,7 +73,7 @@ The sole-consumer rule is enforced as an import rule, because "only the manager
 consumes vehicle capability" is not decidable at a call site without type
 inference, while "only the manager holds a `Vehicle2D`" is, and it is the same
 rule with a checkable edge. Three exemptions, each for its own reason: the
-resource layer owns the vehicle and `Imu` is a peer rather than a consumer
+equipment layer owns the vehicle and `Imu` is a peer rather than a consumer
 above it; `ose/integration.py` steps the model instead of asking it what it can
 do, which is the simulation core's job living outside the components per ADR
 0004; and the manager itself.

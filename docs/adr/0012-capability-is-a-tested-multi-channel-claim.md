@@ -11,7 +11,7 @@ than reimplementing its internals, and the binder validates a composition
 without executing it. `docs/10-concepts.md` claimed every component published
 one.
 
-An audit found the claim was largely aspirational. One of seven resources had
+An audit found the claim was largely aspirational. One of seven equipment components had
 a capability model at all (`Vehicle2D`), it was exposed through no interface --
 `Capability` was defined inside `vehicle.py`, making it a vehicle-specific type
 rather than a contract -- it had no tests, and its only consumer was a demo
@@ -59,23 +59,23 @@ must have a test that it is honest, the same obligation ADR 0009 established
 for declared uncertainty. The tests integrate the dynamics forward and check
 the component delivers what it claimed.
 
-Every resource-layer component publishes a capability model. A subsystem-layer
+Every equipment-layer component publishes a capability model. A subsystem-layer
 component publishes one when a consumer needs it, rather than as a blanket
 requirement -- the two estimators publish none, because nothing asks them.
 Where a subsystem component does publish one it is typically *composed* from
 the layers beneath it rather than merely reported, since a cyber component's
-reach is bounded by the resources it drives and the estimates it consumes.
+reach is bounded by the equipment it drives and the estimates it consumes.
 `VehicleGuidance` is the worked example; see ADR 0013.
 
 ## Consequences
 
-Every resource can now be asked the same question, and the test that says so
-discovers resource modules by walking the package rather than listing them.
-That was not the first attempt: a hand-written list under the name "every
-resource" quietly omitted `IntegratedNavUnit`, which had no capability model at
-all, and passed. A test whose name claims completeness and whose body encodes a
+Every equipment component can now be asked the same question, and the test that says so
+discovers equipment modules by walking the package rather than listing them.
+That was not the first attempt: a hand-written list, under a name promising
+all of them, quietly omitted `IntegratedNavUnit`, which had no capability
+model at all, and passed. A test whose name claims completeness and whose body encodes a
 snapshot is worse than an obviously partial one, because it stops anyone
-looking. Adding a resource without a capability model now fails.
+looking. Adding equipment without a capability model now fails.
 
 The honesty tests were verified by deliberately breaking five capability
 claims (inflated sustained turn rate, overstated endurance, understated turn
