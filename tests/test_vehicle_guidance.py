@@ -17,12 +17,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from ose import interfaces
 from _truth_boundary import (
     assert_no_truth_parameters,
     assert_no_truth_types,
     component_path,
 )
+
+from ose import interfaces
 from ose.equipment.reference_configs.reference_vehicle import reference_fighter
 from ose.equipment.vehicle import VehicleState
 from ose.integration import step_rk4

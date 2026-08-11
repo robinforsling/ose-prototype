@@ -239,6 +239,19 @@ doing what it was already doing. Stopping is an action in its own right and
 must be commanded as one, because omission is what silence looks like and
 silence has to be safe.
 
+`merged_onto(previous)` is that rule made executable: it returns this
+cycle's action with absent fields carried over from the last committed one.
+It lives on the record rather than in a consumer because the rule is
+per-field, not per-consumer -- a vehicle system would latch `motion`, a
+sensor system `sensing`, and each would otherwise reimplement it. The
+consumer still holds the state, one `ActionSet` however many fields it
+grows.
+
+A test walks the dataclass and fails if any field is missing from the merge,
+because a field added to the record and forgotten there would silently reset
+to None every cycle: a subsystem losing its last commanded action with
+nothing raising.
+
 ## Capability, which is not a port
 
 `CapabilityModel`, `SensorCapability` and `MeasurementChannel` live in

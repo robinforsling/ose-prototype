@@ -30,6 +30,7 @@ from _truth_boundary import (
     assert_no_truth_types,
     component_path,
 )
+
 from ose.equipment.fuel_gauge import FuelGauge
 from ose.equipment.reference_configs.reference_fuel_gauge import STANDARD as GAUGE
 from ose.equipment.reference_configs.reference_vehicle import reference_fighter

@@ -104,7 +104,7 @@ from ose.equipment.reference_configs.reference_fuel_gauge import (
 from ose.equipment.reference_configs.reference_vehicle import reference_fighter
 from ose.equipment.vehicle import VehicleState
 from ose.integration import step_rk4
-from ose.interfaces import HeadingSpeedSetpoint, OwnStateEstimate
+from ose.interfaces import ActionSet, HeadingSpeedSetpoint, OwnStateEstimate
 from ose.single_ship.action_planner import Waypoint, WaypointPlanner
 from ose.single_ship.reference_configs.reference_action_planner import (
     STANDARD as PLANNER_STANDARD,
@@ -223,7 +223,9 @@ def fly() -> tuple[dict[str, np.ndarray], list[float]]:
     # Seeded with "hold what you are already doing", so the absent-field
     # semantics are well defined even before the planner has said anything
     # and even if the route is empty.
-    last_motion = HeadingSpeedSetpoint(state.psi_rad, state.v_mps)
+    committed = ActionSet(
+        t_s=0.0, motion=HeadingSpeedSetpoint(state.psi_rad, state.v_mps)
+    )
 
     captures: list[float] = []
     previous_index = 0
@@ -241,14 +243,12 @@ def fly() -> tuple[dict[str, np.ndarray], list[float]]:
         capability = guidance.capability(estimate)
         actions = planner.plan(t, estimate, capability)
 
-        # The absent-field rule, ADR-pinned and currently the caller's job:
+        # The absent-field rule, applied by the record that defines it:
         # motion=None means "no new action, continue as before", so the last
-        # setpoint stays in force. It does NOT mean stop. Every caller
-        # implements this today; it would belong to a vehicle system if one
-        # existed.
-        if actions.motion is not None:
-            last_motion = actions.motion
+        # setpoint stays in force. It does NOT mean stop. Callers used to
+        # each write this branch themselves.
         holding = actions.motion is None
+        committed = actions.merged_onto(committed)
 
         if planner.index != previous_index:
             captures.append(t)
@@ -257,7 +257,7 @@ def fly() -> tuple[dict[str, np.ndarray], list[float]]:
             t_route_done = t
             print(f"  route complete at t={t:.1f} s; holding last action")
 
-        cmd, sat = guidance.command(t, last_motion, estimate)
+        cmd, sat = guidance.command(t, committed.motion, estimate)
         envelope = vehicle.capability(state)
 
         rec.t.append(t)
@@ -270,9 +270,9 @@ def fly() -> tuple[dict[str, np.ndarray], list[float]]:
         rec.mass_believed.append(believed.mass_kg)
         rec.mass_sigma.append(believed.mass_sigma_kg)
         rec.psi_cmd.append(
-            math.degrees(math.remainder(last_motion.psi_cmd_rad, 2.0 * math.pi))
+            math.degrees(math.remainder(committed.motion.psi_cmd_rad, 2.0 * math.pi))
         )
-        rec.v_cmd.append(last_motion.v_cmd_mps)
+        rec.v_cmd.append(committed.motion.v_cmd_mps)
 
         # NaN once the route is done: there is no active waypoint, so there is
         # no range and no capture radius. Recording the last value instead

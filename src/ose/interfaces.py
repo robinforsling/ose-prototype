@@ -255,10 +255,36 @@ class ActionSet:
     right and has to be expressed as one -- a zero-rate setpoint, say -- not
     by omission, because omission is what silence looks like and silence has
     to be safe.
+
+    `merged_onto` is that rule made executable, and lives here rather than in
+    a consumer because it is per-FIELD, not per-consumer. Once this record
+    carries sensing and effect alongside motion, a vehicle system would latch
+    motion, a sensor system would latch sensing, and each would reimplement
+    the identical rule slightly differently. The record that defines the
+    semantics is the one place that only has to get them right once.
     """
 
     t_s: float
     motion: "HeadingSpeedSetpoint | TurnRateSpeedSetpoint | None" = None
+
+    def merged_onto(self, previous: "ActionSet") -> "ActionSet":
+        """This cycle's action, with absent fields carried over from the last
+        committed one.
+
+        The consumer still holds the state -- one ActionSet, however many
+        fields it grows -- because being partway through a plan is a property
+        of the thing executing it, not of a record describing one instant.
+
+        Every field except t_s must appear here.
+        test_every_action_field_participates_in_the_merge walks the dataclass
+        and fails if one does not, because a field added to the record and
+        forgotten here would silently reset to None every cycle: a subsystem
+        losing its last commanded action with nothing raising.
+        """
+        return ActionSet(
+            t_s=self.t_s,
+            motion=self.motion if self.motion is not None else previous.motion,
+        )
 
 
 @runtime_checkable

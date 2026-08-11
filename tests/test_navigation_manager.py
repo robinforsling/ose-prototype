@@ -15,12 +15,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from ose import interfaces
 from _truth_boundary import (
     assert_no_truth_parameters,
     assert_no_truth_types,
     component_path,
 )
+
+from ose import interfaces
 from ose.equipment.integrated_navigation_unit import IntegratedNavUnit
 from ose.equipment.reference_configs.reference_integrated_navigation_unit import (
     STANDARD as INTEGRATED_NAV_STANDARD,

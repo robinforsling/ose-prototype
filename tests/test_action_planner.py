@@ -13,18 +13,20 @@ it later.
 """
 
 import ast
+import dataclasses
 import math
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from ose import interfaces
 from _truth_boundary import (
     assert_no_equipment_imports,
     assert_no_truth_parameters,
     component_path,
 )
+
+from ose import interfaces
 from ose.equipment.reference_configs.reference_vehicle import reference_fighter
 from ose.equipment.vehicle import VehicleState
 from ose.integration import step_rk4
@@ -115,6 +117,77 @@ def test_an_empty_route_is_immediately_finished(guidance, state):
     planner = WaypointPlanner([], STANDARD)
     est = _estimate(state)
     assert planner.plan(0.0, est, guidance.capability(est)).motion is None
+
+
+# --------------------------------------------------------------------------
+# Carrying an absent field over -- the rule, rather than each caller's copy
+# --------------------------------------------------------------------------
+
+def _action_fields():
+    fields = [f.name for f in dataclasses.fields(ActionSet) if f.name != "t_s"]
+    assert fields, "ActionSet has no action fields -- these tests are vacuous"
+    return fields
+
+
+def test_every_action_field_participates_in_the_merge():
+    """The guard that has to exist before there is a second field.
+
+    A field added to ActionSet and forgotten in merged_onto would silently
+    reset to None every cycle, so a subsystem would lose its last commanded
+    action with nothing raising. Walking the dataclass makes that impossible
+    to introduce quietly, which is the same failure PromisedEnvelope's
+    direction table exists to prevent.
+
+    Distinct sentinel objects rather than real setpoints: this is about
+    whether each field is plumbed through at all, not about what it holds.
+    """
+    fields = _action_fields()
+    previous = ActionSet(t_s=0.0, **{name: object() for name in fields})
+    silent = ActionSet(t_s=1.0)                      # nothing new to say
+
+    merged = silent.merged_onto(previous)
+
+    for name in fields:
+        assert getattr(merged, name) is getattr(previous, name), (
+            f"ActionSet.{name} is not carried over by merged_onto(); an absent "
+            "value resets it instead of continuing the last committed one"
+        )
+
+
+def test_a_stated_action_overrides_the_previous_one():
+    """The other half: present means present. A rule that only ever carried
+    forward would freeze the platform on its first action."""
+    fields = _action_fields()
+    previous = ActionSet(t_s=0.0, **{name: object() for name in fields})
+    fresh = ActionSet(t_s=1.0, **{name: object() for name in fields})
+
+    merged = fresh.merged_onto(previous)
+
+    for name in fields:
+        assert getattr(merged, name) is getattr(fresh, name), (
+            f"ActionSet.{name} kept the previous value over a stated one"
+        )
+
+
+def test_the_merge_takes_the_new_timestamp():
+    """t_s labels this cycle, not the cycle the carried-over action came
+    from -- otherwise a held action would make time appear to stop."""
+    previous = ActionSet(t_s=0.0, motion=HeadingSpeedSetpoint(0.0, 250.0))
+    assert ActionSet(t_s=7.5).merged_onto(previous).t_s == 7.5
+
+
+def test_merging_is_the_rule_the_route_end_relies_on(vehicle, guidance, state):
+    """End to end on the record alone: once the route is exhausted the
+    planner says nothing, and the committed action is unchanged."""
+    planner = WaypointPlanner([Waypoint(10.0, 0.0, 250.0)], STANDARD)
+    est = _estimate(state)
+
+    committed = ActionSet(t_s=0.0, motion=HeadingSpeedSetpoint(1.23, 251.0))
+    committed = planner.plan(0.0, est, guidance.capability(est)).merged_onto(committed)
+
+    assert planner.finished
+    assert committed.motion.psi_cmd_rad == 1.23
+    assert committed.motion.v_cmd_mps == 251.0
 
 
 # --------------------------------------------------------------------------
@@ -215,13 +288,13 @@ def test_flies_the_whole_route(vehicle, guidance, state):
     ]
     planner = WaypointPlanner(route, STANDARD)
 
+    committed = ActionSet(t_s=0.0, motion=HeadingSpeedSetpoint(0.0, 250.0))
     dt, t = 0.05, 0.0
     while t < 900.0 and not planner.finished:
         est = _estimate(state, t)
-        actions = planner.plan(t, est, guidance.capability(est))
-        if actions.motion is not None:
-            cmd, _ = guidance.command(t, actions.motion, est)
-            state = step_rk4(vehicle, state, cmd, dt)
+        committed = planner.plan(t, est, guidance.capability(est)).merged_onto(committed)
+        cmd, _ = guidance.command(t, committed.motion, est)
+        state = step_rk4(vehicle, state, cmd, dt)
         t += dt
 
     assert planner.finished, f"only reached waypoint {planner.index} of {len(route)}"
@@ -233,15 +306,15 @@ def test_holding_pattern_after_the_route_keeps_flying(vehicle, guidance, state):
     caller has no new motion action, keeps the last command, and the vehicle
     carries on rather than stopping or falling out of the sky."""
     planner = WaypointPlanner([Waypoint(4000.0, 0.0, 250.0)], STANDARD)
-    last = HeadingSpeedSetpoint(0.0, 250.0)
+    committed = ActionSet(t_s=0.0, motion=HeadingSpeedSetpoint(0.0, 250.0))
 
     dt, t = 0.05, 0.0
     while t < 120.0:
         est = _estimate(state, t)
-        actions = planner.plan(t, est, guidance.capability(est))
-        if actions.motion is not None:
-            last = actions.motion              # otherwise: continue as before
-        cmd, _ = guidance.command(t, last, est)
+        # merged_onto is the rule: an absent motion leaves the last one
+        # standing, so the loop needs no branch of its own.
+        committed = planner.plan(t, est, guidance.capability(est)).merged_onto(committed)
+        cmd, _ = guidance.command(t, committed.motion, est)
         state = step_rk4(vehicle, state, cmd, dt)
         t += dt
 

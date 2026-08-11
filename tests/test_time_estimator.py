@@ -20,12 +20,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from ose import interfaces
 from _truth_boundary import (
     assert_no_equipment_imports,
     assert_no_truth_parameters,
     component_path,
 )
+
+from ose import interfaces
 from ose.equipment.clock import Clock
 from ose.equipment.reference_configs.reference_clock import STANDARD
 from ose.interfaces import ClockMeasurement
