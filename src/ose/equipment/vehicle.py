@@ -48,39 +48,56 @@ from ose.environment import Environment
 # --------------------------------------------------------------------------
 
 @dataclass(frozen=True)
+class VehicleGeometry:
+    """What a contributor actually knows about an airframe.
+
+    The authored form of the aerodynamics, as distinct from the lumped form
+    the dynamics use. A configuration states wing area and a drag polar;
+    VehicleParameters holds c_p, c_i and c_l, which are products of those and
+    of the environment. Keeping the two apart is what lets a configuration be
+    data -- a record, and one day a block of YAML -- rather than a function
+    that has to run to produce a vehicle.
+
+    Note what to_parameters() needs: g. The lumped induced-drag parameter is
+    not a property of the airframe alone, so the same geometry yields
+    different parameters in different environments. That is the reason a
+    configuration must not pin an environment: doing so silently fixes an
+    airframe to one gravity and one air density.
+    """
+
+    wing_area_m2: float
+    cd0: float                  # zero-lift drag coefficient
+    oswald_e: float             # span efficiency
+    aspect_ratio: float
+    cl_max: float
+    tsfc_kg_per_N_s: float
+
+    def to_parameters(self, environment: Environment) -> "VehicleParameters":
+        """Lump the geometry into the parameters the dynamics integrate."""
+        return VehicleParameters(
+            c_p=0.5 * self.wing_area_m2 * self.cd0,
+            c_i=(
+                2.0 * environment.g**2
+                / (math.pi * self.oswald_e * self.aspect_ratio * self.wing_area_m2)
+            ),
+            c_l=0.5 * self.wing_area_m2 * self.cl_max,
+            c_tsfc=self.tsfc_kg_per_N_s,
+        )
+
+
+@dataclass(frozen=True)
 class VehicleParameters:
-    """theta: aerodynamic and propulsion parameters of the vehicle."""
+    """theta: aerodynamic and propulsion parameters of the vehicle.
+
+    The lumped form, derived from VehicleGeometry and an Environment. Written
+    directly only when someone genuinely has c_p and c_i rather than a drag
+    polar; a configuration should author geometry instead.
+    """
 
     c_p: float          # parasite drag parameter, 0.5 * S * C_D0            [m^2]
     c_i: float          # induced drag parameter, 2 g^2 / (pi e AR S)        [1/s^4]
     c_l: float          # lift parameter, 0.5 * S * C_Lmax                   [m^2]
     c_tsfc: float       # thrust specific fuel consumption                   [kg/(N s)]
-
-    @classmethod
-    def from_geometry(
-        cls,
-        wing_area_m2: float,
-        cd0: float,
-        oswald_e: float,
-        aspect_ratio: float,
-        cl_max: float,
-        tsfc_kg_per_N_s: float,
-        g: float,
-    ) -> "VehicleParameters":
-        """Build the lumped parameters from conventional aerodynamic geometry.
-
-        Useful when a contributor knows S, C_D0, e, AR rather than c_p, c_i.
-        g is the gravitational acceleration used to derive the induced drag
-        parameter; callers supply it explicitly (e.g. from a reference
-        environment) rather than relying on an implicit standard-gravity
-        default here, per the shape/data split in ose/environment.py.
-        """
-        return cls(
-            c_p=0.5 * wing_area_m2 * cd0,
-            c_i=2.0 * g**2 / (math.pi * oswald_e * aspect_ratio * wing_area_m2),
-            c_l=0.5 * wing_area_m2 * cl_max,
-            c_tsfc=tsfc_kg_per_N_s,
-        )
 
 
 @dataclass(frozen=True)

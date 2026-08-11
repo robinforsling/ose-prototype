@@ -5,18 +5,26 @@ happened to come out of a run. A failure means either the model changed or the
 document is no longer being honoured -- both worth knowing about.
 """
 
+import dataclasses
 import math
 
 import numpy as np
 import pytest
 
-from ose.equipment.reference_configs.reference_vehicle import reference_fighter
+from ose.equipment.reference_configs.reference_vehicle import (
+    FIGHTER_GEOMETRY,
+    FIGHTER_LIMITS,
+    reference_fighter,
+)
 from ose.equipment.vehicle import (
     NO_DISTURBANCE,
     Disturbance,
     VehicleCommand,
+    VehicleGeometry,
     VehicleState,
 )
+from ose.environment import Environment
+from ose.reference_configs.reference_environment import ISA_SEA_LEVEL
 from ose.integration import step_rk4
 
 G = 9.80665
@@ -30,6 +38,65 @@ def vehicle():
 @pytest.fixture
 def state():
     return VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
+
+
+# --------------------------------------------------------------------------
+# A configuration is data
+# --------------------------------------------------------------------------
+
+def test_the_configuration_is_records_not_a_factory():
+    """What makes a vehicle configuration authorable by someone who only has
+    numbers. Every other reference config in the package is a plain record;
+    the vehicle used to be a function that derived parameters, chose an
+    environment and constructed a component in one step."""
+    assert isinstance(FIGHTER_GEOMETRY, VehicleGeometry)
+    assert dataclasses.is_dataclass(FIGHTER_LIMITS)
+    # And the geometry is the authored form, not the lumped one: a
+    # contributor states a drag polar, not c_p and c_i.
+    assert FIGHTER_GEOMETRY.wing_area_m2 == 38.0
+    assert FIGHTER_GEOMETRY.cd0 == 0.022
+
+
+def test_geometry_lumps_by_the_documented_formulas(vehicle):
+    """VehicleGeometry.to_parameters is the bridge between the authored form
+    and the form the dynamics integrate, and it must match section 2 of the
+    model document rather than being a second opinion about the drag polar."""
+    g = ISA_SEA_LEVEL.g
+    theta = FIGHTER_GEOMETRY.to_parameters(ISA_SEA_LEVEL)
+
+    assert theta.c_p == pytest.approx(0.5 * 38.0 * 0.022)
+    assert theta.c_i == pytest.approx(2.0 * g**2 / (math.pi * 0.80 * 3.0 * 38.0))
+    assert theta.c_l == pytest.approx(0.5 * 38.0 * 1.20)
+    assert theta.c_tsfc == pytest.approx(2.5e-5)
+    # And the assembled reference vehicle really is built from them.
+    assert vehicle.theta == theta
+
+
+def test_the_configuration_does_not_pin_an_environment():
+    """The lumped induced-drag parameter carries g, so the same airframe is a
+    different set of parameters under different gravity. A configuration that
+    fixed an environment would be fixing an aeroplane to an altitude."""
+    moon_ish = Environment(g=1.62, rho=ISA_SEA_LEVEL.rho)
+
+    earth = reference_fighter()
+    elsewhere = reference_fighter(moon_ish)
+
+    assert elsewhere.eta.g == 1.62
+    assert elsewhere.theta.c_i != earth.theta.c_i
+    # Only the g-dependent term moves; the rest of the airframe is unchanged.
+    assert elsewhere.theta.c_p == earth.theta.c_p
+    assert elsewhere.theta.c_l == earth.theta.c_l
+    assert elsewhere.lam == earth.lam
+
+
+def test_a_variant_is_one_replace_away():
+    """The ergonomics the split exists for: varying a bundled configuration
+    should not mean copying a factory function and editing its body."""
+    heavier = dataclasses.replace(FIGHTER_LIMITS, mass_dry_kg=14_000.0)
+
+    assert heavier.mass_dry_kg == 14_000.0
+    assert heavier.thrust_max_N == FIGHTER_LIMITS.thrust_max_N
+    assert FIGHTER_LIMITS.mass_dry_kg == 12_000.0, "the bundled config was mutated"
 
 
 # --------------------------------------------------------------------------
