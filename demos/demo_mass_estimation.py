@@ -93,6 +93,7 @@ from ose.equipment.vehicle import Vehicle2D, VehicleCommand, VehicleState
 from ose.integration import step_rk4
 from ose.interfaces import OwnStateEstimate
 from ose.subsystem.reference_configs.reference_vehicle_manager import (
+    BELIEVED_TSFC_KG_PER_N_S,
     STANDARD as MANAGER_STANDARD,
 )
 from ose.subsystem.vehicle_manager import VehicleManager
@@ -151,7 +152,7 @@ def fly() -> dict:
     vehicle = Vehicle2D(
         dataclasses.replace(
             nominal.theta,
-            c_tsfc=MANAGER_STANDARD.tsfc_kg_per_N_s * (1.0 + TRUE_TSFC_ERROR),
+            c_tsfc=BELIEVED_TSFC_KG_PER_N_S * (1.0 + TRUE_TSFC_ERROR),
         ),
         nominal.lam,
         nominal.eta,
@@ -210,7 +211,7 @@ def fly() -> dict:
             )
             row["tsfc"].append(belief.tsfc_error)
 
-            manager.predict(t + DT, command.thrust_N)
+            manager.predict(t + DT, command.thrust_N, BELIEVED_TSFC_KG_PER_N_S)
 
         state = step_rk4(vehicle, state, command, DT)
         t += DT

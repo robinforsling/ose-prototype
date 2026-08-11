@@ -1,4 +1,20 @@
-"""Reference configurations for the vehicle manager. See package docstring."""
+"""Reference configurations for the vehicle manager. See package docstring.
+
+BELIEVED_TSFC_KG_PER_N_S is not a field of VehicleManagerParameters: the filter
+takes the burn coefficient as an argument to predict() so that it need not know
+how many operating modes an engine has. It is declared here, next to the
+component that will be driven with it, and it is the platform's BELIEF about
+its engine -- deliberately a separate number from the coefficient the vehicle
+actually burns at, even though the two currently agree. Deriving it from
+Vehicle2D.theta.c_tsfc would make the prediction exact by construction and
+every consistency test vacuous;
+test_no_cyber_component_reads_the_true_burn_coefficient enforces that.
+
+It is homeless in the strict sense -- a believed engine model belongs to the
+vehicle system, which does not exist. When it does, this moves there. When the
+booster model lands it becomes one value per mode, and predict() does not
+change.
+"""
 
 from __future__ import annotations
 
@@ -14,10 +30,6 @@ STANDARD = VehicleManagerParameters(
     # anything has measured, and it should not read as though it had been.
     initial_fuel_sigma_kg=200.0,
 
-    # The nominal coefficient, matching the reference fighter -- but declared
-    # here rather than read from it, so that a mismatch is possible and the
-    # filter is testable. See the module docstring in vehicle_manager.py.
-    tsfc_kg_per_N_s=2.5e-5,
     # Five per cent. Engine-to-engine variation plus calibration error; over
     # five minutes of cruise this is worth about 18 kg, comparable to the
     # gauge's own noise, which is why the coefficient is weakly observable
@@ -35,3 +47,8 @@ STANDARD = VehicleManagerParameters(
     # be told what the platform is actually confident of.
     capability_margin_sigma=3.0,
 )
+
+# The platform's believed burn coefficient. Matches the reference fighter's
+# authored value today; it is a separate declaration so that it CAN differ,
+# which is what makes tsfc_error a meaningful state.
+BELIEVED_TSFC_KG_PER_N_S = 2.5e-5

@@ -46,6 +46,7 @@ from ose.integration import step_rk4
 from ose.interfaces import HeadingSpeedSetpoint, OwnStateEstimate
 from ose.subsystem.reference_configs.reference_vehicle_guidance import STANDARD
 from ose.subsystem.reference_configs.reference_vehicle_manager import (
+    BELIEVED_TSFC_KG_PER_N_S,
     STANDARD as MANAGER_STANDARD,
 )
 from ose.subsystem.vehicle_guidance import VehicleGuidance
@@ -137,7 +138,7 @@ def run():
         # about to fly, burning at the thrust actually commanded. Without it
         # the filter would grow steadily more confident in a fuel figure that
         # is falling underneath it.
-        manager.predict(t + DT, cmd.thrust_N)
+        manager.predict(t + DT, cmd.thrust_N, BELIEVED_TSFC_KG_PER_N_S)
         state = step_rk4(vehicle, state, cmd, DT)
         # X(lambda) is not enforced by anything -- project_command() keeps the
         # input admissible, nothing keeps the state so. Report rather than hide.

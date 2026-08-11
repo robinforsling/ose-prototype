@@ -87,9 +87,15 @@ cent coefficient error accumulates about 18 kg over five minutes of cruise,
 against a 20 kg gauge sigma. The filter separates it slowly, and the
 covariance says so.
 
-The believed coefficient is this component's own parameter and is NOT read
-from the vehicle
-----------------------------------------------------------------------------
+The coefficient is supplied, and must never be the vehicle's true one
+--------------------------------------------------------------------
+predict() takes the burn coefficient rather than holding it, so that the
+filter is independent of how the engine is built -- see that method. What it
+does hold is the *doubt*: tsfc_sigma_fraction is this component's prior on how
+well the coefficient is known, and tsfc_error is the fractional calibration
+error it estimates.
+
+Whatever supplies the coefficient must supply the platform's BELIEF about it.
 Reading Vehicle2D.theta.c_tsfc would be legal -- it is a model parameter, not
 truth -- and it would be wrong. Predicting with the same coefficient the
 vehicle burns at makes the prediction exact by construction, so the filter
@@ -98,11 +104,18 @@ mismatch could exist, and the consistency test would be vacuous. That is the
 same class of self-congratulating configuration as fusing the black-box nav
 unit with the real estimator (ADR 0014).
 
-So the manager declares what it believes and how well, exactly as
-EstimatorParameters is decoupled from ImuParameters (ADR 0009) and
-TimeEstimatorParameters from the Clock. The reference config sets the
-believed coefficient to the nominal one, and tsfc_sigma_fraction declares that
-the platform does not know it is right.
+Moving the coefficient to an argument moves that risk to the caller, which is
+exactly where the mass parameter went wrong before ADR 0015: the component
+stayed clean while every composition of it reached for truth. So the rule is
+enforced across the repository rather than in this file --
+test_no_cyber_component_reads_the_true_burn_coefficient walks everything above
+the equipment layer.
+
+The fractional form is what lets one state cover a switched engine. The error
+multiplies whatever coefficient it is handed, so c_actual = c_given * (1 + e)
+holds for nominal and boost alike as long as both come from one calibration.
+Independent errors per mode would be a second state and a deliberate
+modelling decision, not something this formulation quietly gets wrong.
 
 Payload is a single configured scalar. Effectors and stores that are released
 during a run would each contribute their own term and change the sum at
@@ -145,11 +158,11 @@ class VehicleManagerParameters:
     # a guess rather than borrowing the gauge's precision.
     initial_fuel_kg: float
     initial_fuel_sigma_kg: float
-    # The filter's own assumed burn model, deliberately decoupled from the
-    # vehicle's true coefficient -- see the module docstring on why reading
-    # Vehicle2D.theta.c_tsfc would make this component untestable.
-    tsfc_kg_per_N_s: float
-    tsfc_sigma_fraction: float        # how well the coefficient is believed known
+    # How well the burn coefficient is believed known, as a fraction. The
+    # coefficient itself is supplied to predict() rather than held here, so
+    # that this component need not know how many operating modes the engine
+    # has; the doubt about it is the filter's own prior and stays.
+    tsfc_sigma_fraction: float
     # Allows the coefficient error to drift slowly rather than being pinned
     # forever once observed. Without it the filter's confidence in tsfc_error
     # only ever grows, and a real engine does change.
@@ -181,13 +194,27 @@ class VehicleManager:
 
     # -- prediction -------------------------------------------------------
 
-    def predict(self, t_s: float, thrust_N: float) -> None:
+    def predict(self, t_s: float, thrust_N: float, tsfc_kg_per_N_s: float) -> None:
         """Propagate the fuel belief to t_s, burning at the commanded thrust.
 
-        The thrust is held constant across the interval. That is the same
-        zero-order hold the command itself has -- guidance emits one value per
-        cycle and the vehicle flies it until the next -- so it is not an
+        Both the thrust and the coefficient are held constant across the
+        interval. That is the same zero-order hold the command itself has --
+        one value per cycle, flown until the next -- so it is not an
         approximation the filter is making on its own.
+
+        The coefficient is an argument rather than a parameter of this
+        component, and that is what keeps the filter independent of how the
+        engine is built. A two-mode engine, a three-mode one, a continuously
+        variable throttle and a different vehicle model entirely all pass a
+        number here; none of them requires this component to know that modes
+        exist. Enumerating equipment-layer operating modes inside a subsystem
+        component would be the wrong shape, the same way taking a mass
+        parameter was (ADR 0015).
+
+        It must be the platform's BELIEVED coefficient, never the vehicle's
+        true one -- see the module docstring, and
+        test_no_cyber_component_reads_the_true_burn_coefficient, which
+        enforces that on the callers rather than only here.
 
         Called by whoever drives the cycle, after the command is decided.
         Deliberately not folded into project_command(): asking whether a
@@ -198,7 +225,7 @@ class VehicleManager:
             self._t = max(self._t, t_s)
             return
 
-        c = self.par.tsfc_kg_per_N_s
+        c = tsfc_kg_per_N_s
         # The vehicle stops burning at dry mass, so the filter must too --
         # otherwise it predicts fuel through zero and into negative mass.
         burning = self._fuel_kg > 0.0

@@ -113,6 +113,7 @@ from ose.subsystem.reference_configs.reference_vehicle_guidance import (
     STANDARD as GUIDANCE_STANDARD,
 )
 from ose.subsystem.reference_configs.reference_vehicle_manager import (
+    BELIEVED_TSFC_KG_PER_N_S,
     STANDARD as MANAGER_STANDARD,
 )
 from ose.subsystem.vehicle_guidance import VehicleGuidance
@@ -302,7 +303,7 @@ def fly() -> tuple[dict[str, np.ndarray], list[float]]:
         # about to fly, burning at the thrust actually commanded. Without it
         # the filter would grow steadily more confident in a fuel figure that
         # is falling underneath it.
-        manager.predict(t + DT, cmd.thrust_N)
+        manager.predict(t + DT, cmd.thrust_N, BELIEVED_TSFC_KG_PER_N_S)
         state = step_rk4(vehicle, state, cmd, DT)
         violations = vehicle.state_violations(state)
         if violations and not reported:

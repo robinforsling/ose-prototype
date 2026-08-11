@@ -50,7 +50,10 @@ from ose.interfaces import (
     OwnStateEstimate,
     PromisedEnvelope,
 )
-from ose.subsystem.reference_configs.reference_vehicle_manager import STANDARD
+from ose.subsystem.reference_configs.reference_vehicle_manager import (
+    BELIEVED_TSFC_KG_PER_N_S,
+    STANDARD,
+)
 from ose.subsystem.vehicle_manager import VehicleManager
 
 
@@ -105,24 +108,47 @@ def test_manager_cannot_see_truth():
     assert_no_truth_parameters(path)
 
 
-def test_the_filter_does_not_read_the_true_burn_coefficient():
-    """Predicting with the coefficient the vehicle burns at would make the
-    prediction exact by construction: the filter would look excellent for a
-    reason that never holds on a real platform, and every consistency test
-    here would be vacuous. The believed coefficient is the manager's own
-    parameter, so the module must never reach for theta.c_tsfc."""
-    path = (
-        Path(__file__).resolve().parents[1]
-        / "src" / "ose" / "subsystem" / "vehicle_manager.py"
-    )
-    tree = ast.parse(path.read_text())
+def test_no_cyber_component_reads_the_true_burn_coefficient():
+    """The burn coefficient a filter predicts with must be the platform's
+    BELIEF, never the coefficient the vehicle actually burns at.
 
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Attribute) and node.attr == "c_tsfc":
-            raise AssertionError(
-                "vehicle_manager reads the vehicle's true burn coefficient; "
-                "it must predict with its own believed one"
-            )
+    Predicting with the true one makes the prediction exact by construction:
+    tsfc_error is pinned at zero, the filter looks excellent for a reason that
+    never holds on a real platform, and every consistency test in this module
+    becomes vacuous.
+
+    Enforced across the repository rather than on vehicle_manager.py alone,
+    because predict() now takes the coefficient as an argument. A guard on
+    this one file would keep passing while a caller did
+    predict(t, T, vehicle.theta.c_tsfc) -- component clean, composition
+    leaking, which is precisely how the mass parameter went wrong before
+    ADR 0015.
+
+    The equipment layer is exempt: the vehicle owns the coefficient, and Imu
+    already reaches into the model for drag_N as a peer. Demos and tests are
+    out of scope for the same reason renderers may read truth -- they are
+    tools, not components -- and today they are the only callers. The rule
+    starts binding on real code the moment a vehicle system exists to drive
+    the cycle, which is the caller it is written for.
+    """
+    root = Path(__file__).resolve().parents[1] / "src" / "ose"
+    offenders = []
+    for path in sorted(root.rglob("*.py")):
+        if "equipment" in path.relative_to(root).parts:
+            continue
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.Attribute) and node.attr == "c_tsfc":
+                offenders.append(f"{path.relative_to(root)}:{node.lineno}")
+
+    assert not offenders, (
+        "these read the vehicle's true burn coefficient instead of a believed "
+        f"one: {offenders}"
+    )
+
+    # Not vacuous: the attribute really is spelt this way on the vehicle, so
+    # the walk would see it.
+    from ose.equipment.reference_configs.reference_vehicle import reference_fighter
+    assert hasattr(reference_fighter().theta, "c_tsfc")
 
 
 # --------------------------------------------------------------------------
@@ -217,10 +243,10 @@ def test_prediction_burns_fuel_at_the_commanded_thrust(manager):
     """The point of dead reckoning: between readings the belief follows the
     burn instead of sitting still."""
     before = manager.mass(0.0).fuel_mass_kg
-    manager.predict(10.0, 60_000.0)
+    manager.predict(10.0, 60_000.0, BELIEVED_TSFC_KG_PER_N_S)
     after = manager.mass(10.0).fuel_mass_kg
 
-    expected = STANDARD.tsfc_kg_per_N_s * 60_000.0 * 10.0      # 15 kg
+    expected = BELIEVED_TSFC_KG_PER_N_S * 60_000.0 * 10.0      # 15 kg
     assert before - after == pytest.approx(expected)
 
 
@@ -228,7 +254,7 @@ def test_prediction_grows_the_uncertainty(manager):
     """A belief propagated without correction must get less certain, or the
     covariance is not describing anything."""
     before = manager.mass(0.0).mass_sigma_kg
-    manager.predict(30.0, 60_000.0)
+    manager.predict(30.0, 60_000.0, BELIEVED_TSFC_KG_PER_N_S)
     assert manager.mass(30.0).mass_sigma_kg > before
 
 
@@ -240,7 +266,7 @@ def test_process_noise_grows_the_belief_even_with_no_burn(manager):
     P[fuel, fuel] on its own and the sawtooth test still passes.
     """
     before = manager.mass(0.0).covariance[0, 0]
-    manager.predict(10.0, 0.0)
+    manager.predict(10.0, 0.0, BELIEVED_TSFC_KG_PER_N_S)
     after = manager.mass(10.0).covariance[0, 0]
 
     assert after > before
@@ -260,7 +286,7 @@ def test_a_dry_tank_stops_inflating_the_fuel_uncertainty(vehicle):
     """
     manager = _believing(vehicle, 0.0)
     before = manager.mass(0.0).covariance[0, 0]
-    manager.predict(20.0, 130_000.0)
+    manager.predict(20.0, 130_000.0, BELIEVED_TSFC_KG_PER_N_S)
     after = manager.mass(20.0).covariance[0, 0]
 
     assert after - before == pytest.approx(
@@ -278,7 +304,7 @@ def test_the_uncertainty_sawtooths(vehicle):
     sigmas = []
     for k in range(1, 6):
         t = float(k)
-        manager.predict(t, 60_000.0)
+        manager.predict(t, 60_000.0, BELIEVED_TSFC_KG_PER_N_S)
         sigmas.append(("predicted", manager.mass(t).mass_sigma_kg))
         manager.ingest(FuelMeasurement(t, 4000.0 - 1.5 * t, 20.0))
         sigmas.append(("corrected", manager.mass(t).mass_sigma_kg))
@@ -297,16 +323,16 @@ def test_prediction_stops_at_a_dry_tank(vehicle):
     the gate it predicts fuel through zero and reports a mass below the
     airframe's own dry mass, which is not a state the vehicle can be in."""
     manager = _believing(vehicle, 5.0)
-    manager.predict(600.0, 130_000.0)
+    manager.predict(600.0, 130_000.0, BELIEVED_TSFC_KG_PER_N_S)
 
     assert manager.mass(600.0).fuel_mass_kg == 0.0
     assert manager.mass_kg == pytest.approx(vehicle.lam.mass_dry_kg)
 
 
 def test_prediction_backwards_is_a_no_op(manager):
-    manager.predict(10.0, 60_000.0)
+    manager.predict(10.0, 60_000.0, BELIEVED_TSFC_KG_PER_N_S)
     fuel = manager.mass(10.0).fuel_mass_kg
-    manager.predict(5.0, 60_000.0)
+    manager.predict(5.0, 60_000.0, BELIEVED_TSFC_KG_PER_N_S)
     assert manager.mass(10.0).fuel_mass_kg == pytest.approx(fuel)
 
 
@@ -371,7 +397,7 @@ def _fly_one(seed: int, checkpoints, dt: float, thrust=cruise, gauge_par=GAUGE,
     nominal = reference_fighter()
     vehicle = Vehicle2D(
         dataclasses.replace(
-            nominal.theta, c_tsfc=STANDARD.tsfc_kg_per_N_s * (1.0 + tsfc_error)
+            nominal.theta, c_tsfc=BELIEVED_TSFC_KG_PER_N_S * (1.0 + tsfc_error)
         ),
         nominal.lam,
         nominal.eta,
@@ -386,7 +412,7 @@ def _fly_one(seed: int, checkpoints, dt: float, thrust=cruise, gauge_par=GAUGE,
         if gauge.due(t):
             manager.ingest(gauge.sample(t, state))
         thrust_N = thrust(t)
-        manager.predict(t + dt, thrust_N)
+        manager.predict(t + dt, thrust_N, BELIEVED_TSFC_KG_PER_N_S)
         state = step_rk4(vehicle, state, VehicleCommand(thrust_N, 0.0), dt)
         if extra_drain_kg_s:
             state = dataclasses.replace(
@@ -535,7 +561,7 @@ def test_the_filter_beats_the_raw_gauge():
         nominal = reference_fighter()
         vehicle = Vehicle2D(
             dataclasses.replace(
-                nominal.theta, c_tsfc=STANDARD.tsfc_kg_per_N_s * (1.0 + tsfc_error)
+                nominal.theta, c_tsfc=BELIEVED_TSFC_KG_PER_N_S * (1.0 + tsfc_error)
             ),
             nominal.lam,
             nominal.eta,
@@ -549,7 +575,7 @@ def test_the_filter_beats_the_raw_gauge():
         while t < checkpoints[0]:
             if gauge.due(t):
                 manager.ingest(gauge.sample(t, state))
-            manager.predict(t + 0.25, command.thrust_N)
+            manager.predict(t + 0.25, command.thrust_N, BELIEVED_TSFC_KG_PER_N_S)
             state = step_rk4(vehicle, state, command, 0.25)
             t += 0.25
         errors.append(
@@ -701,7 +727,7 @@ def test_the_margin_bites_only_when_the_belief_is_poor(vehicle):
 
     for k in range(1, 31):
         t = float(k)
-        manager.predict(t, 60_000.0)
+        manager.predict(t, 60_000.0, BELIEVED_TSFC_KG_PER_N_S)
         manager.ingest(FuelMeasurement(t, 4000.0 - 1.5 * t, 20.0))
 
     after = narrowing()
