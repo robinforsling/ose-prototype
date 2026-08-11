@@ -18,6 +18,8 @@ answer without integrating.
 import dataclasses
 import importlib
 import inspect
+import pkgutil
+from enum import Enum
 import math
 from pathlib import Path
 
@@ -71,41 +73,65 @@ def _fly(vehicle, state, cmd, duration_s, dt=DT):
 # Protocol conformance
 # --------------------------------------------------------------------------
 
-def test_every_equipment_module_defines_a_component_with_capability():
+def _discover_equipment_components():
+    """Every component class in the equipment layer, subpackages included.
+
+    Walks rather than globs. The glob version looked at `*.py` directly under
+    ose/equipment/, which silently stopped covering the vehicle the moment
+    vehicle.py became vehicle/ -- the test kept passing, kept claiming "every
+    equipment module", and had quietly dropped two models. That is the same
+    failure its predecessor had when a hand-written list omitted
+    IntegratedNavUnit, one level up.
+
+    reference_configs is skipped: it holds data, not components.
+    """
+    package = importlib.import_module("ose.equipment")
+    found = []
+    for info in pkgutil.walk_packages(package.__path__, prefix="ose.equipment."):
+        if "reference_configs" in info.name:
+            continue
+        module = importlib.import_module(info.name)
+        for attr, obj in vars(module).items():
+            if (
+                inspect.isclass(obj)
+                and obj.__module__ == module.__name__
+                and not attr.endswith("Parameters")
+                and not dataclasses.is_dataclass(obj)
+                and not issubclass(obj, Enum)
+            ):
+                found.append((attr, obj, info.name))
+    return found
+
+
+def test_every_equipment_component_answers_capability():
     """Discovered, not hand-listed, on purpose.
 
     An earlier version enumerated the six it knew about by hand, under a name
     promising all of them, and quietly omitted IntegratedNavUnit -- so a
     component with no capability() at all passed unnoticed, and the coverage
-    existed in the name only. Walking the package means adding equipment
-    without a capability model fails here rather than going unremarked.
+    existed in the name only.
     """
-    package = importlib.import_module("ose.equipment")
-    package_dir = Path(package.__file__).parent
+    found = _discover_equipment_components()
+    assert found, "no equipment components discovered -- test is vacuous"
 
-    module_names = sorted(
-        p.stem
-        for p in package_dir.glob("*.py")
-        if p.stem != "__init__"
+    for attr, obj, module_name in found:
+        assert hasattr(obj, "capability"), (
+            f"{attr} in {module_name} has no capability(); every equipment "
+            "component must be answerable"
+        )
+
+
+def test_the_walk_reaches_into_subpackages():
+    """The non-vacuity guard for the walk above, and a regression test for a
+    real loss of coverage: when vehicle.py became a package, a glob over
+    ose/equipment/*.py stopped seeing any vehicle model at all and nothing
+    failed."""
+    modules = {m for _, _, m in _discover_equipment_components()}
+    assert any(m.startswith("ose.equipment.vehicle.") for m in modules), (
+        f"the walk no longer reaches vehicle models; it found {sorted(modules)}"
     )
-    assert module_names, "no equipment modules discovered -- test is vacuous"
-
-    for name in module_names:
-        module = importlib.import_module(f"ose.equipment.{name}")
-        components = [
-            obj
-            for attr, obj in vars(module).items()
-            if inspect.isclass(obj)
-            and obj.__module__ == module.__name__
-            and not attr.endswith("Parameters")
-            and not dataclasses.is_dataclass(obj)
-        ]
-        assert components, f"ose.equipment.{name} defines no component class"
-        for component in components:
-            assert hasattr(component, "capability"), (
-                f"{component.__name__} in ose.equipment.{name} has no "
-                "capability(); every equipment component must be answerable"
-            )
+    names = {a for a, _, _ in _discover_equipment_components()}
+    assert {"PlanarPointMass", "PlanarPointMassWithBooster"} <= names
 
 
 def test_constructed_equipment_satisfies_the_capability_protocol(vehicle):

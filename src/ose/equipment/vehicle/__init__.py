@@ -7,34 +7,47 @@ with new dynamics is a new module here; adding a variant of an existing one is
 a record there, and needs no Python at all once the descriptor validator
 exists.
 
-    planar_point_mass.py                  the baseline: point mass, planar,
-                                          single propulsion setting
+    records.py                         shared by every planar model
+    planar_point_mass.py               the baseline: one propulsion setting
+    planar_point_mass_with_booster.py  two modes, nominal and boost
 
-Everything the model module defines is re-exported here, so
-`from ose.equipment.vehicle import VehicleState` keeps working and consumers
-that only need the shared records need not name a model.
+Everything is re-exported here, so `from ose.equipment.vehicle import
+VehicleState` keeps working and a consumer that needs only the shared records
+need not name a model.
 
-WHICH RECORDS ARE SHARED IS NOT YET DECIDED, deliberately. Some are clearly
-common to every planar model -- Disturbance and Saturation, and the model
-document states the drag and disturbance models are unchanged under boost.
-Others are not: a two-mode engine's parameter vector carries two fuel
-coefficients and two thermal time constants, and its constraint vector carries
-mode-dependent thrust and speed limits. Splitting them now would mean guessing,
-and the guess would be load-bearing for VehicleManager, which must stay
-model-agnostic. The split is settled by building the second model, not before
-it -- the same reason layer packages here are created when they acquire their
-first component rather than in anticipation.
+What is shared and what is not was settled by building the second model rather
+than guessed before it. Shared: the authored aerodynamics, the lumped
+parameters and limits, the disturbance, the command, the capability record and
+the saturation receipt. Not shared: a model's state vector, because a switched
+model carries a thermal accumulator the baseline never writes, and a common
+state record would put that field in the baseline's Jacobian and integrator
+with nothing maintaining it.
+
+Extended parameters and constraints COMPOSE the shared ones rather than
+duplicating them. The model document's two-mode parameter vector begins with
+exactly the baseline's four entries, and its constraint vector contains the
+baseline's seven, so the drag polar keeps one definition.
 """
 
 from ose.equipment.vehicle.planar_point_mass import (  # noqa: F401
+    PlanarPointMass,
+    VehicleState,
+)
+from ose.equipment.vehicle.planar_point_mass_with_booster import (  # noqa: F401
+    BoostCapability,
+    BoostConstraints,
+    BoostParameters,
+    BoostState,
+    Mode,
+    PlanarPointMassWithBooster,
+)
+from ose.equipment.vehicle.records import (  # noqa: F401
     NO_DISTURBANCE,
     Capability,
     Constraints,
     Disturbance,
-    PlanarPointMass,
     Saturation,
     VehicleCommand,
     VehicleGeometry,
     VehicleParameters,
-    VehicleState,
 )
