@@ -677,23 +677,38 @@ A concrete instantiation sufficient for the present model is
 \begin{equation}
   \Sset_{q}(\vecx, \veclambda) =
   \begin{cases}
-    \{\mathrm{nom}, \mathrm{boost}\},
-      & q = \mathrm{nom},\;
-        s < s_{\max},\;
-        m > m_{\mathrm{dry}} + m_{\mathrm{res}},\;
-        t - t_{q} \ge \Delta t_{\mathrm{dwell}}, \\[4pt]
-    \{\mathrm{nom}, \mathrm{boost}\},
-      & q = \mathrm{boost},\;
-        s < s_{\max},\;
-        m > m_{\mathrm{dry}} + m_{\mathrm{res}},\;
-        t - t_{q} \ge \Delta t_{\mathrm{dwell}}, \\[4pt]
     \{\mathrm{nom}\},
+      & s \ge s_{\max}
+        \;\text{ or }\;
+        m \le m_{\mathrm{dry}} + m_{\mathrm{res}}, \\[4pt]
+    \{q\},
+      & t - t_{q} < \Delta t_{\mathrm{dwell}}, \\[4pt]
+    \{\mathrm{nom}, \mathrm{boost}\},
       & \text{otherwise,}
   \end{cases}
   \label{eq:switching-concrete}
 \end{equation}
 where $t_q$ is the time of the most recent mode transition and
-$\Delta t_{\mathrm{dwell}}$ is a minimum dwell time.
+$\Delta t_{\mathrm{dwell}}$ is a minimum dwell time. The cases are evaluated
+in the order given.
+
+\begin{remark}[Being forced out and being locked in are different]
+An earlier formulation of \cref{eq:switching-concrete} listed the two
+permissive cases by current mode and returned $\{\mathrm{nom}\}$ otherwise.
+That conflates two situations which happen to share a branch. Exhausting the
+thermal or fuel budget must force the aircraft \emph{out} of boost; not having
+served the dwell must \emph{keep} it where it is. Under the earlier
+formulation, $q = \mathrm{boost}$ with the dwell unserved returned
+$\{\mathrm{nom}\}$, so boost was granted on one step and revoked on the next
+indefinitely --- an anti-chattering condition that produced chattering. It was
+found by simulating the model rather than by reading it, and the thermal state
+never rose above two per cent of its limit.
+
+The ordering is also load-bearing. Were the dwell tested first, an aircraft
+reaching $s_{\max}$ shortly after engaging would be held in boost past its own
+thermal limit, and the guard against chattering would defeat the guard against
+destroying the engine.
+\end{remark}
 
 Three distinct effects are captured. The thermal state $s$, evolving according to
 \cref{eq:f-mode}, limits the duration of continuous boost and imposes a recovery

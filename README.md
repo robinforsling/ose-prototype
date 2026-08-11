@@ -36,6 +36,7 @@ pytest                                 # run the test suite
 python demos/demo_vehicle.py           # turn envelope and an open-loop manoeuvre
 python demos/demo_navigation.py        # INS/GNSS through a GNSS outage
 python demos/demo_mass_estimation.py   # mass belief through a fuel-gauge outage
+python demos/demo_boost.py             # afterburner: what it buys and what it costs
 python demos/demo_vehicle_guidance.py  # closed-loop heading/speed-hold, enforced
 python demos/demo_live_flight.py       # a setpoint mission, animated live
 python demos/demo_live_route.py        # a route through the planner, animated live
@@ -54,7 +55,9 @@ src/ose/integration.py                            integrators, external to the c
 src/ose/environment.py                            environmental parameters (g, rho), no dependencies
 src/ose/reference_configs/                        reference configs for cross-layer shapes, e.g. environment
 src/ose/equipment/vehicle/                        vehicle models, one module per model
+src/ose/equipment/vehicle/records.py              records shared by every planar model
 src/ose/equipment/vehicle/planar_point_mass.py    the baseline: planar point mass
+src/ose/equipment/vehicle/planar_point_mass_with_booster.py   two modes, nominal and boost
 src/ose/equipment/reference_configs/              reference configs for equipment, mirroring the tree above
 src/ose/equipment/imu.py                           IMU sensor model
 src/ose/equipment/gnss.py                          GNSS receiver model

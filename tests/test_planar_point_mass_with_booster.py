@@ -171,6 +171,46 @@ def test_boost_is_inhibited_by_each_restriction_separately(vehicle):
         assert Mode.NOMINAL in vehicle.admissible_modes(s, 0.0)
 
 
+def test_the_dwell_locks_the_current_mode_in_rather_than_out(vehicle):
+    """The bug the document's concrete S_q has, found by building a demo.
+
+    A single "otherwise {nom}" branch conflates two situations. With q =
+    boost and the dwell not yet elapsed it says {nom}, so boost is granted on
+    one step and revoked on the next -- the mode alternated every step and
+    the thermal state never rose above 0.02. An anti-chatter rule that causes
+    chatter.
+
+    Dwell must lock the CURRENT mode in; only an exhausted thermal or fuel
+    budget forces a mode out.
+    """
+    hot_enough_to_matter = 0.3
+    boosting = BoostState(0.0, 0.0, 0.0, 250.0, 16000.0, hot_enough_to_matter,
+                          Mode.BOOST)
+
+    within_dwell = vehicle.admissible_modes(boosting, since_transition_s=1.0)
+    assert within_dwell == frozenset({Mode.BOOST}), (
+        "the dwell forced the aircraft out of boost instead of holding it there"
+    )
+
+    # From nominal it locks nominal in, symmetrically.
+    cruising = dataclasses.replace(boosting, mode=Mode.NOMINAL)
+    assert vehicle.admissible_modes(cruising, 1.0) == frozenset({Mode.NOMINAL})
+
+    # And once the dwell elapses, both are on offer again.
+    assert vehicle.admissible_modes(boosting, 10.0) == frozenset(Mode)
+
+
+def test_the_thermal_limit_outranks_the_dwell(vehicle):
+    """Order matters. If the dwell were checked first, an aircraft that hit
+    its thermal limit one second after engaging would be held in boost past
+    the limit -- the guard against chattering would defeat the guard against
+    burning the engine."""
+    hot = BoostState(0.0, 0.0, 0.0, 250.0, 16000.0, 1.0, Mode.BOOST)
+    assert vehicle.admissible_modes(hot, since_transition_s=0.1) == frozenset(
+        {Mode.NOMINAL}
+    ), "the dwell held the aircraft in boost past its thermal limit"
+
+
 def test_an_inadmissible_mode_is_reported_not_refused(vehicle):
     """ADR 0006 for a discrete input.
 

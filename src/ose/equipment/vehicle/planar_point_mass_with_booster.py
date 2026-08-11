@@ -321,14 +321,31 @@ class PlanarPointMassWithBooster:
         Declared. Nothing here refuses a transition; a caller that ignores
         this and commands boost anyway gets boost, and the consequences show
         up in state_violations().
+
+        Three outcomes, not two. The document's concrete instantiation writes
+        a single "otherwise" branch returning {nom}, which conflates being
+        forced OUT of boost with being locked INTO the current mode, and the
+        difference is not cosmetic: with q = boost and the dwell not yet
+        elapsed it says {nom}, so boost is granted on one step and revoked on
+        the next, forever. Building a demo on it produced exactly that
+        chatter -- the mode alternated every step and the thermal state never
+        rose above 0.02.
+
+          forced out   thermal or fuel exhausted; leave boost regardless of
+                       dwell, or the aircraft is held past its own limit
+          locked in    dwell not yet elapsed; stay where you are, which is
+                       what an anti-chatter rule is for
+          free         choose
+
+        Checked in that order, because a thermal limit must outrank a
+        chattering guard.
         """
         fuel = state.mass_kg - self.lam.nominal.mass_dry_kg
-        can_boost = (
-            state.thermal < self.lam.thermal_max
-            and fuel > self.lam.mass_reserve_kg
-            and since_transition_s >= self.lam.dwell_s
-        )
-        return frozenset(Mode) if can_boost else frozenset({Mode.NOMINAL})
+        if state.thermal >= self.lam.thermal_max or fuel <= self.lam.mass_reserve_kg:
+            return frozenset({Mode.NOMINAL})
+        if since_transition_s < self.lam.dwell_s:
+            return frozenset({state.mode})
+        return frozenset(Mode)
 
     def project_command(
         self,
