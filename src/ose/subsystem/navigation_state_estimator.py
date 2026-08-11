@@ -4,7 +4,7 @@ inertial mechanisation, corrected by GNSS position and velocity and by air
 data.
 
 Subsystem-layer: purely cyber. This module must not import anything from
-ose.resource, and no public method may take a parameter whose name begins
+ose.equipment, and no public method may take a parameter whose name begins
 with true_ -- see test_estimator_cannot_see_truth in
 tests/test_navigation_state_estimator.py, which checks both by parsing this
 file with ast. The estimator is a pure function of the measurement stream it is

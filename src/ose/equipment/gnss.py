@@ -1,7 +1,7 @@
 """
 GNSS receiver model.
 
-Resource-layer: reads true_state and true_disturbance directly, privileged
+Equipment-layer: reads true_state and true_disturbance directly, privileged
 access nothing above this layer has. Publishes GnssFix, which carries no
 truth. See ADR 0008.
 
@@ -20,15 +20,15 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from ose.equipment.vehicle import Disturbance, VehicleState
 from ose.interfaces import GnssFix, MeasurementChannel, SensorCapability
-from ose.resource.vehicle import Disturbance, VehicleState
 
 
 @dataclass
 class GnssParameters:
     """Shape only, no defaults -- a receiver grade is a choice, not a
     universal, so it belongs in a named reference config
-    (resource/reference_configs/reference_gnss.py), not baked in here."""
+    (equipment/reference_configs/reference_gnss.py), not baked in here."""
 
     gnss_rate_hz: float
     gnss_position_sigma_m: float
@@ -52,7 +52,7 @@ class GnssReceiver:
 
     def capability(self) -> SensorCapability:
         """available tracks denial, so a consumer that asks during an outage
-        is told the receiver cannot currently deliver -- the one resource
+        is told the receiver cannot currently deliver -- the one equipment component
         here whose capability is genuinely dynamic.
 
         Two channels, and the velocity one is absent entirely when velocity

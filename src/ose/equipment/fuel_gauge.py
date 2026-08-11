@@ -1,7 +1,7 @@
 """
 Fuel gauge: a direct reading of remaining fuel mass.
 
-Resource-layer: reads true_state directly, privileged access nothing above
+Equipment-layer: reads true_state directly, privileged access nothing above
 this layer has. Publishes FuelMeasurement, which carries no truth. See
 ADR 0008.
 
@@ -25,15 +25,15 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from ose.equipment.vehicle import VehicleState
 from ose.interfaces import FuelMeasurement, MeasurementChannel, SensorCapability
-from ose.resource.vehicle import VehicleState
 
 
 @dataclass
 class FuelGaugeParameters:
     """Shape only, no defaults -- a sensor grade is a choice, not a
     universal, so it belongs in a named reference config
-    (resource/reference_configs/reference_fuel_gauge.py), not baked in
+    (equipment/reference_configs/reference_fuel_gauge.py), not baked in
     here."""
 
     fuel_rate_hz: float

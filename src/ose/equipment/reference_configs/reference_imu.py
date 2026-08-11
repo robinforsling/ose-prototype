@@ -1,8 +1,8 @@
-"""Reference configurations for the IMU resource. See package docstring."""
+"""Reference configurations for the IMU. See package docstring."""
 
 from __future__ import annotations
 
-from ose.resource.imu import ImuParameters
+from ose.equipment.imu import ImuParameters
 
 TACTICAL_GRADE = ImuParameters(
     accel_noise_density=1.0e-3,      # [m/s^2 / sqrt(Hz)]

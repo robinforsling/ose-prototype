@@ -3,7 +3,7 @@ Vehicle manager: the platform's single publisher of vehicle.mass.v1, and the
 only component entitled to ask the vehicle what it can do.
 
 Subsystem-layer: purely cyber. It must not import VehicleState or Disturbance
-from ose.resource.vehicle, and no public method may take a parameter whose
+from ose.equipment.vehicle, and no public method may take a parameter whose
 name begins with true_ -- see test_manager_cannot_see_truth. Its view of the
 world is a FuelMeasurement from the fuel gauge and an OwnStateEstimate from
 the navigation manager, both already-published estimates.
@@ -78,7 +78,7 @@ unit with the real estimator (ADR 0014).
 
 So the manager declares what it believes and how well, exactly as
 EstimatorParameters is decoupled from ImuParameters (ADR 0009) and
-TimeEstimatorParameters from the Clock resource. The reference config sets the
+TimeEstimatorParameters from the Clock. The reference config sets the
 believed coefficient to the nominal one, and tsfc_sigma_fraction declares that
 the platform does not know it is right.
 
@@ -95,13 +95,13 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from ose.equipment.vehicle import Capability, Saturation, Vehicle2D, VehicleCommand
 from ose.interfaces import (
     FuelMeasurement,
     MassEstimate,
     OwnStateEstimate,
     PromisedEnvelope,
 )
-from ose.resource.vehicle import Capability, Saturation, Vehicle2D, VehicleCommand
 
 I_FUEL = 0
 I_TSFC = 1

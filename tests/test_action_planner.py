@@ -20,10 +20,10 @@ import numpy as np
 import pytest
 
 from ose import interfaces
+from ose.equipment.reference_configs.reference_vehicle import reference_fighter
+from ose.equipment.vehicle import VehicleState
 from ose.integration import step_rk4
 from ose.interfaces import ActionSet, HeadingSpeedSetpoint, OwnStateEstimate
-from ose.resource.reference_configs.reference_vehicle import reference_fighter
-from ose.resource.vehicle import VehicleState
 from ose.single_ship.action_planner import (
     Waypoint,
     WaypointPlanner,
@@ -86,8 +86,8 @@ def test_planner_cannot_see_truth():
 
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module is not None:
-            assert not node.module.startswith("ose.resource"), (
-                f"single-ship component imports from the resource layer: {node.module}"
+            assert not node.module.startswith("ose.equipment"), (
+                f"single-ship component imports from the equipment layer: {node.module}"
             )
 
     for node in ast.walk(tree):

@@ -1,6 +1,6 @@
 """
 Rotation utilities for the planar NED frame. No dependencies on any other
-ose module, so both the resource-layer sensors and the subsystem estimator
+ose module, so both the equipment-layer sensors and the subsystem estimator
 can depend on it without binding to each other.
 
 Frame and sign conventions follow vehicle.py: p_x north, p_y east, psi

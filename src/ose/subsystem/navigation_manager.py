@@ -2,7 +2,7 @@
 Navigation manager: the platform's single publisher of vehicle.state.v1.
 
 Subsystem-layer: purely cyber. It must not import VehicleState or Disturbance
-from ose.resource.vehicle, and no public method may take a parameter whose
+from ose.equipment.vehicle, and no public method may take a parameter whose
 name begins with true_ -- see test_manager_cannot_see_truth. It reads only
 estimates that other components have already published.
 

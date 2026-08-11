@@ -1,7 +1,7 @@
 """
 Inertial sensor model.
 
-Resource-layer: reads true_state, true_command and true_disturbance directly,
+Equipment-layer: reads true_state, true_command and true_disturbance directly,
 privileged access nothing above this layer has. Corrupts truth according to a
 sensor error model and publishes ImuMeasurement, which carries no truth. See
 ADR 0008.
@@ -18,15 +18,15 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from ose.equipment.vehicle import Disturbance, Vehicle2D, VehicleCommand, VehicleState
 from ose.interfaces import ImuMeasurement, MeasurementChannel, SensorCapability
-from ose.resource.vehicle import Disturbance, Vehicle2D, VehicleCommand, VehicleState
 
 
 @dataclass
 class ImuParameters:
     """Shape only, no defaults -- a sensor grade (tactical, consumer, ...) is
     a choice, not a universal, so it belongs in a named reference config
-    (resource/reference_configs/reference_imu.py), not baked in here."""
+    (equipment/reference_configs/reference_imu.py), not baked in here."""
 
     accel_noise_density: float      # [m/s^2 / sqrt(Hz)]
     accel_bias_sigma: float         # steady-state bias sigma [m/s^2]

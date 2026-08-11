@@ -1,7 +1,7 @@
 """
 Black-box integrated navigation unit.
 
-Resource-layer: reads true_state and true_disturbance directly, privileged
+Equipment-layer: reads true_state and true_disturbance directly, privileged
 access nothing above this layer has. See ADR 0008.
 
 Truth plus zero-mean white noise, no temporal correlation, no drift, no
@@ -10,7 +10,7 @@ this component IS the black box. It satisfies OwnStateSource, publishing
 vehicle.state.v1 directly, but not NavigationEstimator: there is no
 measurement stream to ingest and nothing to replay.
 
-This deliberately collapses the resource and subsystem layers into one
+This deliberately collapses the equipment and subsystem layers into one
 component. It is valid when navigation is not the component under test and
 estimation error must simply be present and roughly plausible -- cheap
 scaffolding for exercising something else entirely. It is NOT a valid
@@ -27,15 +27,15 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from ose.equipment.vehicle import Disturbance, VehicleState
 from ose.interfaces import MeasurementChannel, OwnStateEstimate, SensorCapability
-from ose.resource.vehicle import Disturbance, VehicleState
 
 
 @dataclass
 class IntegratedNavParameters:
     """Shape only, no defaults -- an accuracy grade is a choice, not a
     universal, so it belongs in a named reference config
-    (resource/reference_configs/reference_integrated_navigation_unit.py),
+    (equipment/reference_configs/reference_integrated_navigation_unit.py),
     not baked in here."""
 
     position_sigma_m: float

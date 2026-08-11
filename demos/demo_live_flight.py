@@ -116,18 +116,18 @@ import matplotlib
 import numpy as np
 from _player import CONTROLS_HELP, Player
 
+from ose.equipment.fuel_gauge import FuelGauge
+from ose.equipment.reference_configs.reference_fuel_gauge import (
+    STANDARD as FUEL_GAUGE_STANDARD,
+)
+from ose.equipment.reference_configs.reference_vehicle import reference_fighter
+from ose.equipment.vehicle import VehicleState
 from ose.integration import step_rk4
 from ose.interfaces import (
     HeadingSpeedSetpoint,
     OwnStateEstimate,
     TurnRateSpeedSetpoint,
 )
-from ose.resource.fuel_gauge import FuelGauge
-from ose.resource.reference_configs.reference_fuel_gauge import (
-    STANDARD as FUEL_GAUGE_STANDARD,
-)
-from ose.resource.reference_configs.reference_vehicle import reference_fighter
-from ose.resource.vehicle import VehicleState
 from ose.subsystem.reference_configs.reference_vehicle_guidance import STANDARD
 from ose.subsystem.reference_configs.reference_vehicle_manager import (
     STANDARD as MANAGER_STANDARD,

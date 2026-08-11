@@ -10,10 +10,15 @@ import math
 import numpy as np
 import pytest
 
+from ose.equipment.integrated_navigation_unit import (
+    IntegratedNavParameters,
+    IntegratedNavUnit,
+)
+from ose.equipment.reference_configs.reference_integrated_navigation_unit import (
+    STANDARD,
+)
+from ose.equipment.vehicle import Disturbance, VehicleState
 from ose.interfaces import OwnStateSource
-from ose.resource.integrated_navigation_unit import IntegratedNavParameters, IntegratedNavUnit
-from ose.resource.reference_configs.reference_integrated_navigation_unit import STANDARD
-from ose.resource.vehicle import Disturbance, VehicleState
 
 
 def test_satisfies_own_state_source():

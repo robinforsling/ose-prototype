@@ -16,15 +16,18 @@ import numpy as np
 import pytest
 
 from ose import interfaces
-from ose.interfaces import ClockMeasurement, OwnStateEstimate
-from ose.resource.integrated_navigation_unit import IntegratedNavUnit
-from ose.resource.reference_configs.reference_integrated_navigation_unit import (
+from ose.equipment.integrated_navigation_unit import IntegratedNavUnit
+from ose.equipment.reference_configs.reference_integrated_navigation_unit import (
     STANDARD as INTEGRATED_NAV_STANDARD,
 )
-from ose.resource.reference_configs.reference_vehicle import reference_fighter
-from ose.resource.vehicle import Disturbance, VehicleState
+from ose.equipment.reference_configs.reference_vehicle import reference_fighter
+from ose.equipment.vehicle import Disturbance, VehicleState
+from ose.interfaces import ClockMeasurement, OwnStateEstimate
 from ose.subsystem.navigation_manager import NavigationManager
-from ose.subsystem.navigation_state_estimator import InitialUncertainty, InsGnssEstimator
+from ose.subsystem.navigation_state_estimator import (
+    InitialUncertainty,
+    InsGnssEstimator,
+)
 
 
 def _estimator() -> InsGnssEstimator:
@@ -36,7 +39,7 @@ def _estimator() -> InsGnssEstimator:
 
 def _black_box() -> IntegratedNavUnit:
     unit = IntegratedNavUnit(INTEGRATED_NAV_STANDARD, rng=np.random.default_rng(0))
-    # The core drives a resource-layer unit with truth; the manager never does.
+    # The core drives a equipment-layer unit with truth; the manager never does.
     unit.update(0.0, VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0), Disturbance())
     return unit
 
@@ -53,7 +56,7 @@ def test_manager_cannot_see_truth():
     tree = ast.parse(path.read_text())
 
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == "ose.resource.vehicle":
+        if isinstance(node, ast.ImportFrom) and node.module == "ose.equipment.vehicle":
             names = {alias.name for alias in node.names}
             leaked = names & {"Disturbance", "VehicleState"}
             assert not leaked, f"imports truth-carrying types: {leaked}"

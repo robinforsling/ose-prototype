@@ -21,9 +21,9 @@ import numpy as np
 import pytest
 
 from ose import interfaces
+from ose.equipment.clock import Clock
+from ose.equipment.reference_configs.reference_clock import STANDARD
 from ose.interfaces import ClockMeasurement
-from ose.resource.clock import Clock
-from ose.resource.reference_configs.reference_clock import STANDARD
 from ose.subsystem.time_state_estimator import TimeEstimator, TimeEstimatorParameters
 
 
@@ -40,8 +40,8 @@ def test_estimator_cannot_see_truth():
 
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module is not None:
-            assert not node.module.startswith("ose.resource"), (
-                f"imports from resource layer: {node.module}"
+            assert not node.module.startswith("ose.equipment"), (
+                f"imports from equipment layer: {node.module}"
             )
 
     for node in ast.walk(tree):

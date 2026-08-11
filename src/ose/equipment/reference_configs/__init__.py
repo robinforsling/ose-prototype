@@ -1,9 +1,9 @@
-"""Reference configurations for resource-layer components.
+"""Reference configurations for equipment-layer components.
 
 Fixtures for tests and demonstrations -- fictional and plausible, per
 CLAUDE.md, not evidence that a real configuration belongs in source. One
-module per resource (reference_vehicle.py, ...), each holding one or
-several named configurations for that resource.
+module per equipment component (reference_vehicle.py, ...), each holding one or
+several named configurations for that component.
 
 Reference configs for shapes shared across layers (e.g. Environment) live
 in ose/reference_configs/ instead, not here -- see its package docstring.

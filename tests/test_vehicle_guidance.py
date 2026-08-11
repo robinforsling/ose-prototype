@@ -18,14 +18,14 @@ import numpy as np
 import pytest
 
 from ose import interfaces
+from ose.equipment.reference_configs.reference_vehicle import reference_fighter
+from ose.equipment.vehicle import VehicleState
 from ose.integration import step_rk4
 from ose.interfaces import (
     HeadingSpeedSetpoint,
     OwnStateEstimate,
     TurnRateSpeedSetpoint,
 )
-from ose.resource.reference_configs.reference_vehicle import reference_fighter
-from ose.resource.vehicle import VehicleState
 from ose.subsystem.reference_configs.reference_vehicle_guidance import STANDARD
 from ose.subsystem.reference_configs.reference_vehicle_manager import (
     STANDARD as MANAGER_STANDARD,
@@ -80,7 +80,7 @@ def test_guidance_cannot_see_truth():
     tree = ast.parse(path.read_text())
 
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == "ose.resource.vehicle":
+        if isinstance(node, ast.ImportFrom) and node.module == "ose.equipment.vehicle":
             names = {alias.name for alias in node.names}
             leaked = names & {"Disturbance", "VehicleState"}
             assert not leaked, f"imports truth-carrying types: {leaked}"

@@ -33,7 +33,7 @@ from typing import Callable
 
 import numpy as np
 
-from ose.resource.vehicle import (
+from ose.equipment.vehicle import (
     NO_DISTURBANCE,
     Disturbance,
     Vehicle2D,

@@ -1,8 +1,8 @@
-"""Tests for the resource-layer clock.
+"""Tests for the equipment-layer clock.
 
 Mirrors the pattern established for Imu (ADR 0009): declared
 elapsed_sigma_s covers only the white-noise part, and
-the drift's Gauss-Markov behaviour is the resource's own true dynamics, not
+the drift's Gauss-Markov behaviour is the equipment's own true dynamics, not
 something it declares.
 """
 
@@ -13,8 +13,8 @@ import numpy as np
 import pytest
 
 from ose import interfaces
-from ose.resource.clock import Clock
-from ose.resource.reference_configs.reference_clock import STANDARD
+from ose.equipment.clock import Clock
+from ose.equipment.reference_configs.reference_clock import STANDARD
 
 
 def test_satisfies_clock_sensor_protocol():

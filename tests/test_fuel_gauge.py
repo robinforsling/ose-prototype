@@ -1,4 +1,4 @@
-"""Tests for the resource-layer fuel gauge.
+"""Tests for the equipment-layer fuel gauge.
 
 Mirrors the pattern established for AirDataSensor: declared
 fuel_remaining_sigma_kg is honest -- sample mean and standard deviation
@@ -11,10 +11,10 @@ import numpy as np
 import pytest
 
 from ose import interfaces
-from ose.resource.fuel_gauge import FuelGauge
-from ose.resource.reference_configs.reference_fuel_gauge import STANDARD
-from ose.resource.reference_configs.reference_vehicle import reference_fighter
-from ose.resource.vehicle import VehicleState
+from ose.equipment.fuel_gauge import FuelGauge
+from ose.equipment.reference_configs.reference_fuel_gauge import STANDARD
+from ose.equipment.reference_configs.reference_vehicle import reference_fighter
+from ose.equipment.vehicle import VehicleState
 
 
 @pytest.fixture

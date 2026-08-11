@@ -24,6 +24,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from ose.equipment.fuel_gauge import FuelGauge
+from ose.equipment.reference_configs.reference_fuel_gauge import STANDARD as GAUGE
+from ose.equipment.reference_configs.reference_vehicle import reference_fighter
+from ose.equipment.vehicle import Vehicle2D, VehicleCommand, VehicleState
 from ose.integration import step_rk4
 from ose.interfaces import (
     FuelMeasurement,
@@ -31,10 +35,6 @@ from ose.interfaces import (
     OwnStateEstimate,
     PromisedEnvelope,
 )
-from ose.resource.fuel_gauge import FuelGauge
-from ose.resource.reference_configs.reference_fuel_gauge import STANDARD as GAUGE
-from ose.resource.reference_configs.reference_vehicle import reference_fighter
-from ose.resource.vehicle import Vehicle2D, VehicleCommand, VehicleState
 from ose.subsystem.reference_configs.reference_vehicle_manager import STANDARD
 from ose.subsystem.vehicle_manager import VehicleManager
 
@@ -92,7 +92,7 @@ def test_manager_cannot_see_truth():
     tree = ast.parse(path.read_text())
 
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == "ose.resource.vehicle":
+        if isinstance(node, ast.ImportFrom) and node.module == "ose.equipment.vehicle":
             names = {alias.name for alias in node.names}
             leaked = names & {"Disturbance", "VehicleState"}
             assert not leaked, f"imports truth-carrying types: {leaked}"
@@ -679,7 +679,7 @@ def test_only_the_vehicle_manager_binds_the_vehicle_model():
 
     Three exemptions, each for a different reason:
 
-      ose/resource/**       the resource layer owns the vehicle. Imu holds one
+      ose/equipment/**       the equipment layer owns the vehicle. Imu holds one
                             for drag_N and is a peer, not a consumer above it.
       ose/integration.py    the integrator steps the model rather than asking
                             it what it can do. It is the simulation core's job
@@ -697,13 +697,13 @@ def test_only_the_vehicle_manager_binds_the_vehicle_model():
 
     holders = []
     for path in sorted(root.rglob("*.py")):
-        if path in exempt or "resource" in path.relative_to(root).parts:
+        if path in exempt or "equipment" in path.relative_to(root).parts:
             continue
         tree = ast.parse(path.read_text())
         for node in ast.walk(tree):
             if (
                 isinstance(node, ast.ImportFrom)
-                and node.module == "ose.resource.vehicle"
+                and node.module == "ose.equipment.vehicle"
                 and any(a.name == "Vehicle2D" for a in node.names)
             ):
                 holders.append(str(path.relative_to(root)))

@@ -25,23 +25,27 @@ import numpy as np
 import pytest
 
 from ose import interfaces
-from ose.integration import step_rk4
-from ose.resource.air_data import AirDataSensor as AirDataSensorImpl
-from ose.resource.clock import Clock
-from ose.resource.fuel_gauge import FuelGauge
-from ose.resource.gnss import GnssReceiver
-from ose.resource.imu import Imu
-from ose.resource.integrated_navigation_unit import IntegratedNavUnit
-from ose.resource.reference_configs.reference_air_data import STANDARD as AIR_DATA_STANDARD
-from ose.resource.reference_configs.reference_clock import STANDARD as CLOCK_STANDARD
-from ose.resource.reference_configs.reference_fuel_gauge import STANDARD as FUEL_STANDARD
-from ose.resource.reference_configs.reference_gnss import STANDARD as GNSS_STANDARD
-from ose.resource.reference_configs.reference_imu import TACTICAL_GRADE
-from ose.resource.reference_configs.reference_integrated_navigation_unit import (
+from ose.equipment.air_data import AirDataSensor as AirDataSensorImpl
+from ose.equipment.clock import Clock
+from ose.equipment.fuel_gauge import FuelGauge
+from ose.equipment.gnss import GnssReceiver
+from ose.equipment.imu import Imu
+from ose.equipment.integrated_navigation_unit import IntegratedNavUnit
+from ose.equipment.reference_configs.reference_air_data import (
+    STANDARD as AIR_DATA_STANDARD,
+)
+from ose.equipment.reference_configs.reference_clock import STANDARD as CLOCK_STANDARD
+from ose.equipment.reference_configs.reference_fuel_gauge import (
+    STANDARD as FUEL_STANDARD,
+)
+from ose.equipment.reference_configs.reference_gnss import STANDARD as GNSS_STANDARD
+from ose.equipment.reference_configs.reference_imu import TACTICAL_GRADE
+from ose.equipment.reference_configs.reference_integrated_navigation_unit import (
     STANDARD as INTEGRATED_NAV_STANDARD,
 )
-from ose.resource.reference_configs.reference_vehicle import reference_fighter
-from ose.resource.vehicle import Disturbance, VehicleCommand, VehicleState
+from ose.equipment.reference_configs.reference_vehicle import reference_fighter
+from ose.equipment.vehicle import Disturbance, VehicleCommand, VehicleState
+from ose.integration import step_rk4
 
 DT = 0.02
 
@@ -67,16 +71,16 @@ def _fly(vehicle, state, cmd, duration_s, dt=DT):
 # Protocol conformance
 # --------------------------------------------------------------------------
 
-def test_every_resource_module_defines_a_component_with_capability():
+def test_every_equipment_module_defines_a_component_with_capability():
     """Discovered, not hand-listed, on purpose.
 
-    An earlier version of this test enumerated resources by hand under the
-    name "every resource" and quietly omitted IntegratedNavUnit, so a
-    resource with no capability() at all passed unnoticed -- coverage in
-    name only. Walking the package means adding a resource without a
-    capability model fails here rather than going unremarked.
+    An earlier version enumerated the six it knew about by hand, under a name
+    promising all of them, and quietly omitted IntegratedNavUnit -- so a
+    component with no capability() at all passed unnoticed, and the coverage
+    existed in the name only. Walking the package means adding equipment
+    without a capability model fails here rather than going unremarked.
     """
-    package = importlib.import_module("ose.resource")
+    package = importlib.import_module("ose.equipment")
     package_dir = Path(package.__file__).parent
 
     module_names = sorted(
@@ -84,10 +88,10 @@ def test_every_resource_module_defines_a_component_with_capability():
         for p in package_dir.glob("*.py")
         if p.stem != "__init__"
     )
-    assert module_names, "no resource modules discovered -- test is vacuous"
+    assert module_names, "no equipment modules discovered -- test is vacuous"
 
     for name in module_names:
-        module = importlib.import_module(f"ose.resource.{name}")
+        module = importlib.import_module(f"ose.equipment.{name}")
         components = [
             obj
             for attr, obj in vars(module).items()
@@ -96,20 +100,20 @@ def test_every_resource_module_defines_a_component_with_capability():
             and not attr.endswith("Parameters")
             and not dataclasses.is_dataclass(obj)
         ]
-        assert components, f"ose.resource.{name} defines no component class"
+        assert components, f"ose.equipment.{name} defines no component class"
         for component in components:
             assert hasattr(component, "capability"), (
-                f"{component.__name__} in ose.resource.{name} has no "
-                "capability(); every resource must be answerable"
+                f"{component.__name__} in ose.equipment.{name} has no "
+                "capability(); every equipment component must be answerable"
             )
 
 
-def test_constructed_resources_satisfy_the_capability_protocol(vehicle):
+def test_constructed_equipment_satisfies_the_capability_protocol(vehicle):
     """hasattr above is a structural check; this one instantiates and
     confirms the runtime-checkable protocol actually holds."""
     mass_dry_kg = vehicle.lam.mass_dry_kg
     rng = np.random.default_rng(0)
-    for resource in (
+    for item in (
         vehicle,
         Imu(TACTICAL_GRADE, rng, vehicle),
         GnssReceiver(GNSS_STANDARD, rng=rng),
@@ -118,7 +122,7 @@ def test_constructed_resources_satisfy_the_capability_protocol(vehicle):
         FuelGauge(FUEL_STANDARD, mass_dry_kg, rng=rng),
         IntegratedNavUnit(INTEGRATED_NAV_STANDARD, rng=rng),
     ):
-        assert isinstance(resource, interfaces.CapabilityModel)
+        assert isinstance(item, interfaces.CapabilityModel)
 
 
 def test_every_sensor_declares_at_least_one_channel(vehicle):
@@ -415,7 +419,7 @@ def test_sensor_capability_rate_matches_due(vehicle):
 
 
 def test_gnss_capability_reports_denial(vehicle):
-    """The one resource whose capability is genuinely dynamic. A planner
+    """The one equipment component whose capability is genuinely dynamic. A planner
     asking during an outage must be told the receiver cannot deliver."""
     gnss = GnssReceiver(GNSS_STANDARD, rng=np.random.default_rng(0))
     assert gnss.capability().available

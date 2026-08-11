@@ -2,10 +2,10 @@
 Clock model: a platform's own internal timekeeping (e.g. a crystal or atomic
 oscillator).
 
-Resource-layer: reads true elapsed time directly, privileged access nothing
+Equipment-layer: reads true elapsed time directly, privileged access nothing
 above this layer has. True time is ground truth owned by the simulation core
 (see CLAUDE.md's layer table), no different in kind from the true vehicle
-state read by other resource-layer sensors. Publishes ClockMeasurement,
+state read by other equipment-layer sensors. Publishes ClockMeasurement,
 which carries no truth -- see its docstring for why that record has no true
 interval field, unlike ImuMeasurement.
 
@@ -39,7 +39,7 @@ from ose.interfaces import ClockMeasurement, MeasurementChannel, SensorCapabilit
 class ClockParameters:
     """Shape only, no defaults -- an oscillator grade (crystal, disciplined,
     laboratory, ...) is a choice, not a universal, so it belongs in a named
-    reference config (resource/reference_configs/reference_clock.py), not
+    reference config (equipment/reference_configs/reference_clock.py), not
     baked in here."""
 
     drift_sigma: float          # steady-state fractional frequency offset [s/s]

@@ -1,11 +1,11 @@
-"""Reference configurations for the vehicle resource. See package docstring."""
+"""Reference configurations for the vehicle. See package docstring."""
 
 from __future__ import annotations
 
 import math
 
+from ose.equipment.vehicle import Constraints, Vehicle2D, VehicleParameters
 from ose.reference_configs.reference_environment import G_STANDARD, ISA_SEA_LEVEL
-from ose.resource.vehicle import Constraints, Vehicle2D, VehicleParameters
 
 
 def reference_fighter() -> Vehicle2D:

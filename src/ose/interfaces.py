@@ -14,7 +14,7 @@ from typing import Protocol, runtime_checkable
 
 import numpy as np
 
-from ose.resource.vehicle import Disturbance, Saturation, VehicleCommand, VehicleState
+from ose.equipment.vehicle import Disturbance, Saturation, VehicleCommand, VehicleState
 
 
 @dataclass
@@ -354,7 +354,7 @@ class MeasurementChannel:
 
 @dataclass(frozen=True)
 class SensorCapability:
-    """What a sensing resource can currently achieve: how often, how well
+    """What a sensing component can currently achieve: how often, how well
     on each channel, and whether at all right now.
 
     `rate_hz` is None for a sensor that does not own its rate -- Imu and

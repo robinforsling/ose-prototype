@@ -7,7 +7,7 @@ scripted sequence of setpoints; this one puts the single-ship action planner
 in front of it, so the loop is the full stack:
 
     WaypointPlanner  ->  ActionSet  ->  VehicleGuidance  ->  Vehicle2D  ->  RK4
-    (single-ship)                       (subsystem)          (resource)
+    (single-ship)                       (subsystem)          (equipment)
 
 Nobody tells the aircraft what heading to fly. The planner is given a route of
 places to be, decides a bearing each cycle from where it believes it is, and
@@ -97,14 +97,14 @@ import matplotlib
 import numpy as np
 from _player import CONTROLS_HELP, Player
 
-from ose.integration import step_rk4
-from ose.interfaces import HeadingSpeedSetpoint, OwnStateEstimate
-from ose.resource.fuel_gauge import FuelGauge
-from ose.resource.reference_configs.reference_fuel_gauge import (
+from ose.equipment.fuel_gauge import FuelGauge
+from ose.equipment.reference_configs.reference_fuel_gauge import (
     STANDARD as FUEL_GAUGE_STANDARD,
 )
-from ose.resource.reference_configs.reference_vehicle import reference_fighter
-from ose.resource.vehicle import VehicleState
+from ose.equipment.reference_configs.reference_vehicle import reference_fighter
+from ose.equipment.vehicle import VehicleState
+from ose.integration import step_rk4
+from ose.interfaces import HeadingSpeedSetpoint, OwnStateEstimate
 from ose.single_ship.action_planner import Waypoint, WaypointPlanner
 from ose.single_ship.reference_configs.reference_action_planner import (
     STANDARD as PLANNER_STANDARD,
@@ -232,7 +232,7 @@ def fly() -> tuple[dict[str, np.ndarray], list[float]]:
 
     t = 0.0
     while t < T_MAX:
-        # Resource layer first: the gauge is the one component here entitled
+        # Equipment layer first: the gauge is the one component here entitled
         # to read truth, and the manager consumes only what it publishes.
         if gauge.due(t):
             manager.ingest(gauge.sample(t, state))

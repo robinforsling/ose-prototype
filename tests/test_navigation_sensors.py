@@ -1,4 +1,4 @@
-"""Tests for the resource-layer navigation sensors.
+"""Tests for the equipment-layer navigation sensors.
 
 Each sensor declares its own accuracy; these tests check that the declared
 sigma is honest -- the property the whole split exists to make checkable, per
@@ -12,14 +12,16 @@ import numpy as np
 import pytest
 
 from ose import interfaces
-from ose.resource.air_data import AirDataSensor as AirDataSensorImpl
-from ose.resource.gnss import GnssReceiver
-from ose.resource.imu import Imu
-from ose.resource.reference_configs.reference_air_data import STANDARD as AIR_DATA_STANDARD
-from ose.resource.reference_configs.reference_gnss import STANDARD as GNSS_STANDARD
-from ose.resource.reference_configs.reference_imu import TACTICAL_GRADE
-from ose.resource.reference_configs.reference_vehicle import reference_fighter
-from ose.resource.vehicle import Disturbance, VehicleCommand, VehicleState
+from ose.equipment.air_data import AirDataSensor as AirDataSensorImpl
+from ose.equipment.gnss import GnssReceiver
+from ose.equipment.imu import Imu
+from ose.equipment.reference_configs.reference_air_data import (
+    STANDARD as AIR_DATA_STANDARD,
+)
+from ose.equipment.reference_configs.reference_gnss import STANDARD as GNSS_STANDARD
+from ose.equipment.reference_configs.reference_imu import TACTICAL_GRADE
+from ose.equipment.reference_configs.reference_vehicle import reference_fighter
+from ose.equipment.vehicle import Disturbance, VehicleCommand, VehicleState
 
 
 @pytest.fixture

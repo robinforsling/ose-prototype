@@ -1,8 +1,8 @@
-"""Reference configurations for the GNSS resource. See package docstring."""
+"""Reference configurations for the GNSS receiver. See package docstring."""
 
 from __future__ import annotations
 
-from ose.resource.gnss import GnssParameters
+from ose.equipment.gnss import GnssParameters
 
 STANDARD = GnssParameters(
     gnss_rate_hz=1.0,

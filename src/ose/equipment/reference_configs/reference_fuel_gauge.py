@@ -1,9 +1,9 @@
-"""Reference configurations for the fuel gauge resource. See package
+"""Reference configurations for the fuel gauge. See package
 docstring."""
 
 from __future__ import annotations
 
-from ose.resource.fuel_gauge import FuelGaugeParameters
+from ose.equipment.fuel_gauge import FuelGaugeParameters
 
 STANDARD = FuelGaugeParameters(
     fuel_rate_hz=1.0,

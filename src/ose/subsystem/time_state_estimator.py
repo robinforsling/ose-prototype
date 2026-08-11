@@ -3,7 +3,7 @@ Time estimator: tracks a platform clock's offset and drift from a stream of
 ClockMeasurement readings.
 
 Subsystem-layer: purely cyber, same rule as navigation_state_estimator.py --
-this module must not import anything from ose.resource, and no public
+this module must not import anything from ose.equipment, and no public
 method may take a parameter whose name begins with true_. See
 test_estimator_cannot_see_truth in tests/test_time_estimator.py.
 
@@ -52,7 +52,7 @@ N_ERR = 2
 class TimeEstimatorParameters:
     """The filter's own assumed drift process model -- its prior belief
     about how the platform clock's drift behaves, decoupled from whatever
-    the true Clock resource actually does. Same split as EstimatorParameters
+    the true Clock actually does. Same split as EstimatorParameters
     vs ImuParameters in navigation_state_estimator.py / ADR 0009."""
 
     drift_sigma: float = 1.0e-9        # assumed steady-state fractional frequency offset [s/s]

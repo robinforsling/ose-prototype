@@ -3,7 +3,7 @@ Vehicle guidance: converts a commanded setpoint into an admissible
 VehicleCommand.
 
 Subsystem-layer: purely cyber. This module must not import VehicleState or
-Disturbance from ose.resource.vehicle, and no public method may take a
+Disturbance from ose.equipment.vehicle, and no public method may take a
 parameter whose name begins with true_ -- see test_guidance_cannot_see_truth
 in tests/test_vehicle_guidance.py, which checks both by parsing this file
 with ast. Guidance never reads truth: its only state input is an
@@ -35,13 +35,13 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+from ose.equipment.vehicle import Saturation, VehicleCommand
 from ose.interfaces import (
     GuidanceCapability,
     HeadingSpeedSetpoint,
     OwnStateEstimate,
     TurnRateSpeedSetpoint,
 )
-from ose.resource.vehicle import Saturation, VehicleCommand
 from ose.subsystem.vehicle_manager import VehicleManager
 
 
