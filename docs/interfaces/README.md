@@ -220,18 +220,26 @@ which owns the platform's believed mass. See ADR 0015.
 
 ### `planning.action.v1`
 
-`ActionSet(t_s, motion=None)`, published by any component satisfying
+`ActionSet(t_s, motion=None, propulsion=None)`, published by any component satisfying
 `ActionPlanner` (`plan(t_s, own_state, capability) -> ActionSet`). Today the
 only implementation is `WaypointPlanner` (single-ship layer,
 `single_ship/action_planner.py`), which follows a route of waypoints.
 
 A bundle with one field per subsystem, not a bare motion setpoint, because
 `docs/40-composition-spec.md` binds one planner's `action_out` to several
-subsystems at once. Only `motion` exists today; `sensor`, `effect` and
-`comms` arrive as new fields when those subsystems do, which is backward
-compatible where changing the record's type would not be. A planner that
-eventually decides motion and sensing *together* publishes through this
-record unchanged.
+subsystems at once. `sensor`, `effect` and `comms` arrive as new fields when
+those subsystems do, which is backward compatible where changing the record's
+type would not be. A planner that eventually decides motion and sensing
+*together* publishes through this record unchanged.
+
+`propulsion` is the mode a switched vehicle model should engage, in whatever
+type that model defines. It is a sibling of `motion` rather than part of the
+setpoint because the two have different lifetimes -- a heading may be held for
+a minute while boost runs for ten seconds -- and it is a planning decision
+rather than a consequence of thrust demand: engaging boost automatically
+whenever guidance asked for more than nominal thrust would let a speed-hold
+loop spend a thermal budget and a fuel reserve that are finite and contested.
+Guidance never sees it; the vehicle manager carries it to the model.
 
 **A field set to None means "no new action, continue as before", not
 "stop".** A planner with nothing new to say about motion leaves the vehicle

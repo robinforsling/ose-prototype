@@ -284,6 +284,18 @@ class ActionSet:
 
     t_s: float
     motion: "HeadingSpeedSetpoint | TurnRateSpeedSetpoint | None" = None
+    # The propulsion mode being asked for, in whatever type the vehicle model
+    # defines. A sibling of motion rather than part of the setpoint, because
+    # the two have different lifetimes: a heading may be held for a minute
+    # while boost runs for ten seconds.
+    #
+    # Deciding it is a planning act, not a consequence of thrust demand.
+    # Engaging boost automatically whenever guidance asked for more than
+    # nominal thrust would let a speed-hold loop quietly spend a thermal
+    # budget and a fuel reserve that are finite and contested -- and the
+    # planner would find boost unavailable exactly when it had been saving
+    # it. Guidance never sees this field.
+    propulsion: object | None = None
 
     def merged_onto(self, previous: "ActionSet") -> "ActionSet":
         """This cycle's action, with absent fields carried over from the last
@@ -302,6 +314,10 @@ class ActionSet:
         return ActionSet(
             t_s=self.t_s,
             motion=self.motion if self.motion is not None else previous.motion,
+            propulsion=(
+                self.propulsion if self.propulsion is not None
+                else previous.propulsion
+            ),
         )
 
 

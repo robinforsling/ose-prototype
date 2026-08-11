@@ -169,6 +169,26 @@ def test_a_stated_action_overrides_the_previous_one():
         )
 
 
+def test_propulsion_carries_over_independently_of_motion():
+    """The two fields have different lifetimes, so they must not be coupled:
+    a planner restating a heading without mentioning boost should not cancel
+    boost, and vice versa. The generic guard above proves every field is
+    carried; this proves they are carried separately."""
+    previous = ActionSet(
+        t_s=0.0, motion=HeadingSpeedSetpoint(1.0, 250.0), propulsion="boost"
+    )
+
+    new_heading = ActionSet(t_s=1.0, motion=HeadingSpeedSetpoint(2.0, 250.0))
+    merged = new_heading.merged_onto(previous)
+    assert merged.motion.psi_cmd_rad == 2.0
+    assert merged.propulsion == "boost", "a new heading cancelled the mode"
+
+    new_mode = ActionSet(t_s=2.0, propulsion="nominal")
+    merged = new_mode.merged_onto(previous)
+    assert merged.propulsion == "nominal"
+    assert merged.motion is previous.motion, "a mode change cancelled the heading"
+
+
 def test_the_merge_takes_the_new_timestamp():
     """t_s labels this cycle, not the cycle the carried-over action came
     from -- otherwise a held action would make time appear to stop."""
