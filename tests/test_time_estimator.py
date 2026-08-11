@@ -21,6 +21,11 @@ import numpy as np
 import pytest
 
 from ose import interfaces
+from _truth_boundary import (
+    assert_no_equipment_imports,
+    assert_no_truth_parameters,
+    component_path,
+)
 from ose.equipment.clock import Clock
 from ose.equipment.reference_configs.reference_clock import STANDARD
 from ose.interfaces import ClockMeasurement
@@ -32,23 +37,9 @@ from ose.subsystem.time_state_estimator import TimeEstimator, TimeEstimatorParam
 # --------------------------------------------------------------------------
 
 def test_estimator_cannot_see_truth():
-    path = (
-        Path(__file__).resolve().parents[1]
-        / "src" / "ose" / "subsystem" / "time_state_estimator.py"
-    )
-    tree = ast.parse(path.read_text())
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module is not None:
-            assert not node.module.startswith("ose.equipment"), (
-                f"imports from equipment layer: {node.module}"
-            )
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and not node.name.startswith("_"):
-            params = [a.arg for a in node.args.args + node.args.kwonlyargs]
-            leaked = [p for p in params if p.startswith("true_")]
-            assert not leaked, f"public method {node.name} takes truth: {leaked}"
+    path = component_path("subsystem", "time_state_estimator.py")
+    assert_no_equipment_imports(path)
+    assert_no_truth_parameters(path)
 
 
 def test_estimator_satisfies_the_protocol():

@@ -20,6 +20,11 @@ import numpy as np
 import pytest
 
 from ose import interfaces
+from _truth_boundary import (
+    assert_no_equipment_imports,
+    assert_no_truth_parameters,
+    component_path,
+)
 from ose.equipment.reference_configs.reference_vehicle import reference_fighter
 from ose.equipment.vehicle import VehicleState
 from ose.integration import step_rk4
@@ -78,23 +83,9 @@ def state():
 def test_planner_cannot_see_truth():
     """Two layers above anything entitled to read truth, so the check is the
     same one the subsystem components carry."""
-    path = (
-        Path(__file__).resolve().parents[1]
-        / "src" / "ose" / "single_ship" / "action_planner.py"
-    )
-    tree = ast.parse(path.read_text())
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module is not None:
-            assert not node.module.startswith("ose.equipment"), (
-                f"single-ship component imports from the equipment layer: {node.module}"
-            )
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and not node.name.startswith("_"):
-            params = [a.arg for a in node.args.args + node.args.kwonlyargs]
-            leaked = [p for p in params if p.startswith("true_")]
-            assert not leaked, f"public method {node.name} takes truth: {leaked}"
+    path = component_path("single_ship", "action_planner.py")
+    assert_no_equipment_imports(path)
+    assert_no_truth_parameters(path)
 
 
 def test_satisfies_the_protocol():

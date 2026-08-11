@@ -24,6 +24,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from _truth_boundary import (
+    TRUTH_MODULE,
+    assert_no_truth_parameters,
+    assert_no_truth_types,
+    component_path,
+)
 from ose.equipment.fuel_gauge import FuelGauge
 from ose.equipment.reference_configs.reference_fuel_gauge import STANDARD as GAUGE
 from ose.equipment.reference_configs.reference_vehicle import reference_fighter
@@ -85,23 +91,9 @@ def manager(vehicle):
 # --------------------------------------------------------------------------
 
 def test_manager_cannot_see_truth():
-    path = (
-        Path(__file__).resolve().parents[1]
-        / "src" / "ose" / "subsystem" / "vehicle_manager.py"
-    )
-    tree = ast.parse(path.read_text())
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == "ose.equipment.vehicle":
-            names = {alias.name for alias in node.names}
-            leaked = names & {"Disturbance", "VehicleState"}
-            assert not leaked, f"imports truth-carrying types: {leaked}"
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and not node.name.startswith("_"):
-            params = [a.arg for a in node.args.args + node.args.kwonlyargs]
-            leaked = [p for p in params if p.startswith("true_")]
-            assert not leaked, f"public method {node.name} takes truth: {leaked}"
+    path = component_path("subsystem", "vehicle_manager.py")
+    assert_no_truth_types(path)
+    assert_no_truth_parameters(path)
 
 
 def test_the_filter_does_not_read_the_true_burn_coefficient():
@@ -703,7 +695,7 @@ def test_only_the_vehicle_manager_binds_the_vehicle_model():
         for node in ast.walk(tree):
             if (
                 isinstance(node, ast.ImportFrom)
-                and node.module == "ose.equipment.vehicle"
+                and node.module == TRUTH_MODULE
                 and any(a.name == "Vehicle2D" for a in node.names)
             ):
                 holders.append(str(path.relative_to(root)))

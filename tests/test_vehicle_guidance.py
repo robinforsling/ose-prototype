@@ -18,6 +18,11 @@ import numpy as np
 import pytest
 
 from ose import interfaces
+from _truth_boundary import (
+    assert_no_truth_parameters,
+    assert_no_truth_types,
+    component_path,
+)
 from ose.equipment.reference_configs.reference_vehicle import reference_fighter
 from ose.equipment.vehicle import VehicleState
 from ose.integration import step_rk4
@@ -73,23 +78,9 @@ def guidance(manager):
 # --------------------------------------------------------------------------
 
 def test_guidance_cannot_see_truth():
-    path = (
-        Path(__file__).resolve().parents[1]
-        / "src" / "ose" / "subsystem" / "vehicle_guidance.py"
-    )
-    tree = ast.parse(path.read_text())
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == "ose.equipment.vehicle":
-            names = {alias.name for alias in node.names}
-            leaked = names & {"Disturbance", "VehicleState"}
-            assert not leaked, f"imports truth-carrying types: {leaked}"
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and not node.name.startswith("_"):
-            params = [a.arg for a in node.args.args + node.args.kwonlyargs]
-            leaked = [p for p in params if p.startswith("true_")]
-            assert not leaked, f"public method {node.name} takes truth: {leaked}"
+    path = component_path("subsystem", "vehicle_guidance.py")
+    assert_no_truth_types(path)
+    assert_no_truth_parameters(path)
 
 
 def test_satisfies_the_protocol(guidance):

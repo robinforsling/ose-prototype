@@ -16,6 +16,11 @@ import numpy as np
 import pytest
 
 from ose import interfaces
+from _truth_boundary import (
+    assert_no_truth_parameters,
+    assert_no_truth_types,
+    component_path,
+)
 from ose.equipment.integrated_navigation_unit import IntegratedNavUnit
 from ose.equipment.reference_configs.reference_integrated_navigation_unit import (
     STANDARD as INTEGRATED_NAV_STANDARD,
@@ -49,23 +54,9 @@ def _black_box() -> IntegratedNavUnit:
 # --------------------------------------------------------------------------
 
 def test_manager_cannot_see_truth():
-    path = (
-        Path(__file__).resolve().parents[1]
-        / "src" / "ose" / "subsystem" / "navigation_manager.py"
-    )
-    tree = ast.parse(path.read_text())
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == "ose.equipment.vehicle":
-            names = {alias.name for alias in node.names}
-            leaked = names & {"Disturbance", "VehicleState"}
-            assert not leaked, f"imports truth-carrying types: {leaked}"
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and not node.name.startswith("_"):
-            params = [a.arg for a in node.args.args + node.args.kwonlyargs]
-            leaked = [p for p in params if p.startswith("true_")]
-            assert not leaked, f"public method {node.name} takes truth: {leaked}"
+    path = component_path("subsystem", "navigation_manager.py")
+    assert_no_truth_types(path)
+    assert_no_truth_parameters(path)
 
 
 # --------------------------------------------------------------------------

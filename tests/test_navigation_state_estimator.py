@@ -19,6 +19,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from _truth_boundary import (
+    assert_no_truth_parameters,
+    assert_no_truth_types,
+    component_path,
+)
 from ose.equipment.air_data import AirDataSensor as AirDataSensorImpl
 from ose.equipment.gnss import GnssReceiver
 from ose.equipment.imu import Imu
@@ -120,23 +125,9 @@ def vehicle():
 
 def test_estimator_cannot_see_truth():
     """Blunt by design: fails loudly if truth is reintroduced for convenience."""
-    path = (
-        Path(__file__).resolve().parents[1]
-        / "src" / "ose" / "subsystem" / "navigation_state_estimator.py"
-    )
-    tree = ast.parse(path.read_text())
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == "ose.equipment.vehicle":
-            names = {alias.name for alias in node.names}
-            leaked = names & {"Disturbance", "VehicleState"}
-            assert not leaked, f"imports truth-carrying types: {leaked}"
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and not node.name.startswith("_"):
-            params = [a.arg for a in node.args.args + node.args.kwonlyargs]
-            leaked = [p for p in params if p.startswith("true_")]
-            assert not leaked, f"public method {node.name} takes truth: {leaked}"
+    path = component_path("subsystem", "navigation_state_estimator.py")
+    assert_no_truth_types(path)
+    assert_no_truth_parameters(path)
 
 
 def test_estimator_satisfies_the_protocol():
