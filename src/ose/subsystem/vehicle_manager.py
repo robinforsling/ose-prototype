@@ -51,6 +51,28 @@ This is the structure TimeEstimator uses for the clock (ADR 0010), with one
 difference that matters: there IS a correction source here, so this filter
 actually closes the loop where that one can only predict.
 
+One fuel sink, and what a second one would do
+---------------------------------------------
+The prediction assumes thrust is the only thing consuming fuel. A power
+generator would be a second sink, and its failure mode is worth knowing
+before anyone adds one, because it is not a broken filter.
+
+Measured over 150 s of steady cruise: an unmodelled drain of one to three per
+cent of the thrust burn leaves ANEES at about 1.1, which is consistent. The
+tsfc_error state absorbs it, because at constant thrust a constant drain is
+indistinguishable from a slightly wrong burn coefficient. Only around ten per
+cent does the covariance stop covering the error (ANEES 1.5).
+
+So the filter stays calibrated while its coefficient estimate quietly becomes
+wrong, which is worse than failing outright. And the absorption is an artefact
+of constant thrust: a constant drain cannot be represented as a
+thrust-proportional coefficient once thrust varies, and it integrates freely
+through a gauge outage, where nothing corrects it at all.
+
+A generator therefore needs its own term in the prediction rather than being
+left to the coefficient, and adding one should come with a consistency run at
+varying thrust, which no test here currently does.
+
 Why tsfc_error is a state and not process noise
 -----------------------------------------------
 A miscalibrated burn coefficient is a bias. Its contribution to the fuel error

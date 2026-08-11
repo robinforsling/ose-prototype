@@ -110,10 +110,17 @@ consumes:
     type: enum                   # nose | fuselage | wing | internal | conformal
     count: integer
 
-# Physical resources this component makes available. Vehicles only.
+# Physical resources this component makes available. Equipment layer only.
+#
+# The two are not owned by the same thing, which is why this block is not
+# restricted as a whole. Stations are airframe structure, so only a vehicle
+# can declare them. Power is made by whatever is built to make it, so any
+# equipment component may: an engine-driven generator modelled inside the
+# vehicle and a separate generator component then compose the same way, and
+# neither is privileged.
 supplies:
-  power_kw: number
-  stations:
+  power_kw: number               # any equipment component
+  stations:                      # vehicles only
     - name: string
       type: enum
       mass_limit_kg: number
@@ -374,9 +381,11 @@ Composition-time checks, all before the clock starts:
 2. **Mass budget.** Empty mass, plus fuel, plus the sum of attachment masses
    times quantity, is within the vehicle's maximum.
 3. **Power budget.** For each vehicle operating mode, the sum of attachment draws
-   in their corresponding modes is within `supplies.power_kw`. A radar that
-   cannot be powered in the vehicle's cruise mode is a load error, not a runtime
-   surprise.
+   in their corresponding modes is within the sum of `supplies.power_kw` over
+   everything on the platform that declares it. Summing the suppliers rather
+   than reading the vehicle's figure alone is what lets a generator be a
+   component instead of a vehicle parameter. A radar that cannot be powered in
+   the vehicle's cruise mode is a load error, not a runtime surprise.
 4. **Port satisfaction.** Every non-optional `requires` resolves to exactly one
    `provides` with a matching interface name and major version.
 5. **Truth boundary.** No component with `layer` other than `equipment` holds a
@@ -638,6 +647,13 @@ Monte Carlo campaign eventually raises.
 - Is `rate_group` the right abstraction, or should components declare a raw
   `update_rate_hz` and let the scheduler bucket them? Named groups are easier for
   contributors to reason about and easier to sweep in a campaign.
+- A power generator consumes fuel, and `consumes` has no fuel field. Fuel is
+  also the wrong shape for the power budget above: that check is about
+  instantaneous capacity, while fuel is a rate drawn against a finite tank, so
+  a platform can pass the power budget and still be unable to fly the mission.
+  That is an endurance question rather than a load question, and answering it
+  properly needs the energy manager rather than one more descriptor field.
+  Deliberately not invented here.
 - Formation membership is currently static. Dynamic re-formation would need
   formations to be mutable at runtime, which touches the freeze-after-binding
   rule. Defer.

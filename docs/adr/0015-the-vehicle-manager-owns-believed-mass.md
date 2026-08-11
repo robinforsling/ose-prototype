@@ -126,6 +126,18 @@ manager rather than reach past it. That is the price of the boundary, and it is
 deliberately not softened by leaving a public accessor for the underlying
 model — one would be used, and the rule would decay.
 
+**A second fuel sink would not announce itself.** The prediction assumes
+thrust is the only thing burning fuel. A power generator, which is planned,
+would be a second sink — and measured over 150 s of steady cruise an
+unmodelled drain of one to three per cent of the thrust burn leaves ANEES at
+about 1.1. The `tsfc_error` state absorbs it, because at constant thrust a
+constant drain looks exactly like a slightly wrong burn coefficient. The
+filter stays calibrated while its coefficient estimate quietly goes wrong,
+which is worse than a clean failure, and the absorption only holds while
+thrust is constant. Whoever adds a generator must give it its own term in the
+prediction and re-check consistency at varying thrust; the module docstring
+carries the numbers.
+
 Payload is a single configured scalar and nothing sets it non-zero yet.
 Effectors and stores released during a run would each contribute a term and
 change the sum at discrete instants; the record already publishes the
