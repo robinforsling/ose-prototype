@@ -130,6 +130,28 @@ consequence. A test that an inadmissible command was not clipped should check
 that heading advanced by exactly `omega * dt`, not that speed increased — speed
 depends on thrust and turn rate together and cannot isolate either.
 
+**Check the whole object, not the part a consumer happens to read.** This has
+bitten three times:
+
+- `capability_bound()` was checked on the three channels `GuidanceCapability`
+  republishes, so it passed while `endurance_s` came back *longer* than the
+  point estimate — an anti-conservative number wearing the name of a bound.
+- A two-state filter's consistency was checked as a scalar on the fuel
+  channel, so it passed at ANEES 1.05 against an unmodelled fuel sink that put
+  the full state at 9.07. The damage had landed in the state nobody looked at.
+- Six truth-boundary guards named their subject with a literal module string,
+  so a package rename would have left them matching nothing and passing.
+
+The shape is always the same: the assertion covers the convenient part rather
+than the thing actually returned. Walk the dataclass, use the full covariance,
+resolve the name at runtime. Each of these was found by asking what the test
+would do if the object grew, not by the test failing.
+
+Excite the system, do not just run it. The navigation consistency test flies a
+turn because the bug it exists for is invisible in straight flight; the mass
+filter's flies a throttle profile because a constant fuel sink is degenerate
+with a burn-coefficient error at constant thrust.
+
 ## Current state
 
 Implemented, with tests: the baseline vehicle model; navigation sensors and the

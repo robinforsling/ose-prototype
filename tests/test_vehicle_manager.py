@@ -1,12 +1,20 @@
 """Tests for the vehicle manager.
 
-The load-bearing one is test_fuel_estimate_is_consistent_through_the_run.
+The load-bearing one is test_the_filter_is_consistent_through_the_run.
 Everything else here checks that a number is correct; that one checks that the
 component's *stated uncertainty* is correct, which is the property the rest of
 the system relies on and the only one that catches an overconfident filter.
 It is set up as an ensemble because consistency is not a property of a single
 run: the true burn coefficient and the true initial fuel are drawn from the
 priors the filter assumes, which is what makes the question well posed.
+
+It checks the whole state, not just the fuel channel a consumer reads, and it
+flies a throttle profile as well as steady cruise. Both were added after
+finding that a constant unmodelled fuel sink -- a power generator, the planned
+case -- leaves the fuel channel at ANEES 1.05 while the full state sits at
+9.07: the damage lands entirely in the burn-coefficient state, and a scalar
+check on the other one passes.
+test_the_whole_state_is_checked_not_just_the_fuel pins that.
 
 test_only_the_vehicle_manager_binds_the_vehicle_model is ADR 0015's rule in
 the form that can actually be checked.
@@ -306,15 +314,50 @@ def test_prediction_backwards_is_a_no_op(manager):
 # Honesty of the stated uncertainty
 # --------------------------------------------------------------------------
 
-def _fly_one(seed: int, checkpoints, dt: float, thrust_N: float = 60_000.0,
-             gauge_par=GAUGE):
-    """One ensemble member. Returns NEES on the fuel channel at each
-    checkpoint.
+# Thrust profiles for the consistency ensembles.
+#
+# The navigation filter's consistency test flies a turn on purpose -- its
+# docstring records that the bug it was written for "is invisible in straight
+# flight, it only appears under turn". These tests were written at constant
+# thrust and did not carry that lesson over.
+def cruise(t_s: float) -> float:
+    return 60_000.0
+
+
+def throttled(t_s: float) -> float:
+    """Cruise, accelerate, near idle, cruise.
+
+    A constant unmodelled fuel sink -- a power generator, say -- is exactly
+    degenerate with a burn-coefficient error while thrust is constant, since
+    both are then a fixed number of kilograms per second. Varying the throttle
+    breaks that degeneracy, so the filter has to tell the two apart rather
+    than being allowed to confuse them harmlessly.
+    """
+    if t_s < 40.0:
+        return 60_000.0
+    if t_s < 70.0:
+        return 125_000.0
+    if t_s < 100.0:
+        return 12_000.0
+    return 60_000.0
+
+
+def _fly_one(seed: int, checkpoints, dt: float, thrust=cruise, gauge_par=GAUGE,
+             extra_drain_kg_s: float = 0.0):
+    """One ensemble member. Returns (fuel NEES, full-state NEES) per checkpoint.
 
     Truth is drawn from the priors the filter declares -- the burn
     coefficient from tsfc_sigma_fraction, the initial fuel from
     initial_fuel_sigma_kg. That is what makes consistency a well-posed
     question rather than a statement about one arbitrary run.
+
+    Both NEES values are returned because they answer different questions and
+    the fuel channel alone can look healthy while the filter is not. See
+    test_the_whole_state_is_checked_not_just_the_fuel.
+
+    extra_drain_kg_s burns fuel that the filter's model knows nothing about.
+    Zero for the consistency tests; non-zero only to prove those tests can
+    actually fail.
     """
     streams = np.random.SeedSequence(seed).spawn(2)
     truth_rng = np.random.default_rng(streams[0])
@@ -337,50 +380,110 @@ def _fly_one(seed: int, checkpoints, dt: float, thrust_N: float = 60_000.0,
     manager = VehicleManager(vehicle, STANDARD)
 
     state = VehicleState(0.0, 0.0, 0.0, 250.0, vehicle.lam.mass_dry_kg + fuel0)
-    command = VehicleCommand(thrust_N, 0.0)
 
     out, k, t = [], 0, 0.0
     while k < len(checkpoints):
         if gauge.due(t):
             manager.ingest(gauge.sample(t, state))
-        manager.predict(t + dt, command.thrust_N)
-        state = step_rk4(vehicle, state, command, dt)
+        thrust_N = thrust(t)
+        manager.predict(t + dt, thrust_N)
+        state = step_rk4(vehicle, state, VehicleCommand(thrust_N, 0.0), dt)
+        if extra_drain_kg_s:
+            state = dataclasses.replace(
+                state,
+                mass_kg=max(state.mass_kg - extra_drain_kg_s * dt,
+                            vehicle.lam.mass_dry_kg),
+            )
         t += dt
         if t >= checkpoints[k] - 1e-9:
             est = manager.mass(t)
-            error = est.fuel_mass_kg - (state.mass_kg - vehicle.lam.mass_dry_kg)
-            out.append(error**2 / est.covariance[0, 0])
+            error = np.array([
+                est.fuel_mass_kg - (state.mass_kg - vehicle.lam.mass_dry_kg),
+                est.tsfc_error - tsfc_error,
+            ])
+            out.append((
+                error[0] ** 2 / est.covariance[0, 0],
+                float(error @ np.linalg.solve(est.covariance, error)),
+            ))
             k += 1
     return out
 
 
-def test_fuel_estimate_is_consistent_through_the_run():
-    """The honesty test. Ensemble-average NEES must sit near one at every
-    checkpoint, not only at the end.
+CHECKPOINTS = [10.0, 30.0, 60.0, 100.0, 150.0]
 
-    Below one the filter is overconservative and a consumer steering on the
-    sigma gives away performance. Above one it is overconfident, which is the
-    failure that silently corrupts everything downstream -- the INS/GNSS bug
-    described in CLAUDE.md was exactly this, and finished thirty times
+
+@pytest.mark.parametrize("thrust", [cruise, throttled], ids=["cruise", "throttled"])
+def test_the_filter_is_consistent_through_the_run(thrust):
+    """The honesty test. Ensemble-average NEES must sit near its expectation
+    at every checkpoint, not only at the end.
+
+    Below expectation the filter is overconservative and a consumer steering
+    on the sigma gives away performance. Above it the filter is overconfident,
+    which is the failure that silently corrupts everything downstream -- the
+    INS/GNSS bug in CLAUDE.md was exactly this and finished thirty times
     overconfident while every plot looked correct. The bound is therefore
     two-sided, and checked through the run because a filter can be calibrated
-    at the end while being wrong in the middle.
+    at the end while wrong in the middle.
 
-    One degree of freedom, so each sample is chi-square with mean 1 and
-    variance 2; the 95 per cent band on the mean of N is 1 +- 1.96*sqrt(2/N).
+    Both the fuel channel alone and the whole state are checked. They are not
+    the same question: see test_the_whole_state_is_checked_not_just_the_fuel.
+
+    Chi-square with k degrees of freedom has mean k and variance 2k, so the
+    95 per cent band on the mean of N samples is k +- 1.96*sqrt(2k/N).
     """
-    n_runs = 120
-    checkpoints = [10.0, 30.0, 60.0, 100.0, 150.0]
-    band = 1.96 * math.sqrt(2.0 / n_runs)
+    n_runs = 100
+    rows = np.array([_fly_one(s, CHECKPOINTS, dt=0.25, thrust=thrust)
+                     for s in range(n_runs)])          # (run, checkpoint, 2)
 
-    rows = np.array([_fly_one(s, checkpoints, dt=0.25) for s in range(n_runs)])
+    for dof, channel, label in ((1, 0, "fuel"), (2, 1, "whole state")):
+        band = 1.96 * math.sqrt(2.0 * dof / n_runs)
+        for t_s, column in zip(CHECKPOINTS, rows[:, :, channel].T):
+            mean = column.mean()
+            assert abs(mean - dof) < band, (
+                f"{label} ANEES {mean:.2f} at t={t_s} s is outside "
+                f"[{dof - band:.2f}, {dof + band:.2f}] -- the filter is "
+                f"{'over' if mean > dof else 'under'}confident"
+            )
 
-    for t_s, column in zip(checkpoints, rows.T):
-        assert abs(column.mean() - 1.0) < band, (
-            f"ANEES {column.mean():.3f} at t={t_s} s is outside "
-            f"[{1 - band:.2f}, {1 + band:.2f}] -- the filter's stated "
-            f"uncertainty is {'over' if column.mean() > 1 else 'under'}confident"
-        )
+
+def test_the_whole_state_is_checked_not_just_the_fuel():
+    """Why the test above checks two degrees of freedom rather than one.
+
+    The filter carries two states, and an unmodelled disturbance does not
+    have to land in the one a consumer reads. A constant fuel sink the model
+    knows nothing about -- a power generator is the planned example -- is
+    absorbed almost entirely by the burn-coefficient state: the fuel channel
+    stays inside its band while the coefficient estimate quietly goes wrong,
+    which is worse than failing.
+
+    So this plants exactly that disturbance and asserts the fuel channel
+    alone would NOT have caught it, while the full state does. If the fuel
+    channel ever starts catching this on its own the test is over-specified
+    and can be simplified; if the full state stops catching it, the
+    consistency test above has lost its teeth.
+
+    0.05 kg/s is about three per cent of the cruise burn -- a plausible
+    generator, not a pathological one.
+    """
+    n_runs = 100
+    rows = np.array([
+        _fly_one(s, [150.0], dt=0.25, extra_drain_kg_s=0.05)
+        for s in range(n_runs)
+    ])
+    fuel_anees = rows[:, 0, 0].mean()
+    full_anees = rows[:, 0, 1].mean()
+
+    fuel_band = 1.96 * math.sqrt(2.0 / n_runs)
+    full_band = 1.96 * math.sqrt(4.0 / n_runs)
+
+    assert abs(fuel_anees - 1.0) < fuel_band, (
+        f"the fuel channel now detects a {0.05} kg/s unmodelled sink "
+        f"(ANEES {fuel_anees:.2f}); this test's premise no longer holds"
+    )
+    assert full_anees - 2.0 > full_band, (
+        f"full-state ANEES {full_anees:.2f} did not detect a 0.05 kg/s "
+        "unmodelled fuel sink -- the consistency test above has lost its teeth"
+    )
 
 
 def test_consistency_survives_a_worse_gauge():
@@ -400,18 +503,18 @@ def test_consistency_survives_a_worse_gauge():
     """
     degraded = dataclasses.replace(GAUGE, fuel_rate_hz=0.05, fuel_sigma_kg=60.0)
     n_runs = 80
-    band = 1.96 * math.sqrt(2.0 / n_runs)
-
     rows = np.array([
         _fly_one(s, [150.0], dt=0.25, gauge_par=degraded) for s in range(n_runs)
     ])
-    anees = rows[:, 0].mean()
 
-    assert abs(anees - 1.0) < band, (
-        f"ANEES {anees:.3f} against a 0.05 Hz / 60 kg gauge is outside "
-        f"[{1 - band:.2f}, {1 + band:.2f}] -- the filter is only calibrated "
-        "for the reference gauge"
-    )
+    for dof, channel, label in ((1, 0, "fuel"), (2, 1, "whole state")):
+        band = 1.96 * math.sqrt(2.0 * dof / n_runs)
+        mean = rows[:, 0, channel].mean()
+        assert abs(mean - dof) < band, (
+            f"{label} ANEES {mean:.2f} against a 0.05 Hz / 60 kg gauge is "
+            f"outside [{dof - band:.2f}, {dof + band:.2f}] -- the filter is "
+            "only calibrated for the reference gauge"
+        )
 
 
 def test_the_filter_beats_the_raw_gauge():
