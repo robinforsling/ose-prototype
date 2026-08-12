@@ -57,6 +57,7 @@ Both **compose** the baseline's records rather than restating them —
 `BoostParameters.nominal` is a `VehicleParameters`, `BoostConstraints.nominal`
 is a `Constraints` — so the drag polar has exactly one definition.
 
+<!-- generated: boost-parameters -->
 | | reference | against baseline |
 |---|---|---|
 | $c^{\mathrm{boost}}_{\mathrm{TSFC}}$ | $6.0\times10^{-5}$ kg/(N s) | **2.4×** the nominal rate |
@@ -67,6 +68,7 @@ is a `Constraints` — so the drag polar has exactly one definition.
 | $m_{\mathrm{res}}$ | 300 kg | fuel reserve — **policy** |
 | $s_{\max}$ | 1 | thermal limit — **physics** |
 | $\Delta t_{\mathrm{dwell}}$ | 5 s | anti-chatter — **policy** |
+<!-- end generated: boost-parameters -->
 
 **Only the thermal limit is physical.** An aircraft can light its afterburner
 on its last hundred kilograms and can switch twice in a second; it simply
@@ -177,15 +179,17 @@ turn tighter, it lets a given turn be held.
 
 At $m = 16$ t, $s = 0$:
 
+<!-- generated: boost-turn-performance -->
 | $v$ [m/s] | $\omega_{\mathrm{av}}$ [°/s] | $\omega_{\mathrm{sus}}$ nom | $\omega_{\mathrm{sus}}$ boost | gain | $t_{\mathrm{end}}$ nom | $t_{\mathrm{end}}$ boost |
 |---|---|---|---|---|---|---|
-| 150 | 14.53 | 14.53 | 14.53 | 0.00 | 150 min | 63 min |
+| 150 | 14.53 | 14.53 | 14.53 | +0.00 | 150 min | 63 min |
 | 200 | 19.81 | 15.45 | 18.74 | +3.29 | 111 min | 46 min |
 | 225 | 22.34 | 15.10 | 18.45 | +3.35 | 93 min | 39 min |
 | 250 | 20.10 | 14.68 | 18.11 | +3.43 | 78 min | 32 min |
 | 300 | 16.75 | 13.61 | 16.75 | +3.14 | 56 min | 23 min |
 | 400 | 12.56 | 10.31 | 12.56 | +2.26 | 32 min | 13 min |
 | 500 | 10.05 | 1.79 | 10.05 | +8.26 | 21 min | 9 min |
+<!-- end generated: boost-turn-performance -->
 
 Two things to read off it. At **150 m/s the gain is zero** — the aircraft is
 already lift-limited and thrust is not what is stopping it, so boost buys

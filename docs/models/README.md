@@ -11,8 +11,17 @@ numbers come out as for the bundled reference configuration, and which tests
 pin it.
 
 Every number on these pages is computed from the reference configuration
-rather than remembered, and every parameter table is checked against the code.
-All values are fictional and plausible, never claims about a real system.
+rather than remembered. The tables are generated between
+`<!-- generated: NAME -->` markers by
+
+```bash
+python tools/generate_model_docs.py
+```
+
+and `pytest` fails while they are stale, so a model change cannot quietly
+leave its page behind. The prose between the markers is written by hand and
+stays that way — see the tool's docstring for why. All values are fictional
+and plausible, never claims about a real system.
 
 ## Vehicle
 

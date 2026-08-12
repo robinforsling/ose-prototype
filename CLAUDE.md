@@ -111,6 +111,30 @@ the reasoning the decision came from. Git holds the history.
 backward compatible; removing or renaming requires a version increment on the
 interface.
 
+**Changing a vehicle model or its reference configuration means regenerating
+its page.**
+
+```bash
+python tools/generate_model_docs.py
+```
+
+`docs/models/vehicle/` carries a page per model, and the numeric parts of it —
+parameter tables, limit tables, turn-performance tables — are generated from
+the code between `<!-- generated: NAME -->` markers. `pytest` runs the
+generator with `--check` and fails when they are stale, so this is enforced
+rather than remembered.
+
+The prose between the markers is written, not generated, and no version of
+that tool should try to produce it. The value of those pages is the behaviour:
+which limit binds where, what is counter-intuitive, what a naive policy does.
+That is a judgement about what a reader would otherwise get wrong, and a page
+assembled from field names would be a worse version of the source code. When a
+model's behaviour changes, the tables update themselves and **the prose is
+still yours to fix**.
+
+A new vehicle model needs a page before the suite will pass; the check is
+named after the module.
+
 ## Testing philosophy
 
 Test properties, not appearances. Any component that publishes an uncertainty

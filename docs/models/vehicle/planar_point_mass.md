@@ -56,13 +56,15 @@ c_\ell = \tfrac{1}{2} S\, C_{L\max},
 c_{\mathrm{TSFC}} = c_{\mathrm{TSFC}}
 $$
 
+<!-- generated: theta -->
 | authored | reference value | | lumped | reference value |
 |---|---|---|---|---|
 | $S$ | 38.0 m² | | $c_p$ | 0.418 m² |
 | $C_{D0}$ | 0.022 | | $c_i$ | 0.671 s⁻⁴ |
-| $e$ | 0.80 | | $c_\ell$ | 22.8 m² |
+| $e$ | 0.8 | | $c_\ell$ | 22.8 m² |
 | $A\!R$ | 3.0 | | $c_{\mathrm{TSFC}}$ | $2.5\times10^{-5}$ kg/(N s) |
-| $C_{L\max}$ | 1.20 | | | |
+| $C_{L\max}$ | 1.2 | | | |
+<!-- end generated: theta -->
 
 **$c_i$ carries $g$.** The same airframe therefore lumps to different
 parameters under different gravity, which is why a configuration takes an
@@ -121,6 +123,7 @@ $$
 \boldsymbol{\lambda} = \begin{bmatrix} T_{\min} & T_{\max} & n_{\max} & \omega_{\mathrm{cap}} & v_{\min} & v_{\max} & m_{\mathrm{dry}} & m_{\max} \end{bmatrix}^{T}
 $$
 
+<!-- generated: lambda -->
 | | reference | note |
 |---|---|---|
 | $T_{\min}$ | 5 kN | idle |
@@ -131,6 +134,7 @@ $$
 | $v_{\max}$ | 600 m/s | airframe |
 | $m_{\mathrm{dry}}$ | 12 000 kg | |
 | $m_{\max}$ | 19 500 kg | |
+<!-- end generated: lambda -->
 
 $$
 \mathcal{U}(\boldsymbol{x}) = \{\, \boldsymbol{u} : T_{\min} \le T \le T_{\max},\ |\omega| \le \omega_{\max}(v,m) \,\}
@@ -181,17 +185,19 @@ $$
 
 At $m = 16$ t:
 
+<!-- generated: turn-performance -->
 | $v$ [m/s] | $n_\ell$ | $n_{\mathrm{av}}$ | $\omega_{\mathrm{av}}$ [°/s] | $\omega_{\mathrm{sus}}$ [°/s] | $R_{\min}$ [m] | $T_{\mathrm{req}}$ [kN] |
 |---|---|---|---|---|---|---|
 | 100 | 1.78 | 1.78 | 8.27 | 8.27 | 692 | 19.1 |
 | 150 | 4.01 | 4.01 | 14.53 | 14.53 | 592 | 17.8 |
 | 200 | 7.12 | 7.12 | 19.81 | 15.45 | 579 | 24.0 |
-| **225** | **9.00** | **9.00** | **22.35** | 15.10 | **577** | 28.7 |
+| **225** | **9.01** | **9.00** | **22.34** | 15.10 | **577** | 28.7 |
 | 250 | 11.13 | 9.00 | 20.10 | 14.68 | 713 | 34.2 |
 | 300 | 16.02 | 9.00 | 16.75 | 13.61 | 1026 | 47.6 |
 | 400 | 28.48 | 9.00 | 12.56 | 10.31 | 1824 | 82.8 |
 | 500 | 44.50 | 9.00 | 10.05 | 1.79 | 2850 | 128.6 |
-| 600 | 64.08 | 9.00 | 8.38 | **0.00** | 4104 | 184.7 |
+| 600 | 64.08 | 9.00 | 8.38 | 0.00 | 4104 | 184.7 |
+<!-- end generated: turn-performance -->
 
 **Which limit binds changes with speed.** Below the corner speed the aircraft
 is lift-limited and cannot reach 9 g; above it, structure binds and $\omega$
