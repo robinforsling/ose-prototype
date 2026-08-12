@@ -36,7 +36,7 @@ pytest                                 # run the test suite
 python demos/demo_vehicle.py           # turn envelope and an open-loop manoeuvre
 python demos/demo_navigation.py        # INS/GNSS through a GNSS outage
 python demos/demo_mass_estimation.py   # mass belief through a fuel-gauge outage
-python demos/demo_boost.py             # afterburner: what it buys and what it costs
+python demos/demo_boost.py             # afterburner: two boost policies, animated live
 python demos/demo_vehicle_guidance.py  # closed-loop heading/speed-hold, enforced
 python demos/demo_live_flight.py       # a setpoint mission, animated live
 python demos/demo_live_route.py        # a route through the planner, animated live

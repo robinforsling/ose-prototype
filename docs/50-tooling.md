@@ -1,6 +1,9 @@
 # Tooling
 
-Status: draft. Nothing here is implemented.
+Status: draft. None of the four tools below is built. The composition-time
+load checks the GUI section depends on are partly implemented in
+`ose/composition/`; the live demos are throwaway prototypes of the
+renderer, not the renderer.
 
 All four tools below are views or transforms over the composition specification.
 Building them that way is what keeps them from becoming four separate systems.
@@ -11,13 +14,18 @@ Priority one, ahead of everything else in this file. A crude 2D plan-view
 renderer showing platform positions, headings, and detections, updating during a
 run. Debugging a multi-platform simulation without it is guesswork.
 
-`demos/demo_live_flight.py` is a throwaway prototype of this, flying a sequence
-of guidance setpoints and rendering either to a live window or to video. It
-also stands in for the simulation core, which does not exist.
-`demos/demo_live_route.py` is the same machinery driven by the action planner
-instead of a script, so the whole stack built so far is in the loop; the
-transport controls both share live in `demos/_player.py`. None of it is meant
-to survive as written, but six things they ran into are worth carrying over.
+Three throwaway prototypes of this exist, sharing their transport controls
+via `demos/_player.py` and each standing in for the simulation core, which
+does not exist:
+
+  `demo_live_flight.py`  a scripted sequence of guidance setpoints
+  `demo_live_route.py`   the same machinery driven by the action planner, so
+                         the whole stack built so far is in the loop
+  `demo_boost.py`        two platforms flown together, differing only in a
+                         policy, which is the shape a comparison takes
+
+None is meant to survive as written, but eight things they ran into are worth
+carrying over.
 
 **Simulate first, render second.** The prototype's loop records everything and
 returns; the renderer reads the recording afterwards. Interleaving them couples
@@ -55,6 +63,14 @@ interval where the planner has stopped publishing motion at all — otherwise a
 plan that failed looks like a plan that finished. The rule generalises: for
 every component that decides something, render what it decided and what it
 decided it against, beside the outcome.
+
+**A plan view has to follow when the features are smaller than the track.**
+The boost demo's mission spans about 25 kilometres while the turn radii that
+carry its entire argument are one to two. Fitting the whole track renders both
+turns as dots; a window a few kilometres wide, recentred on the platforms each
+frame, keeps them legible throughout. The general form is that a fixed extent
+is only right when the interesting scale and the travelled scale are within an
+order of magnitude of each other, which for a combat aircraft they rarely are.
 
 **The renderer reads truth and must stay write-only.** It is a tool rather than
 a component, so ADR 0008 does not deny it truth — but nothing it computes may
@@ -94,6 +110,11 @@ downstream; the check that catches it is a NEES test, and it belongs in the lab.
 A graphical editor for platform specifications, with pieces that will not fit
 together greyed out. The greying-out is the composition-time validator, already
 required for headless runs, so the GUI adds presentation rather than logic.
+
+Part of that validator exists: `ose/composition/` checks station
+compatibility, the mass budget and the power budget over descriptor records.
+It returns findings rather than raising, which is what a GUI needs -- a
+listing of everything wrong with a configuration, not the first thing.
 
 Deliberately last. Building the GUI as the primary artifact and the file format
 as an export produces an unmodular tool; building it the other way gives headless

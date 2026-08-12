@@ -76,11 +76,16 @@ What to look at
 
   fuel             boost costs 6.0e-5 kg/(N s) against 2.5e-5 nominal.
 
-Produces, in plots/ alongside this script:
+Live, with the transport controls shared with the other live demos (see
+_player.py) -- pause on the moment boost is withdrawn and step through it.
+The plan view follows the pair rather than showing the whole track: the
+mission spans about 25 km while the turn radii that matter are one to two
+kilometres, and a fixed view renders both turns as dots.
 
-  boost.png
-
-Run with:  python demo_boost.py
+Run with:
+    python demo_boost.py                live window, or video if headless
+    python demo_boost.py --video        force writing plots/boost.mp4
+    python demo_boost.py --speed 1      start at real time
 """
 
 from __future__ import annotations
@@ -88,10 +93,12 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
+import argparse
+import os
+
 import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import numpy as np
+from _player import CONTROLS_HELP, Player
 
 from ose.equipment.reference_configs.vehicle.planar_point_mass_with_booster import (
     FIGHTER_BOOST_LIMITS,
@@ -227,70 +234,68 @@ def fly(policy) -> dict[str, np.ndarray]:
 
 RUNS = (("naive", ask_always, "C3"), ("hysteresis", ask_with_hysteresis, "C0"))
 
+# The plan view follows the pair rather than showing the whole track. The
+# mission spans about 25 km while the features that matter -- turn radii --
+# are one to two kilometres, and a fixed view of the lot renders both turns
+# as dots. A window this wide keeps them legible throughout.
+VIEW_SPAN_KM = 7.0
 
-def plot(runs, path: Path) -> None:
+
+def build_figure(runs, plt):
+    """Static scaffolding. Everything the animation moves is returned in
+    `art`, exactly as in demo_live_flight and demo_live_route."""
     t = runs["naive"]["t"]
-    fig = plt.figure(figsize=(15.0, 10.5))
+    fig = plt.figure(figsize=(15.0, 10.0))
     gs = fig.add_gridspec(5, 2, width_ratios=[1.0, 1.15], hspace=0.5, wspace=0.2)
+    art: dict[str, object] = {}
 
-    def turns(ax):
-        ax.axvspan(*NOMINAL_TURN, color="0.85", alpha=0.6, linewidth=0, zorder=0)
-        ax.axvspan(*BOOSTED_TURN, color="0.85", alpha=0.6, linewidth=0, zorder=0)
-
-    # ---- the two turns, overlaid at a common origin ----------------------
-    #
-    # A plain ground track is useless here: the straight legs run tens of
-    # kilometres and squash both turns into dots. What the demo claims is
-    # about the SHAPE of the two turns, so they are translated and rotated
-    # onto a common start and drawn on top of each other.
+    # ---- plan view, following the aircraft -------------------------------
     ax = fig.add_subplot(gs[:, 0])
-
-    def overlay(log, window, colour, label, style="-"):
-        m = (log["t"] >= window[0]) & (log["t"] < window[1])
-        x, y = log["p_x"][m], log["p_y"][m]
-        psi0 = log["psi"][m][0]
-        dx, dy = x - x[0], y - y[0]            # north, east from the entry point
-        c, sn = math.cos(psi0), math.sin(psi0)
-        along = dx * c + dy * sn
-        cross = -dx * sn + dy * c
-        ax.plot(cross / 1e3, along / 1e3, style, color=colour, lw=2.0, label=label)
-
-    base = runs["hysteresis"]
-    overlay(base, NOMINAL_TURN, "0.35", "turn 1, nominal throughout")
     for name, _, colour in RUNS:
-        overlay(runs[name], BOOSTED_TURN, colour, f"turn 2, {name}")
-    ax.plot([0], [0], "o", color="k", ms=6)
+        log = runs[name]
+        ax.plot(log["p_y"] / 1e3, log["p_x"] / 1e3, color=colour, lw=0.8,
+                alpha=0.25, zorder=1)
+        art[f"trail_{name}"] = ax.plot([], [], color=colour, lw=2.0, zorder=3)[0]
+        art[f"ship_{name}"] = ax.plot([], [], "o", color=colour, ms=9, zorder=5,
+                                      label=f"{name} policy")[0]
+        art[f"nose_{name}"] = ax.plot([], [], "-", color=colour, lw=2.0, zorder=4)[0]
     ax.set_aspect("equal")
-    ax.set_xlabel("cross-track [km]")
-    ax.set_ylabel("along initial heading [km]")
-    ax.set_title(
-        "The same commanded turn rate, three times over\n"
-        "translated and rotated onto a common start; both begin at "
-        f"{CRUISE_MPS:.0f} m/s",
-        fontsize=10,
-    )
-    ax.legend(frameon=False, fontsize=8, loc="lower right")
+    ax.set_xlabel("east, $p_y$ [km]")
+    ax.set_ylabel("north, $p_x$ [km]")
+    ax.set_title("One mission, two boost policies\n"
+                 "the view follows the pair; faint lines are the whole track",
+                 fontsize=10)
+    ax.legend(frameon=False, fontsize=8, loc="upper right")
     ax.grid(alpha=0.25)
+    art["view"] = ax
+    art["readout"] = ax.text(
+        0.02, 0.98, "", transform=ax.transAxes, va="top", ha="left",
+        family="monospace", fontsize=9,
+        bbox=dict(boxstyle="round", facecolor="white", alpha=0.85, edgecolor="0.8"),
+    )
 
     def panel(row, ylabel, title=None):
         a = fig.add_subplot(gs[row, 1])
-        turns(a)
+        a.axvspan(*NOMINAL_TURN, color="0.85", alpha=0.6, linewidth=0, zorder=0)
+        a.axvspan(*BOOSTED_TURN, color="0.85", alpha=0.6, linewidth=0, zorder=0)
         a.set_ylabel(ylabel); a.set_xlim(0.0, t[-1]); a.grid(alpha=0.25)
         if title:
             a.set_title(title, fontsize=9)
-        return a
+        cursor = a.axvline(0.0, color="k", lw=1.2)
+        return a, cursor
 
-    a = panel(0, "airspeed [m/s]",
-              "The payoff: the same turn bleeds speed in nominal and holds it "
-              "in boost")
+    a, art["cur0"] = panel(
+        0, "airspeed [m/s]",
+        "The payoff: the same turn bleeds speed in nominal and holds it in boost")
     for name, _, colour in RUNS:
         a.plot(t, runs[name]["v"], color=colour, lw=1.4, label=name)
     a.axhline(CRUISE_MPS, color="0.5", ls="--", lw=1.0)
     a.legend(frameon=False, fontsize=7, ncol=2, loc="lower right")
 
-    a = panel(1, "turn rate [deg/s]",
-              "The instantaneous limit is ONE line: it does not move with mode "
-              "(remark 5.1)")
+    a, art["cur1"] = panel(
+        1, "turn rate [deg/s]",
+        "The instantaneous limit is ONE line: it does not move with mode "
+        "(remark 5.1)")
     log = runs["hysteresis"]
     a.plot(t, log["omega_av"], color="0.45", ls="--", lw=1.2,
            label="instantaneous limit")
@@ -298,39 +303,81 @@ def plot(runs, path: Path) -> None:
     a.plot(t, log["omega_cmd"], color="C3", ls=":", lw=1.6, label="commanded")
     a.legend(frameon=False, fontsize=7, ncol=3, loc="lower left")
 
-    a = panel(2, "thermal state $s$",
-              "Asking for boost whenever it is allowed pins the aircraft on its "
-              "own limit")
+    a, art["cur2"] = panel(
+        2, "thermal state $s$",
+        "Asking for boost whenever it is allowed pins the aircraft on its own "
+        "limit")
     for name, _, colour in RUNS:
-        a.plot(t, runs[name]["thermal"], color=colour, lw=1.5, label=name)
-    a.axhline(FIGHTER_BOOST_LIMITS.thermal_max, color="k", ls="-.", lw=1.2,
-              label="$s_{max}$")
+        a.plot(t, runs[name]["thermal"], color=colour, lw=1.5)
+    a.axhline(FIGHTER_BOOST_LIMITS.thermal_max, color="k", ls="-.", lw=1.2)
     a.set_ylim(-0.05, 1.15)
-    a.legend(frameon=False, fontsize=7, ncol=3, loc="upper left")
 
-    a = panel(3, "boost engaged")
+    a, art["cur3"] = panel(3, "boost engaged")
     for k, (name, _, colour) in enumerate(RUNS):
         a.plot(t, runs[name]["mode_boost"].astype(float) * (1 - 0.06 * k),
-               color=colour, lw=1.6, label=name)
-    a.set_yticks([0, 1]); a.set_yticklabels(["nom", "boost"])
-    a.set_ylim(-0.15, 1.35)
-    a.legend(frameon=False, fontsize=7, ncol=2, loc="center left")
+               color=colour, lw=1.6)
+    a.set_yticks([0, 1]); a.set_yticklabels(["nom", "boost"]); a.set_ylim(-0.15, 1.3)
 
-    a = panel(4, "fuel [kg]")
+    a, art["cur4"] = panel(4, "fuel [kg]")
     for name, _, colour in RUNS:
-        a.plot(t, runs[name]["fuel"], color=colour, lw=1.4, label=name)
+        a.plot(t, runs[name]["fuel"], color=colour, lw=1.4)
     a.set_xlabel("time [s]")
 
-    fig.subplots_adjust(left=0.05, right=0.975, top=0.92, bottom=0.06)
-    PLOTS_DIR.mkdir(exist_ok=True)
-    fig.savefig(path, dpi=140)
-    plt.close(fig)
+    fig.subplots_adjust(left=0.05, right=0.975, top=0.92, bottom=0.11)
+    return fig, art
 
 
-def main() -> None:
-    runs = {name: fly(policy) for name, policy, _ in RUNS}
+def make_updater(runs, art):
+    """One frame. Kept separate from the figure so live and video share it."""
+    t = runs["naive"]["t"]
+    span = VIEW_SPAN_KM / 2.0
+    nose = VIEW_SPAN_KM * 0.05
+
+    def update(i):
+        ys, xs = [], []
+        for name, _, _ in RUNS:
+            log = runs[name]
+            y, x = log["p_y"] / 1e3, log["p_x"] / 1e3
+            art[f"trail_{name}"].set_data(y[: i + 1], x[: i + 1])
+            art[f"ship_{name}"].set_data([y[i]], [x[i]])
+            psi = log["psi"][i]
+            art[f"nose_{name}"].set_data(
+                [y[i], y[i] + nose * math.sin(psi)],
+                [x[i], x[i] + nose * math.cos(psi)],
+            )
+            ys.append(y[i]); xs.append(x[i])
+
+        # Follow the pair. A fixed view of the whole 25 km track renders both
+        # turns as dots; the features worth watching are a kilometre across.
+        cy, cx = sum(ys) / len(ys), sum(xs) / len(xs)
+        art["view"].set_xlim(cy - span, cy + span)
+        art["view"].set_ylim(cx - span, cx + span)
+
+        lines = [f"t      {t[i]:7.1f} s"]
+        for name, _, _ in RUNS:
+            log = runs[name]
+            flag = "BOOST" if log["mode_boost"][i] else "nom  "
+            if log["denied"][i]:
+                flag = "DENIED"
+            lines.append(
+                f"{name[:10]:<10} {log['v'][i]:5.0f} m/s  s={log['thermal'][i]:4.2f}  "
+                f"{flag}"
+            )
+        if runs["naive"]["violations"][i]:
+            lines.append("naive: s ABOVE s_max")
+        art["readout"].set_text("\n".join(lines))
+
+        for k in range(5):
+            art[f"cur{k}"].set_xdata([t[i], t[i]])
+        return tuple(art.values())
+
+    return update
+
+
+def _summary(runs):
     t = runs["naive"]["t"]
     turn = (t >= BOOSTED_TURN[0]) & (t < BOOSTED_TURN[1])
+    nom_turn = (t >= NOMINAL_TURN[0]) & (t < NOMINAL_TURN[1])
 
     vehicle = reference_boosted_fighter()
     inst = math.degrees(vehicle.omega_max_rad_s(CRUISE_MPS, 16000.0))
@@ -346,7 +393,6 @@ def main() -> None:
     print(f"    sustained rate      : {sus[0]:5.2f} / {sus[1]:5.2f} deg/s   <- the channel")
     print("                          boost actually moves")
 
-    nom_turn = (t >= NOMINAL_TURN[0]) & (t < NOMINAL_TURN[1])
     v = runs["naive"]["v"]
     print(f"\n  turn 1, nominal throughout: {v[nom_turn][0]:.0f} -> "
           f"{v[nom_turn][-1]:.0f} m/s, {v[nom_turn][0] - v[nom_turn][-1]:+.0f} bled")
@@ -374,9 +420,41 @@ def main() -> None:
   doing exactly what they declare; the naive policy is simply a bad one, and
   a demo is how you find that out.""")
 
-    out = PLOTS_DIR / "boost.png"
-    plot(runs, out)
-    print(f"\nWrote {out}")
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[1])
+    ap.add_argument("--video", action="store_true", help="write mp4 instead of a window")
+    ap.add_argument("--speed", type=float, default=8.0, help="initial playback speed-up")
+    ap.add_argument("--fps", type=int, default=25)
+    args = ap.parse_args()
+
+    headless = not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+    to_video = args.video or headless
+    matplotlib.use("Agg" if to_video else "TkAgg", force=True)
+    import matplotlib.pyplot as plt
+    from matplotlib.animation import FFMpegWriter, FuncAnimation
+
+    runs = {name: fly(policy) for name, policy, _ in RUNS}
+    _summary(runs)
+
+    stride = max(1, int(round((1.0 / args.fps) * args.speed / DT)))
+    frames = range(0, len(runs["naive"]["t"]), stride)
+
+    fig, art = build_figure(runs, plt)
+    update = make_updater(runs, art)
+
+    PLOTS_DIR.mkdir(exist_ok=True)
+    if to_video:
+        out = PLOTS_DIR / "boost.mp4"
+        anim = FuncAnimation(fig, update, frames=frames, blit=False)
+        anim.save(out, writer=FFMpegWriter(fps=args.fps, bitrate=2400))
+        plt.close(fig)
+        print(f"\nWrote {out}")
+    else:
+        player = Player(fig, runs["naive"], update, args.speed, args.fps, DT)  # noqa: F841
+        fig.canvas.manager.set_window_title("OSE - boost")
+        print("\n" + CONTROLS_HELP + "\n\nClose the window to exit.")
+        plt.show()
 
 
 if __name__ == "__main__":
