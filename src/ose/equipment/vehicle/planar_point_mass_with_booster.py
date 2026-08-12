@@ -1,7 +1,8 @@
 """
 Planar point-mass vehicle model with two propulsion modes, nominal and boost.
 
-Section 5 of docs/vehicle/vehicle_model.pdf. The aerodynamics, the disturbance
+Section 5 of docs/preliminary_models/vehicle/vehicle_model.pdf.
+The aerodynamics, the disturbance
 model and the turn-rate bound are unchanged from the baseline; what boost
 changes is how much thrust is available, how fast fuel is consumed, and how
 long either can be sustained.

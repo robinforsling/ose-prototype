@@ -7,7 +7,7 @@
 # Generated demo/test output (regenerate with python demos/*.py). Scoped to
 # these two trees rather than a blanket rule, so an intentionally-committed
 # figure elsewhere (e.g. one added to docs/) is never silently swallowed, and
-# docs/vehicle/vehicle_model.pdf stays tracked.
+# docs/preliminary_models/vehicle/vehicle_model.pdf stays tracked.
 #
 # demos/plots/ is ignored wholesale: demo_live_flight.py writes a multi-megabyte
 # mp4 there, and listing extensions one at a time means the next output format

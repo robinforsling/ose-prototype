@@ -227,6 +227,6 @@ documentation.
 | Why something is the way it is | `docs/adr/` |
 | Interface catalogue | `docs/interfaces/README.md` |
 | Composition specification format | `docs/40-composition-spec.md` |
-| Vehicle model mathematics | `docs/vehicle/vehicle_model.pdf` |
+| Vehicle model mathematics | `docs/preliminary_models/vehicle/vehicle_model.pdf` |
 | What a model does, and its reference numbers | `docs/models/` |
 | Planned tooling | `docs/50-tooling.md` |

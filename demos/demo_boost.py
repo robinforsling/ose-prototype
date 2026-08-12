@@ -1,7 +1,8 @@
 """
 What an afterburner actually buys, and what it costs.
 
-The two-mode vehicle model of section 5 of docs/vehicle/vehicle_model.pdf,
+The two-mode vehicle model of section 5 of
+docs/preliminary_models/vehicle/vehicle_model.pdf,
 flown so that the counter-intuitive parts are unmissable.
 
 The claim worth testing

@@ -116,6 +116,7 @@ For the model document:
 
 ```bash
 sudo apt install texlive-latex-recommended texlive-latex-extra
+cd docs/preliminary_models/vehicle
 pdflatex vehicle_model.tex
 pdflatex vehicle_model.tex      # twice, to resolve cross-references
 ```

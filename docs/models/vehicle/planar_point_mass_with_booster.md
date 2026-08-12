@@ -5,7 +5,7 @@
 The baseline planar point mass with an afterburner: a discrete propulsion mode
 $q$, a sixth continuous state tracking thermal load, and mode-dependent thrust,
 fuel flow and speed limits. Mathematics in
-[`docs/vehicle/vehicle_model.pdf`](../../vehicle/vehicle_model.pdf) section 5;
+[`docs/preliminary_models/vehicle/vehicle_model.pdf`](../../preliminary_models/vehicle/vehicle_model.pdf) section 5;
 this file describes the implementation and its behaviour.
 
 **The aerodynamics are unchanged.** Drag, lift, the turn-rate bound and the

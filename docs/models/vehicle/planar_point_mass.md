@@ -4,7 +4,7 @@
 
 The baseline vehicle. A point mass in the horizontal plane with a parabolic
 drag polar, one propulsion setting, and no discrete modes. Mathematics and
-derivations are in [`docs/vehicle/vehicle_model.pdf`](../../vehicle/vehicle_model.pdf)
+derivations are in [`docs/preliminary_models/vehicle/vehicle_model.pdf`](../../preliminary_models/vehicle/vehicle_model.pdf)
 sections 2–3; this file describes what the implementation does and how it
 behaves, with the notation unchanged.
 

@@ -77,8 +77,8 @@ src/ose/single_ship/reference_configs/            reference configs for single-s
 docs/                                             scope, concepts, architecture, tooling
 docs/adr/                                         architecture decision records
 docs/interfaces/                                  interface catalogue
-docs/vehicle/                                     vehicle model document, LaTeX and PDF
 docs/models/                                      per-model reference: parameters, constraints, behaviour
+docs/preliminary_models/                    the modelling documents the code was derived from
 demos/                                            runnable demonstrations
 tests/                                            pinning and consistency tests
 ```
@@ -91,7 +91,7 @@ tests/                                            pinning and consistency tests
 | Understand the vocabulary and conventions | `docs/10-concepts.md` |
 | See the structure | `docs/20-architecture.md` |
 | Know why something is the way it is | `docs/adr/` |
-| Understand the vehicle model mathematically | `docs/vehicle/vehicle_model.pdf` |
+| Understand the vehicle model mathematically | `docs/preliminary_models/vehicle/vehicle_model.pdf` |
 | Know how a model behaves, with reference numbers | `docs/models/` |
 | Add a component | `docs/interfaces/README.md`, then `docs/40-composition-spec.md` |
 

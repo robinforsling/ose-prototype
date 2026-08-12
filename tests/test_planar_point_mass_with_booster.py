@@ -1,6 +1,7 @@
 """Pinning tests for the two-mode vehicle model.
 
-Checked against section 5 of docs/vehicle/vehicle_model.pdf, not against
+Checked against section 5 of
+docs/preliminary_models/vehicle/vehicle_model.pdf, not against
 numbers that happened to come out of a run.
 
 Two of these matter more than the rest.

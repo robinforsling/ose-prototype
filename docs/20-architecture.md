@@ -120,7 +120,8 @@ src/ose/equipment/            equipment-layer components
 src/ose/subsystem/           subsystem-layer components
 docs/                        scope, concepts, architecture, interfaces
 docs/adr/                    architecture decision records
-docs/vehicle/                the vehicle model document, LaTeX and PDF
+docs/models/                 per-model reference, and the modelling documents
+                             the code was derived from
 demos/                       runnable demonstrations
 tests/                       pinning and consistency tests
 ```
