@@ -214,7 +214,7 @@ directly — before counting the extra thrust actually commanded.
 record keeps working. It adds
 
 $$
-c_{\mathrm{boost}} = \mathbb{1}[\mathrm{boost} \in \mathcal{S}_q],
+c_{\mathrm{boost}} = \mathbf{1}[\mathrm{boost} \in \mathcal{S}_q],
 \qquad
 t_{\mathrm{boost}} = \tau_{\mathrm{h}}(s_{\max} - s)
 $$
