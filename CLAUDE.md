@@ -173,6 +173,15 @@ this look like a font problem for two rounds of diagnosis. Write `\thinspace`,
 `\lbrace`, `\rbrace`, `\cr`, `\Vert`; a backslash before a *space* is safe.
 The LaTeX keeps the short forms — nothing parses it as markdown.
 
+**Matrices and any `&` go in `$$` blocks, never inline `$…$`.** An `&` is an
+HTML entity introducer, escaped during inline processing, and the span then
+stops being recognised as maths at all — the reader gets the source, dollars
+included. Note what that means for the checker: KaTeX renders such a span
+perfectly, because the breakage is in the markdown parser's delimiter scan,
+upstream of the renderer. Three separate defects in these pages have now been
+of that shape — valid TeX, contented renderer, wrong page — which is the
+argument for the static rules existing at all.
+
 ## Testing philosophy
 
 Test properties, not appearances. Any component that publishes an uncertainty

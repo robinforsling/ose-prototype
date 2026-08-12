@@ -96,8 +96,11 @@ environment as an argument rather than pinning one.
 
 ### Environment $\eta$
 
-$\eta = \begin{bmatrix} g & \rho \end{bmatrix}^{T}$, held by the
-model, supplied at construction. Not part of the vehicle.
+$$
+\eta = \begin{bmatrix} g & \rho \end{bmatrix}^{T}
+$$
+
+Held by the model and supplied at construction. Not part of the vehicle.
 
 ---
 

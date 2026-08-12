@@ -107,6 +107,24 @@ because no markdown parser touches it. The two artefacts therefore differ in
 *markup* while agreeing on *notation*, which is the distinction this ADR is
 about.
 
+### A third mechanism: environments do not belong in inline spans
+
+One inline span, `$\eta = \begin{bmatrix} g & \rho \end{bmatrix}^{T}$`, was
+displayed as its own source — dollar signs included. The delimiters were never
+recognised as maths, so unlike everything above, the renderer was not merely
+given bad input; it was never reached. `&` introduces an HTML entity and is
+escaped to `&amp;` during inline processing, which breaks the span.
+
+It is now a `$$` block, which is where an alignment character belongs and how
+every other matrix in these pages is already set. `&` and `\begin{` are
+rejected in inline spans and allowed in display blocks.
+
+This one is the sharpest illustration of why the KaTeX pass cannot be the only
+check. KaTeX renders that span without complaint — it is valid TeX, and it was
+in the file for weeks passing a suite that ran a renderer over it every time.
+The failure is in the markdown parser's *delimiter scan*, upstream of anything
+a maths renderer can see.
+
 **The LaTeX macros are kept and redefined**, not expanded. `\vecx` now expands
 to `x`. A reader of the source still sees which symbols are aggregates, the
 diffs stay small, and the decision reverses in fifteen lines rather than across

@@ -98,13 +98,37 @@ def test_it_catches_a_commonmark_escape(tmp_path, markup, replacement):
     """
     page = tmp_path / "scratch.md"
 
-    page.write_text(f"A span ${markup}$ here.\n")
+    # Display blocks throughout: the escape rule applies to both kinds, and an
+    # inline span would additionally trip the environment rule below, which
+    # would let this pass for the wrong reason.
+    page.write_text(f"A span\n\n$$\n{markup}\n$$\n\nhere.\n")
     result = _run(str(page))
     assert result.returncode == 1, f"{markup} was accepted:\n{result.stdout}"
     assert "CommonMark character escape" in result.stdout
 
-    page.write_text(f"A span ${replacement}$ here.\n")
+    page.write_text(f"A span\n\n$$\n{replacement}\n$$\n\nhere.\n")
     assert _run(str(page)).returncode == 0, f"{replacement} was rejected"
+
+
+def test_it_catches_an_environment_in_an_inline_span(tmp_path):
+    """Reported from a live page: an inline span holding a bmatrix was shown
+    as its own source, dollars and all. The delimiters were never recognised,
+    so unlike every other failure here the renderer was not even reached --
+    which is why the KaTeX pass is blind to it. It renders that span happily.
+
+    The same markup inside a $$ block is fine, and is asserted here, because a
+    rule that condemned every bmatrix would condemn most of both pages.
+    """
+    page = tmp_path / "scratch.md"
+    matrix = "\\eta = \\begin{bmatrix} g & \\rho \\end{bmatrix}^{T}"
+
+    page.write_text(f"The environment ${matrix}$, supplied at construction.\n")
+    result = _run(str(page))
+    assert result.returncode == 1, result.stdout
+    assert "HTML entity introducer" in result.stdout
+
+    page.write_text(f"The environment\n\n$$\n{matrix}\n$$\n\nsupplied later.\n")
+    assert _run(str(page)).returncode == 0, "the display form must stay legal"
 
 
 def test_backslash_space_is_left_alone(tmp_path):

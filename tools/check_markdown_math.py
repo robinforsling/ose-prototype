@@ -71,6 +71,22 @@ SILENT_FALLBACKS = [
      "instead"),
 ]
 
+# Rules for inline $...$ spans only. A display block is lifted out of the
+# paragraph before inline processing runs, so none of these arise there --
+# which is also the fix in every case: promote the span to $$.
+INLINE_ONLY = [
+    (re.compile(r"&"),
+     "an & inside inline $...$ is an HTML entity introducer and is escaped to "
+     "&amp; before the maths renderer runs. The span is then not recognised "
+     "as maths at all and the reader sees the source, dollars included. Put "
+     "it in a $$ display block, which is where an alignment character belongs "
+     "anyway"),
+    (re.compile(r"\\begin\{"),
+     "a LaTeX environment inside inline $...$ sets badly even where it "
+     "renders, and its alignment characters hit the & rule above. Use a $$ "
+     "display block"),
+]
+
 
 def strip_code(text: str) -> str:
     """Blank out code, preserving line count so reported numbers are right."""
@@ -159,7 +175,8 @@ def main(argv: list[str]) -> int:
             rel = path          # a file outside the repository, e.g. a scratch page
         problems += check_display_spacing(rel, text)
         for kind, src, line in spans:
-            for pattern, why in SILENT_FALLBACKS:
+            rules = SILENT_FALLBACKS + (INLINE_ONLY if kind == "inline" else [])
+            for pattern, why in rules:
                 if pattern.search(src):
                     problems.append(f"{rel}:{line}: {why}")
             spans_for_katex.append((kind, src, f"{rel}:{line}"))
