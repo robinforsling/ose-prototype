@@ -72,8 +72,8 @@ reach is bounded by the equipment it drives and the estimates it consumes.
 Every equipment component can now be asked the same question, and the test that says so
 discovers equipment modules by walking the package rather than listing them.
 That was not the first attempt: a hand-written list, under a name promising
-all of them, quietly omitted `IntegratedNavUnit`, which had no capability
-model at all, and passed. A test whose name claims completeness and whose body encodes a
+all of them, quietly omitted `IntegratedNavUnit` (since removed, ADR 0019),
+which had no capability model at all, and passed. A test whose name claims completeness and whose body encodes a
 snapshot is worse than an obviously partial one, because it stops anyone
 looking. Adding equipment without a capability model now fails.
 

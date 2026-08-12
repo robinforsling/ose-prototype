@@ -74,8 +74,8 @@ See ADR 0008.
 ## Current state
 
 Implemented: the baseline vehicle model; three equipment-layer navigation
-sensors (`Imu`, `GnssReceiver`, `AirDataSensor`) and the equipment-layer
-black-box `IntegratedNavUnit`; the subsystem-layer `InsGnssEstimator`, an
+sensors (`Imu`, `GnssReceiver`, `AirDataSensor`); the subsystem-layer
+`InsGnssEstimator`, an
 error-state Kalman filter fed by the sensors' published measurements (ADR
 0009), published to the rest of the platform through a subsystem-layer
 `NavigationManager` -- one own-state publisher per platform, which selects a

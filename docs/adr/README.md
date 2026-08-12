@@ -20,16 +20,17 @@ the full history, so nothing is lost by keeping the working copy accurate.
 | [0006](0006-constraint-enforcement-outside-the-vehicle.md) | Constraint enforcement lies outside the vehicle | accepted |
 | [0007](0007-planar-two-dimensional-modelling.md) | Planar two-dimensional modelling | accepted |
 | [0008](0008-truth-perception-boundary.md) | Only the equipment layer may read ground truth | accepted |
-| [0009](0009-navigation-split-across-layers.md) | Split navigation across the equipment and subsystem layers | accepted |
+| [0009](0009-navigation-split-across-layers.md) | Split navigation across the equipment and subsystem layers | accepted, amended by 0019 |
 | [0010](0010-platform-clock-dead-reckoning.md) | Platform clock, estimated by dead reckoning only | accepted |
 | [0011](0011-vehicle-guidance-decides-not-enforces.md) | Vehicle guidance decides what to command, not what is admissible | accepted |
 | [0012](0012-capability-is-a-tested-multi-channel-claim.md) | Capability is a tested, multi-channel claim | accepted, extended by 0013 |
 | [0013](0013-guidance-capability-composes-two-layers.md) | Guidance capability composes the vehicle's and navigation's | accepted |
-| [0014](0014-one-navigation-publisher-per-platform.md) | One navigation publisher per platform, and it does not fuse | accepted |
+| [0014](0014-one-navigation-publisher-per-platform.md) | One navigation publisher per platform, and it does not fuse | accepted, amended by 0019 |
 | [0015](0015-the-vehicle-manager-owns-believed-mass.md) | The vehicle manager owns the platform's believed mass | accepted, extended by 0016 |
 | [0016](0016-promised-envelope-carries-the-mass-margin.md) | Only the promised envelope carries the mass margin | accepted |
 | [0017](0017-equipment-layer.md) | The resource layer is renamed the equipment layer | accepted |
 | [0018](0018-unweighted-mathematical-notation.md) | Mathematical symbols are written plain, in every artefact | accepted |
+| [0019](0019-remove-the-black-box-navigation-unit.md) | The black-box navigation unit is removed | accepted |
 
 ## Template
 

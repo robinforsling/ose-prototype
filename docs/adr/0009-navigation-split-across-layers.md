@@ -1,6 +1,6 @@
 # 0009. Split navigation across the equipment and subsystem layers
 
-Status: accepted
+Status: accepted; the black-box component it introduced was removed by 0019
 Date: 2026-08-09
 
 ## Context
@@ -62,13 +62,14 @@ whatever the true sensor in `equipment/imu.py` actually does; only the
 white-noise part of the process model is taken from the incoming
 measurement's declared sigma.
 
-`IntegratedNavUnit` (`equipment/integrated_nav.py`) replaces
-`AdditiveNoiseNavigation` as a deliberate collapse of both layers into one
-black-box component: valid scaffolding when navigation is not the component
-under test, not a baseline for any claim about navigation performance. It
-satisfies `OwnStateSource` (publishes `vehicle.state.v1`) but not
-`NavigationEstimator`, since it has no measurement stream to ingest or
-replay.
+`IntegratedNavUnit` replaced `AdditiveNoiseNavigation` as a deliberate
+collapse of both layers into one black-box component: scaffolding for when
+navigation is not the component under test, never a baseline for a claim about
+navigation performance. **ADR 0019 removed it**, having found that it
+published the true wind uncorrupted and could not represent GNSS loss at all,
+and that nothing outside the tests used it. The split this record decides is
+unaffected -- it is the split that made a composed alternative possible, and
+that alternative is now the only one.
 
 ## Consequences
 

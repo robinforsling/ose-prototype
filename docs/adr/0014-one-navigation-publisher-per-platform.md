@@ -1,6 +1,6 @@
 # 0014. One navigation publisher per platform, and it does not fuse
 
-Status: accepted
+Status: accepted; the second source it arbitrates against was removed by 0019
 Date: 2026-08-10
 
 ## Context
@@ -38,24 +38,31 @@ nothing below it.
 A *navigation system* is therefore composed: the manager, plus whatever
 produces the estimate underneath -- an `InsGnssEstimator` fed by `Imu`,
 `GnssReceiver` and `AirDataSensor`, or a black-box `IntegratedNavUnit`.
+(ADR 0019 removed the latter, leaving one composed source. The decision below
+stands: it is about what the manager must refuse, and the second source is the
+one that arrives without anyone thinking about the arithmetic.)
 
 It does not fuse, and the nonsensical configuration is made impossible rather
 than given an averaging rule: the constructor takes one source, so there is no
 way to hand it two. `ingest()` forwards measurements to sources that consume
 them and raises `TypeError` for those that do not, because sensors publishing
-into a black box that ignores them is a configuration error that a silent
-no-op would hide behind plausible output.
+into a source that ignores them is a configuration error that a silent no-op
+would hide behind plausible output.
 
 `IntegratedNavUnit` stays in the equipment layer and keeps reading truth. The
 manager cannot drive it -- `update()` takes ground truth, which a subsystem
 component may not touch -- so the simulation core updates it as it does any
 other equipment, and the manager only reads the estimate it publishes.
+*Superseded by 0019: no such component ships. `OwnStateSource` still admits a
+source that consumes no measurements -- a datalink-supplied position -- and
+`consumes_measurements` still exists for it.*
 
 The choice of source is made at composition time and never revisited at
 runtime. Runtime arbitration -- hold several, publish whichever is currently
 best -- is sound in principle, and unlike fusion it adds no false confidence,
 since choosing an estimate does not shrink its covariance. But it must never
-treat an `IntegratedNavUnit` as a candidate. Its covariance is constant,
+treat a source whose covariance is constant as a candidate -- as
+`IntegratedNavUnit` was. Its covariance is constant,
 because truth plus fixed noise cannot degrade; a real estimator's grows
 honestly, from under a metre to around twenty during a GNSS outage. Any
 lowest-sigma rule would therefore select the estimator while aided and switch

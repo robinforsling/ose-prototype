@@ -32,7 +32,6 @@ from ose.equipment.clock import Clock
 from ose.equipment.fuel_gauge import FuelGauge
 from ose.equipment.gnss import GnssReceiver
 from ose.equipment.imu import Imu
-from ose.equipment.integrated_navigation_unit import IntegratedNavUnit
 from ose.equipment.reference_configs.reference_air_data import (
     STANDARD as AIR_DATA_STANDARD,
 )
@@ -42,9 +41,6 @@ from ose.equipment.reference_configs.reference_fuel_gauge import (
 )
 from ose.equipment.reference_configs.reference_gnss import STANDARD as GNSS_STANDARD
 from ose.equipment.reference_configs.reference_imu import TACTICAL_GRADE
-from ose.equipment.reference_configs.reference_integrated_navigation_unit import (
-    STANDARD as INTEGRATED_NAV_STANDARD,
-)
 from ose.equipment.reference_configs.vehicle.planar_point_mass import reference_fighter
 from ose.equipment.vehicle import Disturbance, VehicleCommand, VehicleState
 from ose.integration import step_rk4
@@ -80,8 +76,8 @@ def _discover_equipment_components():
     ose/equipment/, which silently stopped covering the vehicle the moment
     vehicle.py became vehicle/ -- the test kept passing, kept claiming "every
     equipment module", and had quietly dropped two models. That is the same
-    failure its predecessor had when a hand-written list omitted
-    IntegratedNavUnit, one level up.
+    failure its predecessor had when a hand-written list omitted the
+    integrated navigation unit, one level up (since removed, ADR 0019).
 
     reference_configs is skipped: it holds data, not components.
     """
@@ -107,7 +103,8 @@ def test_every_equipment_component_answers_capability():
     """Discovered, not hand-listed, on purpose.
 
     An earlier version enumerated the six it knew about by hand, under a name
-    promising all of them, and quietly omitted IntegratedNavUnit -- so a
+    promising all of them, and quietly omitted the integrated navigation
+    unit (since removed, ADR 0019) -- so a
     component with no capability() at all passed unnoticed, and the coverage
     existed in the name only.
     """
@@ -146,7 +143,6 @@ def test_constructed_equipment_satisfies_the_capability_protocol(vehicle):
         AirDataSensorImpl(AIR_DATA_STANDARD, rng=rng),
         Clock(CLOCK_STANDARD, rng=rng),
         FuelGauge(FUEL_STANDARD, mass_dry_kg, rng=rng),
-        IntegratedNavUnit(INTEGRATED_NAV_STANDARD, rng=rng),
     ):
         assert isinstance(item, interfaces.CapabilityModel)
 
@@ -160,7 +156,6 @@ def test_every_sensor_declares_at_least_one_channel(vehicle):
         AirDataSensorImpl(AIR_DATA_STANDARD, rng=rng),
         Clock(CLOCK_STANDARD, rng=rng),
         FuelGauge(FUEL_STANDARD, vehicle.lam.mass_dry_kg, rng=rng),
-        IntegratedNavUnit(INTEGRATED_NAV_STANDARD, rng=rng),
     ):
         cap = sensor.capability()
         assert cap.channels

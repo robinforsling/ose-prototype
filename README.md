@@ -8,8 +8,7 @@ first implementing everything around it.
 The emphasis is integration, not fidelity.
 
 **Status: early.** The baseline vehicle model; three equipment-layer navigation
-sensors (IMU, GNSS, air data), a equipment-layer black-box integrated nav unit,
-a subsystem-layer INS/GNSS estimator, and a navigation manager that is the
+sensors (IMU, GNSS, air data), a subsystem-layer INS/GNSS estimator, and a navigation manager that is the
 platform's single publisher of own-state; a equipment-layer clock with a
 dead-reckoning-only subsystem-layer time estimator (no correction source
 exists yet); a equipment-layer fuel gauge feeding a subsystem-layer vehicle
@@ -62,7 +61,6 @@ src/ose/equipment/reference_configs/              reference configs for equipmen
 src/ose/equipment/imu.py                           IMU sensor model
 src/ose/equipment/gnss.py                          GNSS receiver model
 src/ose/equipment/air_data.py                      air data sensor model
-src/ose/equipment/integrated_navigation_unit.py    black-box integrated nav unit
 src/ose/equipment/clock.py                         platform clock model
 src/ose/equipment/fuel_gauge.py                    remaining-fuel sensor
 src/ose/subsystem/navigation_manager.py           one own-state publisher per platform

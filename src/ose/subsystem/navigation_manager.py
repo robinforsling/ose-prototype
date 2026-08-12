@@ -7,60 +7,59 @@ name begins with true_ -- see test_manager_cannot_see_truth. It reads only
 estimates that other components have already published.
 
 A *navigation system* on a platform is composed of this manager plus whatever
-produces the estimate underneath it: an InsGnssEstimator fed by Imu,
-GnssReceiver and AirDataSensor, or a black-box IntegratedNavUnit. Consumers
-bind to the manager and to nothing below it, so guidance and planning do not
-change when the navigation underneath is swapped.
+produces the estimate underneath it -- today, an InsGnssEstimator fed by Imu,
+GnssReceiver and AirDataSensor. Consumers bind to the manager and to nothing
+below it, so guidance and planning do not change when the navigation
+underneath is swapped.
+
+The source need not be an estimator. OwnStateSource asks only for estimate();
+a position arriving over a datalink, or another platform's published estimate,
+would satisfy it without consuming a measurement stream. That is why
+consumes_measurements exists.
 
 WHAT THIS DOES NOT DO, and why
 ------------------------------
 It does not fuse. It owns exactly one source and republishes what that source
 says.
 
-Fusing the two sources that exist today would be worse than useless. An
-IntegratedNavUnit is a fiction -- truth plus white noise, used precisely when
-navigation is not the thing under test -- and an InsGnssEstimator is a model of
-a real one. They are alternatives, not complements. Merging them would reduce
-the variance, so the platform would report an estimate better than either input
-with a covariance that shrank to match, and every number would be internally
-consistent while meaning nothing. A lab using the black box as cheap
-scaffolding would silently get artificially good navigation. That is the same
-class of silent invalidation as the truth boundary (ADR 0008) and the
-overconfident filter that motivated the NEES tests.
+Only one source exists today, so nothing here is currently prevented. The
+constructor takes one source and there is no way to hand it two, and that is
+deliberate: the second source is the one that will arrive without anyone
+thinking about the arithmetic.
 
-So a nonsensical configuration is made impossible rather than given an
-averaging rule: the constructor takes one source, and there is no way to hand
-it two.
+Fusion of two sources that are not independent is worse than useless. Merging
+them reduces the reported variance, so the platform publishes an estimate
+better than either input with a covariance shrunk to match, and every number
+is internally consistent while meaning nothing. That is the same class of
+silent invalidation as the truth boundary (ADR 0008) and the overconfident
+filter that motivated the NEES tests. Real fusion belongs here when a platform
+genuinely carries more than one *independent* source -- INS/GNSS alongside
+terrain-referenced navigation, or a second independent INS. Whoever adds it
+must handle the cross-covariance, or use covariance intersection, and must add
+a NEES test: naive fusion of correlated estimates is overconfident, which is
+the classic track-fusion trap.
 
 Which source a platform uses is therefore settled at composition time, not at
 runtime. The manager holds the one it was built with and never reconsiders.
 
-AND DO NOT MAKE THAT CHOICE AT RUNTIME BETWEEN THESE TWO
---------------------------------------------------------
-Runtime arbitration -- hold several sources, publish whichever is currently
-best -- is a real and sound idea, and unlike fusion it introduces no false
-confidence, because choosing an estimate does not shrink its covariance. It is
-the most likely thing to be added here. But it must never treat an
-IntegratedNavUnit as a candidate, and the reason is easy to miss:
+AND IF YOU ADD RUNTIME ARBITRATION
+----------------------------------
+Arbitration -- hold several sources, publish whichever is currently best -- is
+sound where fusion is not, because choosing an estimate does not shrink its
+covariance. It is the most likely thing to be added here.
 
-Its covariance is a constant. It is truth plus fixed white noise, so it does
-not degrade, because it is not modelling anything that could. A real estimator
-does degrade, honestly, and says so -- during a GNSS outage this one's position
-sigma grows from under a metre to around twenty. So any "pick the lowest
-sigma" rule selects the estimator while aided and switches to the fiction
-exactly when the real system starts struggling, which is the one moment worth
-observing. GNSS outages would silently disappear from every result.
+The rule it must obey: **arbitrate only between sources that can all
+degrade.** A source whose covariance is constant -- because it is not
+modelling anything that could get worse -- wins every "pick the lowest sigma"
+contest at exactly the moment the honest source starts struggling. An
+InsGnssEstimator's position sigma grows from under a metre to around eight
+during a GNSS outage; anything with a fixed sigma would be selected there, and
+the outage would silently disappear from the results.
 
-A source that never degrades always wins a contest against one that honestly
-does. Arbitrate only between sources that can all be wrong.
-
-Real fusion belongs here too, when a platform genuinely carries more than one
-independent source -- INS/GNSS alongside terrain-referenced navigation, or a
-second independent INS. Whoever adds it must handle the cross-covariance, or
-use covariance intersection, and must add a NEES test: naive fusion of
-correlated estimates is overconfident, which is the classic track-fusion trap
-and exactly what this repository's consistency discipline exists to catch.
-See ADR 0014.
+This is not hypothetical. The repository shipped such a source, a black-box
+unit publishing truth plus fixed white noise, and it was removed for reasons
+that included this one. See ADR 0019, and ADR 0014 for the original reasoning
+about one publisher per platform.
 """
 
 from __future__ import annotations
@@ -77,8 +76,8 @@ class NavigationManager:
     @property
     def consumes_measurements(self) -> bool:
         """Whether the source underneath is fed a measurement stream, as an
-        InsGnssEstimator is, or produces its estimate some other way, as a
-        black-box IntegratedNavUnit does."""
+        InsGnssEstimator is, or arrives at its estimate some other way -- a
+        position received over a datalink would not."""
         return isinstance(self.source, NavigationEstimator)
 
     def ingest(self, measurement) -> None:
@@ -90,16 +89,15 @@ class NavigationManager:
 
         Raises TypeError when the source does not consume measurements. That
         combination -- sensors publishing measurements while the platform's
-        navigation is a black box that ignores them -- is a configuration
-        error, and a silent no-op here would hide it behind plausible-looking
-        output.
+        navigation ignores them -- is a configuration error, and a silent
+        no-op here would hide it behind plausible-looking output.
         """
         if not self.consumes_measurements:
             raise TypeError(
                 f"{type(self.source).__name__} does not consume measurements: it "
                 "produces its own estimate. Configuring navigation sensors "
-                "alongside it is a mistake -- use either a black-box unit or "
-                "sensors with an estimator, not both."
+                "alongside it is a mistake -- the measurements would be "
+                "silently discarded."
             )
         self.source.ingest(measurement)
 

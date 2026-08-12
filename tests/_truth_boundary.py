@@ -128,7 +128,7 @@ def vehicle_model_names() -> frozenset[str]:
     is the same failure as a test that checks the channels a consumer happens
     to read. test_every_equipment_module_defines_a_component_with_capability
     was rewritten for exactly this reason after a hand-written list omitted
-    IntegratedNavUnit.
+    the integrated navigation unit (since removed, ADR 0019).
     """
     import dataclasses
     import inspect

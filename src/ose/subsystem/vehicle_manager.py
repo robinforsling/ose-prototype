@@ -101,8 +101,8 @@ truth -- and it would be wrong. Predicting with the same coefficient the
 vehicle burns at makes the prediction exact by construction, so the filter
 would look excellent for a reason that will never hold on a real platform, no
 mismatch could exist, and the consistency test would be vacuous. That is the
-same class of self-congratulating configuration as fusing the black-box nav
-unit with the real estimator (ADR 0014).
+same class of self-congratulating configuration as fusing two navigation
+sources that are not independent (ADR 0014).
 
 Moving the coefficient to an argument moves that risk to the caller, which is
 exactly where the mass parameter went wrong before ADR 0015: the component

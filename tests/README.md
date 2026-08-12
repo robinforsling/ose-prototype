@@ -33,10 +33,13 @@ before the first turn, and must collapse during it), `ast`-parses the module
 to confirm it cannot see truth, and replays a recorded measurement stream
 into a fresh estimator to confirm it is a pure function of that stream.
 
-`test_integrated_navigation_unit.py` checks the equipment-layer black-box
-stand-in: protocol conformance and that its declared uncertainty is honest,
-nothing about navigation performance (see its docstring and ADR 0009 for
-why).
+Consistency is checked on the **whole** object, not one channel: all four
+published channels against the full covariance, and separately the IMU biases
+and wind — error states no consumer ever reads, where a defect can land
+without a published channel moving. It also checks that air data holds
+airspeed through a GNSS outage and that a fifteen-degree initial heading error
+converges. That last group replaced the reassurance previously taken from
+comparing against a black-box stand-in, which ADR 0019 removed.
 
 `test_clock.py` and `test_time_estimator.py` are the same pattern applied to
 the platform clock (ADR 0010): declared sigma honesty and the drift's

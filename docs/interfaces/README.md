@@ -68,10 +68,6 @@ system* is the manager plus whatever produces the estimate underneath:
   `NavigationEstimator` -- it is fed a measurement stream via `ingest()`
   rather than reading truth, and is a pure, replayable function of that
   stream. See ADR 0009.
-- `IntegratedNavUnit` (equipment layer), a deliberate collapse of the
-  equipment and subsystem layers into one black-box component that reads
-  truth directly. Valid scaffolding when navigation is not the component
-  under test; not a baseline for any claim about navigation performance.
 
 Exactly one of those, never both. The manager does not fuse them: they are
 alternatives, and merging a fiction with a model would report an estimate
