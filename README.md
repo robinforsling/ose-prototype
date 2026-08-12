@@ -78,6 +78,7 @@ docs/                                             scope, concepts, architecture,
 docs/adr/                                         architecture decision records
 docs/interfaces/                                  interface catalogue
 docs/vehicle/                                     vehicle model document, LaTeX and PDF
+docs/models/                                      per-model reference: parameters, constraints, behaviour
 demos/                                            runnable demonstrations
 tests/                                            pinning and consistency tests
 ```
@@ -91,6 +92,7 @@ tests/                                            pinning and consistency tests
 | See the structure | `docs/20-architecture.md` |
 | Know why something is the way it is | `docs/adr/` |
 | Understand the vehicle model mathematically | `docs/vehicle/vehicle_model.pdf` |
+| Know how a model behaves, with reference numbers | `docs/models/` |
 | Add a component | `docs/interfaces/README.md`, then `docs/40-composition-spec.md` |
 
 ## The four things that constrain everything else

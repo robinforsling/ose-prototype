@@ -204,4 +204,5 @@ documentation.
 | Interface catalogue | `docs/interfaces/README.md` |
 | Composition specification format | `docs/40-composition-spec.md` |
 | Vehicle model mathematics | `docs/vehicle/vehicle_model.pdf` |
+| What a model does, and its reference numbers | `docs/models/` |
 | Planned tooling | `docs/50-tooling.md` |
