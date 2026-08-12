@@ -83,7 +83,7 @@ def theta_table() -> str:
         f"| $S$ | {g.wing_area_m2} m² | | $c_p$ | {t.c_p:.3f} m² |",
         f"| $C_{{D0}}$ | {g.cd0} | | $c_i$ | {t.c_i:.3f} s⁻⁴ |",
         f"| $e$ | {g.oswald_e} | | $c_\\ell$ | {t.c_l:.1f} m² |",
-        f"| $A\\!R$ | {g.aspect_ratio} | | $c_{{\\mathrm{{TSFC}}}}$ | "
+        f"| $AR$ | {g.aspect_ratio} | | $c_{{\\mathrm{{TSFC}}}}$ | "
         f"${t.c_tsfc:.1e}".replace("e-05", r"\times10^{-5}$") + " kg/(N s) |",
         f"| $C_{{L\\max}}$ | {g.cl_max} | | | |",
     ])

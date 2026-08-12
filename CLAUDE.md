@@ -148,9 +148,20 @@ catch by definition. `\mathbb{1}` was accepted by KaTeX and emitted a plain
 span through KaTeX and needs `npm install katex`; it is skipped when node is
 absent rather than becoming a dependency.
 
-Vectors and matrices are bold-italic: `\bm` in LaTeX, `\boldsymbol` in
-markdown, which render identically. `\bm` in a `.md` file is a static-rule
-failure, because KaTeX does not implement it.
+**Symbols are written plain — no `\bm`, `\boldsymbol`, `\mathbf`, `\mathbb`,
+`\mathcal`, in the markdown or in the LaTeX** (ADR 0018). Each one selects a
+font file the reader's browser may not have, and a font that fails to load is
+not an error: it falls back to the face a plain scalar already uses, so the
+distinction lives in the source and never reaches the page. Nothing can test
+for that — the markup is valid and the renderer is content — so the markup is
+banned instead. `\mathrm` is kept for multi-letter subscripts; it selects
+upright shape and no font, so it has no failure mode.
+
+What a symbol is gets **declared, not drawn**: every reference page opens with
+a notation table giving each aggregate its kind and dimension, and the
+per-element tables map each symbol to its field in the code. That is also why
+the alphabet is now the only namespace — check a new symbol against every
+existing one, not just those of the same kind. `A` is taken, twice.
 
 ## Testing philosophy
 

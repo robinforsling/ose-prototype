@@ -29,6 +29,7 @@ the full history, so nothing is lost by keeping the working copy accurate.
 | [0015](0015-the-vehicle-manager-owns-believed-mass.md) | The vehicle manager owns the platform's believed mass | accepted, extended by 0016 |
 | [0016](0016-promised-envelope-carries-the-mass-margin.md) | Only the promised envelope carries the mass margin | accepted |
 | [0017](0017-equipment-layer.md) | The resource layer is renamed the equipment layer | accepted |
+| [0018](0018-unweighted-mathematical-notation.md) | Mathematical symbols are written plain, in every artefact | accepted |
 
 ## Template
 

@@ -14,12 +14,36 @@ plausible, never claims about a real aircraft.
 
 ---
 
+## Notation
+
+Symbols are plain: no bold, no blackboard, no calligraphic. A weighted glyph
+depends on a font file the reader's browser may never load, and a font that
+fails to load is not an error — it falls back to the face a plain scalar
+already uses, so the distinction would live in the source and not on the page.
+It is declared here instead, which says more than weight could, and it matches
+the Python, where nothing is bold either (ADR 0018).
+
+| | kind | meaning |
+|---|---|---|
+| $x$ | vector, 5 | state |
+| $u$ | vector, 2 | motion command |
+| $w$ | vector, 2 | process noise, wind |
+| $\theta$ | vector, 4 | lumped vehicle parameters |
+| $\eta$ | vector, 2 | environment |
+| $\lambda$ | vector, 8 | declared constraints |
+| $f$ | vector field, 5 | drift dynamics |
+| $G$ | matrix, 5×2 | noise input |
+| $U$, $X$ | sets | admissible commands, admissible states |
+| everything else | scalar | $v$, $m$, $T$, $\omega$, $c_p$, … |
+
+---
+
 ## 1. State, input, parameters
 
 $$
-\boldsymbol{x} = \begin{bmatrix} p_x & p_y & \psi & v & m \end{bmatrix}^{T} \in \mathbb{R}^{5},
+x = \begin{bmatrix} p_x & p_y & \psi & v & m \end{bmatrix}^{T},
 \qquad
-\boldsymbol{u} = \begin{bmatrix} T & \omega \end{bmatrix}^{T}
+u = \begin{bmatrix} T & \omega \end{bmatrix}^{T}
 $$
 
 | | meaning | units | code |
@@ -36,10 +60,10 @@ $$
 integrator sees; element 2 is an angle, which is why the model also publishes
 `normalise_state()` — an integrator cannot know that on its own.
 
-### Parameters $\boldsymbol{\theta}$
+### Parameters $\theta$
 
 $$
-\boldsymbol{\theta} = \begin{bmatrix} c_p & c_i & c_\ell & c_{\mathrm{TSFC}} \end{bmatrix}^{T}
+\theta = \begin{bmatrix} c_p & c_i & c_\ell & c_{\mathrm{TSFC}} \end{bmatrix}^{T}
 $$
 
 These are *lumped* and are not what a contributor authors. `VehicleGeometry`
@@ -49,7 +73,7 @@ lumps it:
 $$
 c_p = \tfrac{1}{2} S\, C_{D0},
 \qquad
-c_i = \frac{2 g^{2}}{\pi e\, A\!R\, S},
+c_i = \frac{2 g^{2}}{\pi e\, AR\, S},
 \qquad
 c_\ell = \tfrac{1}{2} S\, C_{L\max},
 \qquad
@@ -62,7 +86,7 @@ $$
 | $S$ | 38.0 m² | | $c_p$ | 0.418 m² |
 | $C_{D0}$ | 0.022 | | $c_i$ | 0.671 s⁻⁴ |
 | $e$ | 0.8 | | $c_\ell$ | 22.8 m² |
-| $A\!R$ | 3.0 | | $c_{\mathrm{TSFC}}$ | $2.5\times10^{-5}$ kg/(N s) |
+| $AR$ | 3.0 | | $c_{\mathrm{TSFC}}$ | $2.5\times10^{-5}$ kg/(N s) |
 | $C_{L\max}$ | 1.2 | | | |
 <!-- end generated: theta -->
 
@@ -70,9 +94,9 @@ $$
 parameters under different gravity, which is why a configuration takes an
 environment as an argument rather than pinning one.
 
-### Environment $\boldsymbol{\eta}$
+### Environment $\eta$
 
-$\boldsymbol{\eta} = \begin{bmatrix} g & \rho \end{bmatrix}^{T}$, held by the
+$\eta = \begin{bmatrix} g & \rho \end{bmatrix}^{T}$, held by the
 model, supplied at construction. Not part of the vehicle.
 
 ---
@@ -80,9 +104,9 @@ model, supplied at construction. Not part of the vehicle.
 ## 2. Dynamics
 
 $$
-\dot{\boldsymbol{x}} = \boldsymbol{f}(\boldsymbol{x}, \boldsymbol{u}, \boldsymbol{\theta}, \boldsymbol{\eta}) + \boldsymbol{G}(\boldsymbol{x})\boldsymbol{w},
+\dot{x} = f(x, u, \theta, \eta) + G(x)w,
 \qquad
-\boldsymbol{f} =
+f =
 \begin{bmatrix}
 v\cos\psi \\
 v\sin\psi \\
@@ -104,7 +128,7 @@ discretisation; `ose/integration.py` holds the integrators.
 
 Three behaviours worth knowing:
 
-- **Wind enters position only.** $\boldsymbol{w}$ adds to $\dot p_x, \dot p_y$
+- **Wind enters position only.** $w$ adds to $\dot p_x, \dot p_y$
   and never to drag. Heading is air-relative, so ground track differs from
   heading whenever wind is non-zero. Conflating the two is a recurring source
   of error.
@@ -120,7 +144,7 @@ Three behaviours worth knowing:
 ## 3. Constraints — declared, not enforced
 
 $$
-\boldsymbol{\lambda} = \begin{bmatrix} T_{\min} & T_{\max} & n_{\max} & \omega_{\mathrm{cap}} & v_{\min} & v_{\max} & m_{\mathrm{dry}} & m_{\max} \end{bmatrix}^{T}
+\lambda = \begin{bmatrix} T_{\min} & T_{\max} & n_{\max} & \omega_{\mathrm{cap}} & v_{\min} & v_{\max} & m_{\mathrm{dry}} & m_{\max} \end{bmatrix}^{T}
 $$
 
 <!-- generated: lambda -->
@@ -137,25 +161,25 @@ $$
 <!-- end generated: lambda -->
 
 $$
-\mathcal{U}(\boldsymbol{x}) = \{\, \boldsymbol{u} : T_{\min} \le T \le T_{\max},\ |\omega| \le \omega_{\max}(v,m) \,\}
+U(x) = \{\, u : T_{\min} \le T \le T_{\max},\ |\omega| \le \omega_{\max}(v,m) \,\}
 $$
 
 $$
-\mathcal{X}(\boldsymbol{\lambda}) = \{\, \boldsymbol{x} : v_{\mathrm{s}}(m,1) \le v \le v_{\max},\ v \ge v_{\min},\ m_{\mathrm{dry}} \le m \le m_{\max} \,\}
+X(\lambda) = \{\, x : v_{\mathrm{s}}(m,1) \le v \le v_{\max},\ v \ge v_{\min},\ m_{\mathrm{dry}} \le m \le m_{\max} \,\}
 $$
 
 **The vehicle declares these and does not apply them** (ADR 0006).
-`project_command()` *offers* a projection onto $\mathcal{U}$ and returns a
+`project_command()` *offers* a projection onto $U$ and returns a
 `Saturation` receipt carrying what was asked for; `derivative()` integrates
 whatever it is given. A control law persistently commanding outside the
 envelope is therefore a visible finding rather than a silent clip.
 
-$\mathcal{X}$ has no projection at all — a state cannot be projected without
+$X$ has no projection at all — a state cannot be projected without
 falsifying the dynamics that produced it — so `state_violations()` reports and
 never corrects.
 
 > **$m \le m_{\max}$ is the odd one out.** It is the only element of
-> $\mathcal{X}$ that flying cannot violate: mass falls monotonically as fuel
+> $X$ that flying cannot violate: mass falls monotonically as fuel
 > burns, so a trajectory starting inside stays inside. It is declared because
 > it is a property of the airframe, and it fires on a badly built *initial*
 > state — the same finding a badly specified platform gets from the
@@ -230,8 +254,8 @@ implementation that had dropped the stall term entirely.
 $v_{\max} = 600$ m/s is declared, but level flight needs
 $T_{\mathrm{req}} = 184.7$ kN there against 130 kN available. **The real
 level-flight ceiling is about 503 m/s**, where $T_{\mathrm{req}}$ crosses
-$T_{\max}$. Above it the vehicle is inside $\mathcal{X}$ and decelerating:
-$\mathcal{X}$ is a validity claim, not a promise of trim.
+$T_{\max}$. Above it the vehicle is inside $X$ and decelerating:
+$X$ is a validity claim, not a promise of trim.
 
 `endurance_s` at 16 t runs from about 150 min at the drag minimum near 150 m/s
 down to 14 min at 600 m/s.
@@ -247,7 +271,7 @@ output — see `tests/test_vehicle.py` and `tests/test_capability.py`.
   flown at its claimed sustained turn rate and must actually hold speed. An
   overconfident capability would silently corrupt every planner that trusts
   it.
-- `demo_discretization.py` shows the same $\boldsymbol{f}$ under Euler, RK2 and
+- `demo_discretization.py` shows the same $f$ under Euler, RK2 and
   RK4 and confirms fourth-order convergence.
 - `demo_live_flight.py`'s corner-speed sweep drives the vehicle down through
   the envelope pinned against $\omega_{\max}$; the delivered turn rate peaks

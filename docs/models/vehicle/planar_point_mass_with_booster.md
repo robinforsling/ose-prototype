@@ -17,12 +17,36 @@ described here.
 
 ---
 
+## Notation
+
+Plain symbols throughout, for the reasons given in the baseline page's
+notation section and ADR 0018. What each aggregate is, is declared rather than
+drawn. Only the entries that differ from the baseline are listed.
+
+| | kind | meaning |
+|---|---|---|
+| $x$ | vector, 6 | state — the baseline's five plus $s$ |
+| $\theta$ | vector, 7 | lumped parameters, two fuel coefficients and two time constants |
+| $\lambda$ | vector, 12 | declared constraints, per-mode thrust and speed |
+| $q$ | discrete state | propulsion mode, an element of $Q$ |
+| $Q$ | set | $\{\mathrm{nom},\ \mathrm{boost}\}$ |
+| $S_q$ | set-valued map | modes reachable from $q$ — see section 3 |
+| $X_q$ | set | admissible states in mode $q$ |
+| $f_q$ | vector field, 6 | drift dynamics in mode $q$ |
+| $\chi[\,\cdot\,]$ | indicator | 1 if the condition holds, 0 otherwise |
+| $s$ | scalar | thermal accumulator, normalised to $s_{\max} = 1$ |
+
+$S$ without a subscript is the wing reference area, a scalar, and never the
+switching map — that one is always written $S_q$.
+
+---
+
 ## 1. What changes
 
 $$
-q \in \mathcal{Q} = \{\mathrm{nom},\ \mathrm{boost}\},
+q \in Q = \{\mathrm{nom},\ \mathrm{boost}\},
 \qquad
-\boldsymbol{x} = \begin{bmatrix} p_x & p_y & \psi & v & m & s \end{bmatrix}^{T}
+x = \begin{bmatrix} p_x & p_y & \psi & v & m & s \end{bmatrix}^{T}
 $$
 
 $s$ is a **thermal accumulator**, normalised so that $s_{\max} = 1$. It is what
@@ -32,7 +56,7 @@ writes has no business in the baseline's Jacobian or integrator.
 
 ### The mode is state, not input
 
-$\mathcal{S}_q(\boldsymbol{x}, \boldsymbol{\lambda})$ describes transitions
+$S_q(x, \lambda)$ describes transitions
 *from* the current mode, so the current mode is a discrete state and only the
 *requested* mode is an input. `BoostState` carries $q$; `VehicleCommand`
 carries the request. Every method therefore takes the same arguments as the
@@ -46,11 +70,11 @@ and integrating across a switch would integrate a discontinuity.
 ### Parameters and constraints
 
 $$
-\boldsymbol{\theta} = \begin{bmatrix} c_p & c_i & c_\ell & c^{\mathrm{nom}}_{\mathrm{TSFC}} & c^{\mathrm{boost}}_{\mathrm{TSFC}} & \tau_{\mathrm{h}} & \tau_{\mathrm{c}} \end{bmatrix}^{T}
+\theta = \begin{bmatrix} c_p & c_i & c_\ell & c^{\mathrm{nom}}_{\mathrm{TSFC}} & c^{\mathrm{boost}}_{\mathrm{TSFC}} & \tau_{\mathrm{h}} & \tau_{\mathrm{c}} \end{bmatrix}^{T}
 $$
 
 $$
-\boldsymbol{\lambda} = \begin{bmatrix} T_{\min} & T^{\mathrm{nom}}_{\max} & T^{\mathrm{boost}}_{\max} & n_{\max} & \omega_{\mathrm{cap}} & v_{\min} & v^{\mathrm{nom}}_{\max} & v^{\mathrm{boost}}_{\max} & m_{\mathrm{dry}} & m_{\max} & m_{\mathrm{res}} & s_{\max} \end{bmatrix}^{T}
+\lambda = \begin{bmatrix} T_{\min} & T^{\mathrm{nom}}_{\max} & T^{\mathrm{boost}}_{\max} & n_{\max} & \omega_{\mathrm{cap}} & v_{\min} & v^{\mathrm{nom}}_{\max} & v^{\mathrm{boost}}_{\max} & m_{\mathrm{dry}} & m_{\max} & m_{\mathrm{res}} & s_{\max} \end{bmatrix}^{T}
 $$
 
 Both **compose** the baseline's records rather than restating them —
@@ -80,9 +104,9 @@ they cannot relax.
 ## 2. Dynamics
 
 $$
-\dot{\boldsymbol{x}} = \boldsymbol{f}_q(\boldsymbol{x}, \boldsymbol{u}, \boldsymbol{\theta}, \boldsymbol{\eta}) + \boldsymbol{G}(\boldsymbol{x})\boldsymbol{w},
+\dot{x} = f_q(x, u, \theta, \eta) + G(x)w,
 \qquad
-\boldsymbol{f}_q =
+f_q =
 \begin{bmatrix}
 v\cos\psi \\ v\sin\psi \\ \omega \\
 \dfrac{T - D(v,m,\omega)}{m} \\
@@ -110,7 +134,7 @@ without reimplementing $\sigma_q$.
 ## 3. The switching set
 
 $$
-\mathcal{S}_{q}(\boldsymbol{x}, \boldsymbol{\lambda}) =
+S_{q}(x, \lambda) =
 \begin{cases}
 \{\mathrm{nom}\}, & s \ge s_{\max}\ \text{ or }\ m \le m_{\mathrm{dry}} + m_{\mathrm{res}} \\
 \{q\}, & t - t_{q} < \Delta t_{\mathrm{dwell}} \\
@@ -138,7 +162,7 @@ limit.
 
 ### Declared, not enforced
 
-$\mathcal{S}_q$ is an input constraint, so ADR 0006 applies as it does to
+$S_q$ is an input constraint, so ADR 0006 applies as it does to
 thrust. Three separate things happen, in three places:
 
 1. `admissible_modes()` **declares** — it answers a question and refuses
@@ -151,7 +175,7 @@ thrust. Three separate things happen, in three places:
 
 `derivative()` reads $q$ from the state, so a caller that ignores the offer
 gets boost dynamics — $s$ past $s_{\max}$, fuel at the boost rate — and the
-consequence surfaces through $\mathcal{X}_q$ rather than being prevented.
+consequence surfaces through $X_q$ rather than being prevented.
 Exactly the treatment a 200 kN command against a 130 kN engine receives.
 
 The caller also owns $t_q$. `VehicleManager.select_mode()` restarts the clock
@@ -159,7 +183,7 @@ whenever the delivered mode differs from the current one, including when the
 vehicle forced the fallback.
 
 $$
-\mathcal{X}_q(\boldsymbol{\lambda}) = \{\, \boldsymbol{x} : v_{\mathrm{s}}(m,1) \le v \le v^{q}_{\max},\ v \ge v_{\min},\ m_{\mathrm{dry}} \le m \le m_{\max},\ 0 \le s \le s_{\max} \,\}
+X_q(\lambda) = \{\, x : v_{\mathrm{s}}(m,1) \le v \le v^{q}_{\max},\ v \ge v_{\min},\ m_{\mathrm{dry}} \le m \le m_{\max},\ 0 \le s \le s_{\max} \,\}
 $$
 
 ---
@@ -214,7 +238,7 @@ directly — before counting the extra thrust actually commanded.
 record keeps working. It adds
 
 $$
-c_{\mathrm{boost}} = \mathbf{1}[\mathrm{boost} \in \mathcal{S}_q],
+c_{\mathrm{boost}} = \chi[\mathrm{boost} \in S_q],
 \qquad
 t_{\mathrm{boost}} = \tau_{\mathrm{h}}(s_{\max} - s)
 $$
@@ -252,7 +276,7 @@ Asking whenever allowed produces a duty cycle, and the dwell time causes it
 rather than preventing it:
 
 1. boost held 30 s ($=\tau_{\mathrm{h}}$), $s$ fills from cold to $s_{\max}$
-2. $\mathcal{S}_q$ withdraws it — a transition, so the dwell clock restarts
+2. $S_q$ withdraws it — a transition, so the dwell clock restarts
 3. **5.0 s DENIED**: still asking, dwell forbids a switch; $s$ sheds 0.054
 4. dwell expires just under the limit, boost granted, **1.6 s** at
    $1/\tau_{\mathrm{h}}$ puts it back at $s_{\max}$
@@ -269,7 +293,7 @@ Peak $s = 1.0016$, above $s_{\max}$. The mode is re-evaluated at step
 boundaries, so $s$ crosses the limit before anything notices; with
 $\tau_{\mathrm{c}} = 90$ s that 0.2 % takes a minute to decay back under, and
 `state_violations()` reports it for the whole minute — correctly, since the
-state really is outside $\mathcal{X}_q$.
+state really is outside $X_q$.
 
 None of this is the model misbehaving. The constraints do what they declare
 and the vehicle flies what it is given; the naive policy is a bad one.
@@ -285,7 +309,7 @@ weight:
   claim against the baseline directly, and pins the *signature* as much as the
   number — the method takes no mode argument.
 - **`test_the_dwell_locks_the_current_mode_in_rather_than_out`** pins the
-  correction to $\mathcal{S}_q$; restoring the document's original formulation
+  correction to $S_q$; restoring the document's original formulation
   fails it.
 
 Sustained boost is checked by *integrating* to the thermal limit rather than

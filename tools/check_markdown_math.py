@@ -45,12 +45,13 @@ INLINE = re.compile(r"(?<!\$)\$([^$\n]+)\$")
 # (pattern, what is wrong). Each of these renders without error and is wrong
 # anyway, which is exactly why a renderer cannot be the only check.
 SILENT_FALLBACKS = [
-    (re.compile(r"\\mathbb\{[^A-Z}]"),
-     r"\mathbb has no glyphs outside A-Z in KaTeX; it falls back to plain "
-     r"text. Use \mathbf{1} for an indicator"),
-    (re.compile(r"\\bm\{"),
-     r"\bm is a LaTeX package command KaTeX does not implement. Markdown "
-     r"wants \boldsymbol, which renders identically"),
+    (re.compile(r"\\(bm|boldsymbol|mathbf|mathbb|mathcal|mathfrak|mathscr)\b"),
+     "weighted or decorative maths fonts are not used here (ADR 0018). Every "
+     "one of them resolves to a font file the renderer may not have, and a "
+     "font that fails to load is not an error -- it falls back to the face a "
+     "plain scalar already uses, so the distinction survives in the source "
+     "and vanishes on the page. Write the symbol plain and give it a row in "
+     "the page's notation table"),
     (re.compile(r"\\vec(x|u|w|c|f|g)\b|\\mat[A-Z]"),
      "a macro from vehicle_model.tex leaked into markdown; those are defined "
      "in the preamble and mean nothing here"),

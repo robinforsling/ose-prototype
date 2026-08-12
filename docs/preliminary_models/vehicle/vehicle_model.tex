@@ -3,7 +3,6 @@
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{amsmath,amssymb,amsthm}
-\usepackage{bm}
 \usepackage{geometry}
 \usepackage{booktabs}
 \usepackage{hyperref}
@@ -14,21 +13,38 @@
 \newtheorem{remark}{Remark}
 \newtheorem{assumption}{Assumption}
 
-\newcommand{\R}{\mathbb{R}}
-\newcommand{\Xset}{\mathcal{X}}
-\newcommand{\Uset}{\mathcal{U}}
-\newcommand{\Qset}{\mathcal{Q}}
-\newcommand{\Sset}{\mathcal{S}}
-\newcommand{\vecx}{\bm{x}}
-\newcommand{\vecu}{\bm{u}}
-\newcommand{\vecw}{\bm{w}}
-\newcommand{\vecc}{\bm{c}}
-\newcommand{\vectheta}{\bm{\theta}}
-\newcommand{\veceta}{\bm{\eta}}
-\newcommand{\veclambda}{\bm{\lambda}}
-\newcommand{\vecf}{\bm{f}}
-\newcommand{\vecg}{\bm{g}}
-\newcommand{\matG}{\bm{G}}
+% Notation is deliberately unweighted: no \bm, no \mathbb, no \mathcal.
+%
+% This document governs the notation used by the markdown reference pages
+% under docs/models/, and those are read in browsers whose maths renderers
+% cannot be relied on to have the fonts that weighted markup needs. A missing
+% font file is not an error -- KaTeX asks for KaTeX_Math-BoldItalic, does not
+% get it, and silently falls back to the face a plain scalar already uses. The
+% distinction then exists in the source and not on the page, which is worse
+% than not drawing it, because the source still looks careful.
+%
+% So the distinction is carried by naming and by context instead, which also
+% puts this document closer to the Python it is written for -- there is no
+% bold in a .py file either. See ADR 0018.
+%
+% The macros are kept rather than expanded. A reader of this source still sees
+% that \vecx is the state vector and \matG a matrix, the diffs stay small, and
+% if a rendering path ever becomes dependable the decision reverses here in
+% fifteen lines rather than across a hundred and sixty call sites.
+\newcommand{\Xset}{X}
+\newcommand{\Uset}{U}
+\newcommand{\Qset}{Q}
+\newcommand{\Sset}{S}
+\newcommand{\vecx}{x}
+\newcommand{\vecu}{u}
+\newcommand{\vecw}{w}
+\newcommand{\vecc}{c}
+\newcommand{\vectheta}{\theta}
+\newcommand{\veceta}{\eta}
+\newcommand{\veclambda}{\lambda}
+\newcommand{\vecf}{f}
+\newcommand{\vecg}{g}
+\newcommand{\matG}{G}
 
 \title{Two Dimensional Vehicle Model}
 \author{}
@@ -105,14 +121,14 @@ The baseline continuous time dynamics are written as
 
 The state is
 \begin{equation}
-  \vecx = \begin{bmatrix} p_x & p_y & \psi & v & m \end{bmatrix}^{T} \in \R^{5},
+  \vecx = \begin{bmatrix} p_x & p_y & \psi & v & m \end{bmatrix}^{T},
 \end{equation}
 where $p_x$ and $p_y$ are position coordinates, $\psi$ is heading, $v$ is
 airspeed, and $m$ is total vehicle mass.
 
 The continuous motion command is
 \begin{equation}
-  \vecu = \begin{bmatrix} T & \omega \end{bmatrix}^{T} \in \R^{2},
+  \vecu = \begin{bmatrix} T & \omega \end{bmatrix}^{T},
 \end{equation}
 where $T$ is thrust and $\omega$ is turn rate.
 
@@ -136,10 +152,10 @@ where $g$ is gravitational acceleration and $\rho$ is air density.
 The drag model follows the conventional parabolic drag polar
 \cite{nasa-drag,nasa-induced},
 \begin{equation}
-  C_D = C_{D_0} + k C_L^2, \qquad k = \frac{1}{\pi e A\!R},
+  C_D = C_{D_0} + k C_L^2, \qquad k = \frac{1}{\pi e AR},
 \end{equation}
 where $C_D$ is total drag coefficient, $C_{D_0}$ is zero lift drag coefficient,
-$C_L$ is lift coefficient, $A\!R$ is wing aspect ratio, and $e$ is the Oswald
+$C_L$ is lift coefficient, $AR$ is wing aspect ratio, and $e$ is the Oswald
 efficiency factor.
 
 Dynamic pressure is $\tfrac{1}{2}\rho v^2$, and lift and drag are written as
@@ -174,9 +190,9 @@ In straight, steady, level flight $L = mg$, giving
 \begin{equation}
   D_{i,0} = \frac{2k(mg)^{2}}{\rho S v^{2}} .
 \end{equation}
-Using $k = 1/(\pi e A\!R)$ and defining
+Using $k = 1/(\pi e AR)$ and defining
 \begin{equation}
-  c_i := \frac{2g^{2}}{\pi e A\!R\, S},
+  c_i := \frac{2g^{2}}{\pi e AR\, S},
   \label{eq:ci}
 \end{equation}
 the baseline induced drag becomes
@@ -200,7 +216,7 @@ in direct analogy with \cref{eq:cp}, gives
 
 \begin{remark}
 The three lumped parameters $c_p$, $c_i$ and $c_\ell$ absorb the geometry
-$S$, $C_{D_0}$, $e$, $A\!R$ and $C_{L,\max}$, so that a vehicle may be specified
+$S$, $C_{D_0}$, $e$, $AR$ and $C_{L,\max}$, so that a vehicle may be specified
 either by the lumped parameters directly or by the underlying geometry.
 \end{remark}
 
@@ -362,7 +378,7 @@ airspeed.
 The admissible input set is
 \begin{equation}
   \Uset(\vecx, \veclambda) = \left\{
-    \vecu \in \R^{2} : T_{\min} \le T \le T_{\max},\;
+    \vecu : T_{\min} \le T \le T_{\max},\;
     |\omega| \le \omega_{\max}(v, m)
   \right\}.
   \label{eq:U}
@@ -370,7 +386,7 @@ The admissible input set is
 The admissible state set is
 \begin{equation}
   \Xset(\veclambda) = \left\{
-    \vecx \in \R^{5} : v_{\mathrm{s}}(m,1) \le v \le v_{\max},\;
+    \vecx : v_{\mathrm{s}}(m,1) \le v \le v_{\max},\;
     v \ge v_{\min},\; m_{\mathrm{dry}} \le m \le m_{\max}
   \right\},
   \label{eq:X}

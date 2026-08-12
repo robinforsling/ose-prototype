@@ -55,16 +55,38 @@ def test_the_checker_is_not_vacuous():
     assert count > 100, f"only {count} spans found; the extractor is broken"
 
 
-def test_it_catches_a_silent_fallback(tmp_path):
+@pytest.mark.parametrize(
+    "markup", ["\\bm{x}", "\\boldsymbol{x}", "\\mathbf{G}", "\\mathbb{R}",
+               "\\mathcal{S}"],
+)
+def test_it_catches_a_silent_fallback(tmp_path, markup):
     """The class of bug the static rules exist for: valid markup, no error,
-    wrong glyph. Written to a scratch file so the real pages are untouched."""
+    wrong glyph. Written to a scratch file so the real pages are untouched.
+
+    Every one of these renders somewhere and fails somewhere, because each
+    resolves to a font file the viewer may not have -- and a font that does
+    not load is not an error. Parametrised rather than written as one string
+    so a rule that stops covering one of them fails on that one instead of
+    hiding behind the others.
+    """
     page = tmp_path / "scratch.md"
-    page.write_text("An indicator $\\mathbb{1}[x \\in S]$ and a vector $\\bm{x}$.\n")
+    page.write_text(f"A symbol ${markup}$ in a sentence.\n")
 
     result = _run(str(page))
-    assert result.returncode == 1
-    assert "\\mathbb has no glyphs" in result.stdout
-    assert "\\bm is a LaTeX package command" in result.stdout
+    assert result.returncode == 1, f"{markup} was accepted:\n{result.stdout}"
+    assert "ADR 0018" in result.stdout
+
+
+def test_mathrm_is_still_allowed(tmp_path):
+    """The one upright form that is kept, because it cannot fail: KaTeX's rule
+    for it is `font-style: normal` and nothing else -- no family, no weight, no
+    file to be missing. Dropping it would turn $c_{\\mathrm{TSFC}}$ into four
+    italic letters, which reads as a product of four variables."""
+    page = tmp_path / "scratch.md"
+    page.write_text("The parameter $c_{\\mathrm{TSFC}}$ and $n_{\\mathrm{av}}$.\n")
+
+    result = _run(str(page))
+    assert result.returncode == 0, result.stdout
 
 
 def test_it_ignores_maths_inside_code_blocks(tmp_path):
