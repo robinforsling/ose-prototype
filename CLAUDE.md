@@ -163,6 +163,16 @@ per-element tables map each symbol to its field in the code. That is also why
 the alphabet is now the only namespace — check a new symbol against every
 existing one, not just those of the same kind. `A` is taken, twice.
 
+**In markdown, never write a backslash before punctuation.** It is a
+CommonMark character escape, eaten before the maths renderer sees the span, so
+the command vanishes and the punctuation stays: `\,` rendered as a comma, and
+`\{` dropped the brace entirely — a bare `{` is a TeX group, so set-builder
+notation lost its braces while still looking deliberate. Backslash-*letter*
+commands are unaffected, which is why `\frac` worked on the same page and made
+this look like a font problem for two rounds of diagnosis. Write `\thinspace`,
+`\lbrace`, `\rbrace`, `\cr`, `\Vert`; a backslash before a *space* is safe.
+The LaTeX keeps the short forms — nothing parses it as markdown.
+
 ## Testing philosophy
 
 Test properties, not appearances. Any component that publishes an uncertainty

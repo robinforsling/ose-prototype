@@ -70,30 +70,52 @@ $c_{\mathrm{TSFC}}$ sets as four italic letters, which reads as a product of
 four variables.
 
 **Two symbols were renamed** where removing a font created a collision. Aspect
-ratio was `A\!R`, which rendered as a literal `A!R` in a viewer where `\frac`
-rendered correctly. The mechanism was not identified — a character escape
-applied before the maths renderer would explain it, but the same explanation
-predicts that the `\\` row separators in every `bmatrix` would also be eaten,
-and those render. It is dropped rather than diagnosed: `\!` is a negative thin
-space, and the two letters do not need one. It is now `AR`, and not the bare
-`A` first proposed, because `A(v,m)` is already the induced-drag coefficient
-in the same derivation.
+ratio was `A\!R`, which rendered as a literal `A!R`; it is now `AR`, and not
+the bare `A` first proposed, because `A(v,m)` is already the induced-drag
+coefficient in the same derivation. That one turned out to be a second and
+unrelated defect, described below. The boost indicator was `\mathbf{1}[\cdot]`
+and is now `\chi[\cdot]`, since a plain `1` is the number one. Wing area $S$
+and the switching map $S_q$ coexist because the latter is never written
+without its subscript.
 
-Other backslash-punctuation spacing survives in these pages — fifteen `\,` and
-the `\{ \}` of set-builder notation. If a viewer is found that eats those too,
-`\thinspace`, `\lbrace` and `\rbrace` are the backslash-letter spellings and
-render identically. Nothing has been changed on speculation. The boost
-indicator was `\mathbf{1}[\cdot]` and is now `\chi[\cdot]`, since a plain `1`
-is the number one. Wing area $S$ and the switching map $S_q$ coexist because
-the latter is never written without its subscript.
+### A second mechanism: markdown eats backslash-punctuation
+
+`A\!R` was initially assumed to be the same font problem. It is not, and the
+distinction matters because the fix is different.
+
+**A backslash before ASCII punctuation is a CommonMark character escape.** It
+is consumed by the markdown parser before the maths renderer is handed the
+span, so the command never arrives and the punctuation is left in the output.
+Backslash-*letter* commands are not escapes and pass through untouched — which
+is why `\frac` rendered correctly on the same page, and why this looked like a
+font problem for as long as it did.
+
+Confirmed on a live page, not inferred: `\,` rendered as a comma, and `\{`
+produced no brace at all. The second is the worse of the two. A bare `{` is a
+TeX group, not a character, so set-builder notation did not render its braces
+wrongly — it silently dropped them, and $U(x) = \lbrace u : \ldots \rbrace$
+came out with no braces while looking deliberate.
+
+Every affected span now uses the backslash-letter spelling, which is not an
+escape and produces byte-identical MathML: `\thinspace` for `\,`, `\lbrace`
+and `\rbrace` for the delimiters, `\cr` for a row break. `\!` was simply
+dropped. A backslash before a *space* is safe — space is not punctuation — so
+the thirteen `\ ` in these pages were left alone.
+
+This applies to markdown only. The LaTeX source keeps `\,`, `\{` and `\\`,
+because no markdown parser touches it. The two artefacts therefore differ in
+*markup* while agreeing on *notation*, which is the distinction this ADR is
+about.
 
 **The LaTeX macros are kept and redefined**, not expanded. `\vecx` now expands
 to `x`. A reader of the source still sees which symbols are aggregates, the
 diffs stay small, and the decision reverses in fifteen lines rather than across
 161 call sites.
 
-`tools/check_markdown_math.py` rejects the banned commands in markdown, with
-`tests/test_markdown_math.py` parametrised over each one separately so a rule
+`tools/check_markdown_math.py` rejects the banned commands in markdown, and
+also any backslash-punctuation escape, with each replacement asserted to be
+accepted so the rule always names a way out. `tests/test_markdown_math.py` is
+parametrised over each case separately so a rule
 that stops covering one fails on that one.
 
 ## Consequences

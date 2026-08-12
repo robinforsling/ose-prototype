@@ -31,7 +31,7 @@ the Python, where nothing is bold either (ADR 0018).
 | $\theta$ | vector, 4 | lumped vehicle parameters |
 | $\eta$ | vector, 2 | environment |
 | $\lambda$ | vector, 8 | declared constraints |
-| $f$ | vector field, 5 | drift dynamics |
+| $f$ | vector field, 5 | system dynamics |
 | $G$ | matrix, 5×2 | noise input |
 | $U$, $X$ | sets | admissible commands, admissible states |
 | everything else | scalar | $v$, $m$, $T$, $\omega$, $c_p$, … |
@@ -71,11 +71,11 @@ holds the authored form — wing area and a drag polar — and `to_parameters(η
 lumps it:
 
 $$
-c_p = \tfrac{1}{2} S\, C_{D0},
+c_p = \tfrac{1}{2} S\thinspace C_{D0},
 \qquad
-c_i = \frac{2 g^{2}}{\pi e\, AR\, S},
+c_i = \frac{2 g^{2}}{\pi e\thinspace AR\thinspace S},
 \qquad
-c_\ell = \tfrac{1}{2} S\, C_{L\max},
+c_\ell = \tfrac{1}{2} S\thinspace C_{L\max},
 \qquad
 c_{\mathrm{TSFC}} = c_{\mathrm{TSFC}}
 $$
@@ -108,11 +108,11 @@ $$
 \qquad
 f =
 \begin{bmatrix}
-v\cos\psi \\
-v\sin\psi \\
-\omega \\
-\dfrac{T - D(v,m,\omega)}{m} \\
--c_{\mathrm{TSFC}}\, T
+v\cos\psi \cr
+v\sin\psi \cr
+\omega \cr
+\dfrac{T - D(v,m,\omega)}{m} \cr
+-c_{\mathrm{TSFC}}\thinspace T
 \end{bmatrix}
 $$
 
@@ -161,11 +161,11 @@ $$
 <!-- end generated: lambda -->
 
 $$
-U(x) = \{\, u : T_{\min} \le T \le T_{\max},\ |\omega| \le \omega_{\max}(v,m) \,\}
+U(x) = \lbrace \thinspace u : T_{\min} \le T \le T_{\max},\ |\omega| \le \omega_{\max}(v,m) \thinspace \rbrace
 $$
 
 $$
-X(\lambda) = \{\, x : v_{\mathrm{s}}(m,1) \le v \le v_{\max},\ v \ge v_{\min},\ m_{\mathrm{dry}} \le m \le m_{\max} \,\}
+X(\lambda) = \lbrace \thinspace x : v_{\mathrm{s}}(m,1) \le v \le v_{\max},\ v \ge v_{\min},\ m_{\mathrm{dry}} \le m \le m_{\max} \thinspace \rbrace
 $$
 
 **The vehicle declares these and does not apply them** (ADR 0006).
@@ -198,13 +198,13 @@ behaviour worth describing:
 $$
 n_\ell(v,m) = \frac{\rho c_\ell v^{2}}{mg},
 \qquad
-n_{\mathrm{av}} = \min\{n_{\max},\, n_\ell\},
+n_{\mathrm{av}} = \min\lbrace n_{\max},\thinspace n_\ell\rbrace ,
 \qquad
-\omega_{\mathrm{av}} = \min\left\{\omega_{\mathrm{cap}},\ \frac{g}{v}\sqrt{n_{\mathrm{av}}^{2}-1}\right\}
+\omega_{\mathrm{av}} = \min\left\lbrace \omega_{\mathrm{cap}},\ \frac{g}{v}\sqrt{n_{\mathrm{av}}^{2}-1}\right\rbrace
 $$
 
 $$
-\omega_{\mathrm{sus}}(v,m) = \min\left\{\omega_{\mathrm{av}},\ \frac{g}{v}\sqrt{\frac{T_{\mathrm{av}} - \rho c_p v^{2} - A(v,m)}{A(v,m)}}\right\}
+\omega_{\mathrm{sus}}(v,m) = \min\left\lbrace \omega_{\mathrm{av}},\ \frac{g}{v}\sqrt{\frac{T_{\mathrm{av}} - \rho c_p v^{2} - A(v,m)}{A(v,m)}}\right\rbrace
 $$
 
 At $m = 16$ t:
@@ -243,7 +243,7 @@ v_{\mathrm{c}}(m) = v_{\mathrm{s}}(m,1)\sqrt{n_{\max}}
 $$
 
 At 16 t: $v_{\mathrm{s}} = 75.0$ m/s, $v_{\mathrm{c}} = 224.9$ m/s. The usable
-floor is $\max\{v_{\min}, v_{\mathrm{s}}\} = 90$ m/s, so at this mass the hard
+floor is $\max\lbrace v_{\min}, v_{\mathrm{s}}\rbrace  = 90$ m/s, so at this mass the hard
 floor binds and stall does not. Above roughly 23 t it is the other way round,
 and `test_claimed_speed_floor_reports_whichever_limit_binds` exercises both
 regimes deliberately — a test at one mass alone would pass against an

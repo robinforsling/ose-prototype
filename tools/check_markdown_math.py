@@ -52,6 +52,17 @@ SILENT_FALLBACKS = [
      "plain scalar already uses, so the distinction survives in the source "
      "and vanishes on the page. Write the symbol plain and give it a row in "
      "the page's notation table"),
+    (re.compile(r"\\[!-/:-@\[-`{-~]"),
+     "a backslash before ASCII punctuation is a CommonMark character escape, "
+     "consumed before any maths renderer sees the span. The command is gone "
+     "and the punctuation is left behind: `\\,` became a comma and `\\{` "
+     "stopped producing a brace -- and a bare { is a TeX group, so set-builder "
+     "notation lost its braces entirely rather than rendering them wrong. Use "
+     "the backslash-letter spelling, which is not an escape and renders "
+     "identically: \\thinspace \\medspace \\thickspace for \\, \\: \\; , "
+     "\\lbrace \\rbrace \\lbrack \\rbrack for the delimiters, \\cr for a row "
+     "break, \\Vert for \\|. A backslash before a SPACE is safe -- space is "
+     "not punctuation, so `\\ ` is left alone"),
     (re.compile(r"\\vec(x|u|w|c|f|g)\b|\\mat[A-Z]"),
      "a macro from vehicle_model.tex leaked into markdown; those are defined "
      "in the preamble and mean nothing here"),

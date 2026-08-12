@@ -29,11 +29,11 @@ drawn. Only the entries that differ from the baseline are listed.
 | $\theta$ | vector, 7 | lumped parameters, two fuel coefficients and two time constants |
 | $\lambda$ | vector, 12 | declared constraints, per-mode thrust and speed |
 | $q$ | discrete state | propulsion mode, an element of $Q$ |
-| $Q$ | set | $\{\mathrm{nom},\ \mathrm{boost}\}$ |
+| $Q$ | set | $\lbrace \mathrm{nom},\ \mathrm{boost}\rbrace $ |
 | $S_q$ | set-valued map | modes reachable from $q$ — see section 3 |
 | $X_q$ | set | admissible states in mode $q$ |
-| $f_q$ | vector field, 6 | drift dynamics in mode $q$ |
-| $\chi[\,\cdot\,]$ | indicator | 1 if the condition holds, 0 otherwise |
+| $f_q$ | vector field, 6 | system dynamics in mode $q$ |
+| $\chi[\thinspace \cdot\thinspace ]$ | indicator | 1 if the condition holds, 0 otherwise |
 | $s$ | scalar | thermal accumulator, normalised to $s_{\max} = 1$ |
 
 $S$ without a subscript is the wing reference area, a scalar, and never the
@@ -44,7 +44,7 @@ switching map — that one is always written $S_q$.
 ## 1. What changes
 
 $$
-q \in Q = \{\mathrm{nom},\ \mathrm{boost}\},
+q \in Q = \lbrace \mathrm{nom},\ \mathrm{boost}\rbrace ,
 \qquad
 x = \begin{bmatrix} p_x & p_y & \psi & v & m & s \end{bmatrix}^{T}
 $$
@@ -108,15 +108,15 @@ $$
 \qquad
 f_q =
 \begin{bmatrix}
-v\cos\psi \\ v\sin\psi \\ \omega \\
-\dfrac{T - D(v,m,\omega)}{m} \\
--c_{\mathrm{TSFC},q}\,T \\
+v\cos\psi \cr  v\sin\psi \cr  \omega \cr
+\dfrac{T - D(v,m,\omega)}{m} \cr
+-c_{\mathrm{TSFC},q}\thinspace T \cr
 \sigma_q(s)
 \end{bmatrix},
 \qquad
 \sigma_q(s) =
 \begin{cases}
-\dfrac{1}{\tau_{\mathrm{h}}}, & q = \mathrm{boost} \\[8pt]
+\dfrac{1}{\tau_{\mathrm{h}}}, & q = \mathrm{boost} \cr
 -\dfrac{s}{\tau_{\mathrm{c}}}, & q = \mathrm{nom}
 \end{cases}
 $$
@@ -136,9 +136,9 @@ without reimplementing $\sigma_q$.
 $$
 S_{q}(x, \lambda) =
 \begin{cases}
-\{\mathrm{nom}\}, & s \ge s_{\max}\ \text{ or }\ m \le m_{\mathrm{dry}} + m_{\mathrm{res}} \\
-\{q\}, & t - t_{q} < \Delta t_{\mathrm{dwell}} \\
-\{\mathrm{nom}, \mathrm{boost}\}, & \text{otherwise}
+\lbrace \mathrm{nom}\rbrace , & s \ge s_{\max}\ \text{ or }\ m \le m_{\mathrm{dry}} + m_{\mathrm{res}} \cr
+\lbrace q\rbrace , & t - t_{q} < \Delta t_{\mathrm{dwell}} \cr
+\lbrace \mathrm{nom}, \mathrm{boost}\rbrace , & \text{otherwise}
 \end{cases}
 $$
 
@@ -152,8 +152,8 @@ not cosmetic:
 - **free** — choose
 
 An earlier formulation listed the permissive cases by mode and returned
-$\{\mathrm{nom}\}$ otherwise. With $q = \mathrm{boost}$ and the dwell unserved
-that says $\{\mathrm{nom}\}$, so boost was granted on one step and revoked on
+$\lbrace \mathrm{nom}\rbrace $ otherwise. With $q = \mathrm{boost}$ and the dwell unserved
+that says $\lbrace \mathrm{nom}\rbrace $, so boost was granted on one step and revoked on
 the next indefinitely — an anti-chattering condition that produced chattering.
 It was found by simulating rather than reading, and the thermal state never
 rose above 0.02. The ordering matters too: test the dwell first and an aircraft
@@ -183,7 +183,7 @@ whenever the delivered mode differs from the current one, including when the
 vehicle forced the fallback.
 
 $$
-X_q(\lambda) = \{\, x : v_{\mathrm{s}}(m,1) \le v \le v^{q}_{\max},\ v \ge v_{\min},\ m_{\mathrm{dry}} \le m \le m_{\max},\ 0 \le s \le s_{\max} \,\}
+X_q(\lambda) = \lbrace \thinspace x : v_{\mathrm{s}}(m,1) \le v \le v^{q}_{\max},\ v \ge v_{\min},\ m_{\mathrm{dry}} \le m \le m_{\max},\ 0 \le s \le s_{\max} \thinspace \rbrace
 $$
 
 ---
