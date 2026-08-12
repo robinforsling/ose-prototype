@@ -14,6 +14,7 @@ function of the measurement stream it is fed.
 
 import ast
 import math
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -75,12 +76,51 @@ def _build_components(initial_state, seed=0):
     return imu, gnss, air, estimator
 
 
+@dataclass
+class Flight:
+    """What a flight produced, beyond the published rows.
+
+    `_fly` always returned a second value and every caller discarded it, so
+    this fills that slot rather than changing nine signatures. `internal`
+    carries what no consumer can see: the error in all ten error states
+    against truth, paired with the filter's own covariance over them. Those
+    states are where a defect can land without any published channel moving --
+    see test_the_error_states_no_consumer_reads_are_consistent.
+    """
+
+    estimator: object
+    imu: object
+    gnss: object
+    air: object
+    internal: list                       # (error_10, P_10x10) per collected step
+
+
+def _internal_error(estimator, imu, state, wind):
+    """Error in the estimator's own error-state ordering, against truth.
+
+    Ordering matches the module docstring of navigation_state_estimator:
+    position, ground velocity, heading, accel bias, gyro bias, wind.
+    """
+    v_ground_true = state.v_mps * np.array(
+        [math.cos(state.psi_rad), math.sin(state.psi_rad)]
+    ) + np.array(wind)
+    return np.concatenate([
+        estimator.p - np.array([state.p_x_m, state.p_y_m]),
+        estimator.v_ground - v_ground_true,
+        [math.remainder(estimator.psi - state.psi_rad, 2.0 * math.pi)],
+        estimator.bias_accel - imu.bias_accel,
+        [estimator.bias_gyro - imu.bias_gyro],
+        estimator.wind - np.array(wind),
+    ])
+
+
 def _fly(vehicle, t_end, seed=0, wind=(12.0, -18.0), outage=None, collect_from=0.0, record=None):
     initial_state = VehicleState(0.0, 0.0, math.radians(30.0), 250.0, 16000.0)
     imu, gnss, air, estimator = _build_components(initial_state, seed)
     state = initial_state
     dist = Disturbance(wind_x_mps=wind[0], wind_y_mps=wind[1])
     rows = []
+    internal = []
     t = 0.0
     while t < t_end:
         if outage is not None:
@@ -110,9 +150,14 @@ def _fly(vehicle, t_end, seed=0, wind=(12.0, -18.0), outage=None, collect_from=0
 
         if t >= collect_from:
             rows.append((t, est, state))
+            # Captured at the same instant as `est`, before the IMU sample is
+            # ingested, so the bias compared against is the one that produced
+            # the measurement just taken.
+            internal.append((_internal_error(estimator, imu, state, wind),
+                             estimator.P.copy()))
         state = step_rk4(vehicle, state, cmd, DT, dist)
         t += DT
-    return rows, estimator
+    return rows, Flight(estimator, imu, gnss, air, internal)
 
 
 @pytest.fixture
@@ -219,6 +264,173 @@ def test_filter_is_consistent(vehicle, seed):
         nees.append(err * err / var)
 
     assert np.mean(nees) < 6.0, f"heading NEES = {np.mean(nees):.1f}, filter overconfident"
+
+
+def _anees(errors, covariances):
+    """Mean normalised estimation error squared, using the FULL covariance.
+
+    np.linalg.solve rather than the diagonal, so correlations count. A filter
+    can be honest on every diagonal and still be wrong about how the errors
+    relate to each other, and a consumer forming any linear combination --
+    range to a waypoint, cross-track error -- reads exactly that.
+    """
+    return float(np.mean([e @ np.linalg.solve(C, e) for e, C in zip(errors, covariances)]))
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2, 3])
+def test_the_whole_published_estimate_is_consistent(vehicle, seed):
+    """All four published channels at once, against the full 4x4 covariance.
+
+    test_filter_is_consistent above checks the heading channel alone. That is
+    the channel the historical bug landed in, but it is one scalar out of the
+    object consumers actually receive, and this repository has been caught
+    three times by an assertion that covered the convenient part: the mass
+    filter passed at fuel ANEES 1.05 while its full state sat at 9.07, and the
+    damage had landed in the state nobody looked at.
+
+    So this checks the object. Measured 2.2-4.8 across seeds against 4 degrees
+    of freedom, mean 4.04 over eight seeds -- the filter is very slightly
+    conservative. The bounds are wide enough not to be seed-fragile and narrow
+    enough to catch what matters: the misalignment defect produced NEES near
+    850, and a covariance inflated to hide an error would fall through the
+    floor rather than the ceiling.
+    """
+    rows, _ = _fly(vehicle, 200.0, seed=seed, collect_from=130.0)
+
+    errors = [
+        np.array([
+            e.p_x_m - s.p_x_m,
+            e.p_y_m - s.p_y_m,
+            math.remainder(e.psi_rad - s.psi_rad, 2.0 * math.pi),
+            e.v_air_mps - s.v_mps,
+        ])
+        for _, e, s in rows
+    ]
+    anees = _anees(errors, [e.covariance for _, e, _ in rows])
+
+    assert anees < 12.0, f"ANEES = {anees:.2f} against 4 dof, filter overconfident"
+    assert anees > 0.8, f"ANEES = {anees:.2f} against 4 dof, covariance inflated"
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_the_error_states_no_consumer_reads_are_consistent(vehicle, seed):
+    """The IMU biases and the wind never reach a consumer, so no published
+    channel moves when they go wrong -- and every test above would still pass.
+
+    They are not inert: the accel bias is subtracted from every specific-force
+    sample before mechanisation and the wind sets the airspeed residual, so an
+    error here is integrated into position continuously. This is the same
+    shape as the mass filter's tsfc_error state, and it is checked the same
+    way, block by block against the filter's own covariance over them.
+
+    Truth for the biases comes from the Imu, which propagates them as the
+    Gauss-Markov processes the filter merely assumes. That the filter's prior
+    and the sensor's actual behaviour agree is a property of this scenario,
+    not of the filter -- see the estimator's module docstring.
+    """
+    _, flight = _fly(vehicle, 200.0, seed=seed, collect_from=130.0)
+    errors = [e for e, _ in flight.internal]
+    covariances = [P for _, P in flight.internal]
+
+    # (name, slice, dof). Measured across seeds: accel 0.98-1.67, gyro
+    # 0.14-1.06, wind 0.48-0.52 -- all conservative.
+    for name, sl, dof in [("accel bias", slice(5, 7), 2),
+                          ("gyro bias", slice(7, 8), 1),
+                          ("wind", slice(8, 10), 2)]:
+        anees = _anees([e[sl] for e in errors], [P[sl, sl] for P in covariances])
+        assert anees < 4.0 * dof, (
+            f"{name} ANEES = {anees:.2f} against {dof} dof, overconfident"
+        )
+        assert anees > 0.02 * dof, (
+            f"{name} ANEES = {anees:.2f} against {dof} dof, covariance inflated "
+            "to the point of carrying no information"
+        )
+
+
+def test_air_data_holds_airspeed_while_gnss_is_out(vehicle):
+    """The aiding sources are not interchangeable, and losing one must degrade
+    only what it was aiding.
+
+    GNSS observes position and ground velocity; air data observes airspeed
+    directly and keeps correcting throughout an outage. So position
+    uncertainty should grow substantially while airspeed uncertainty stays
+    down at the level the air-data sensor supports.
+
+    The bound is ABSOLUTE, not a before/during ratio, and the difference
+    matters. Airspeed is reconstructed as |v_ground - wind|, and with air data
+    removed entirely the wind is never observed at all: its sigma stays pinned
+    at the filter's 25 m/s prior, before the outage as well as during it. A
+    ratio test is therefore flat in both configurations and passes with the
+    air-data correction deleted -- which is how this test was first written,
+    and what sabotaging _ingest_air revealed. Measured: 0.481 m/s with air
+    data against 25.0 without, so the level discriminates by a factor of 50.
+
+    STANDARD air data declares 1.0 m/s, so requiring better than 2.0 asserts
+    the filter is genuinely using the measurement rather than merely holding a
+    prior.
+    """
+    rows, _ = _fly(vehicle, 320.0, seed=0, outage=(150.0, 250.0))
+    at = lambda tt: min(rows, key=lambda r: abs(r[0] - tt))[1]
+
+    before, during = at(149.0), at(249.0)
+    v_air_sigma = lambda e: math.sqrt(e.covariance[3, 3])
+
+    assert during.position_sigma_m > 5.0 * before.position_sigma_m, (
+        "position should degrade without GNSS"
+    )
+    assert v_air_sigma(during) < 2.0, (
+        f"airspeed sigma is {v_air_sigma(during):.3f} m/s during the outage; "
+        "air data declares 1.0 m/s, so the correction is not reaching the state"
+    )
+    assert v_air_sigma(during) < 1.5 * v_air_sigma(before), "and it must not drift"
+    assert before.gnss_available and not during.gnss_available
+
+
+@pytest.mark.parametrize("initial_error_deg", [5.0, 15.0])
+def test_a_badly_initialised_heading_converges(vehicle, initial_error_deg):
+    """Alignment is somebody else's problem (the estimator takes a numeric
+    guess, never truth) so it must tolerate a bad one.
+
+    Fifteen degrees is far outside the 1 degree the nominal initialisation
+    declares. The turn makes heading observable and the filter should recover
+    to well inside its own final uncertainty; a filter that has convinced
+    itself of a wrong heading is the failure this guards, since it would then
+    reject the GNSS fixes that disagree.
+    """
+    initial_state = VehicleState(0.0, 0.0, math.radians(30.0), 250.0, 16000.0)
+    imu, gnss, air, _ = _build_components(initial_state, seed=0)
+
+    psi0 = initial_state.psi_rad + math.radians(initial_error_deg)
+    estimator = InsGnssEstimator(
+        [0.0, 0.0], psi0,
+        initial_state.v_mps * np.array([math.cos(psi0), math.sin(psi0)]),
+        initial_uncertainty=InitialUncertainty(
+            heading_sigma_rad=math.radians(initial_error_deg)
+        ),
+    )
+
+    state = initial_state
+    dist = Disturbance(wind_x_mps=12.0, wind_y_mps=-18.0)
+    t = 0.0
+    while t < 200.0:
+        cmd = _profile(vehicle, t, state)
+        imu_m = imu.sample(t, DT, state, cmd, dist)
+        if gnss.due(t):
+            estimator.ingest(gnss.sample(t, state, dist))
+        if air.due(t):
+            estimator.ingest(air.sample(t, state))
+        estimator.ingest(imu_m)
+        state = step_rk4(vehicle, state, cmd, DT, dist)
+        t += DT
+
+    est = estimator.estimate(t)
+    error_rad = math.remainder(est.psi_rad - state.psi_rad, 2.0 * math.pi)
+    sigma_rad = math.sqrt(est.covariance[2, 2])
+
+    assert abs(math.degrees(error_rad)) < 0.2, (
+        f"heading still {math.degrees(error_rad):+.3f} deg out after 200 s"
+    )
+    assert abs(error_rad) < 3.0 * sigma_rad, "converged but overconfident about it"
 
 
 @pytest.mark.parametrize("seed", [0, 1, 2])
