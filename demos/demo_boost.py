@@ -102,6 +102,8 @@ from _player import CONTROLS_HELP, Player
 
 from ose.equipment.reference_configs.vehicle.planar_point_mass_with_booster import (
     FIGHTER_BOOST_LIMITS,
+    FIGHTER_THERMAL_TAU_COOL_S,
+    FIGHTER_THERMAL_TAU_HEAT_S,
     reference_boosted_fighter,
 )
 from ose.equipment.vehicle import BoostState, Mode, VehicleCommand
@@ -323,7 +325,9 @@ def build_figure(runs, plt):
         a.plot(t, runs[name]["fuel"], color=colour, lw=1.4)
     a.set_xlabel("time [s]")
 
-    fig.subplots_adjust(left=0.05, right=0.975, top=0.92, bottom=0.11)
+    # Bottom margin leaves room for the transport bar, which _player.py puts
+    # at y 0.018 to 0.087. At 0.11 the x-axis label landed on the slider.
+    fig.subplots_adjust(left=0.05, right=0.975, top=0.92, bottom=0.15)
     return fig, art
 
 
@@ -356,9 +360,16 @@ def make_updater(runs, art):
         lines = [f"t      {t[i]:7.1f} s"]
         for name, _, _ in RUNS:
             log = runs[name]
-            flag = "BOOST" if log["mode_boost"][i] else "nom  "
+            # DENIED means this platform asked for boost and the switching set
+            # refused: it is requesting and not getting. "nom" means it is not
+            # asking at all. The distinction is the whole difference between
+            # the two policies, so the readout has to keep them apart.
             if log["denied"][i]:
-                flag = "DENIED"
+                flag = "DENIED (asking)"
+            elif log["mode_boost"][i]:
+                flag = "BOOST"
+            else:
+                flag = "nominal"
             lines.append(
                 f"{name[:10]:<10} {log['v'][i]:5.0f} m/s  s={log['thermal'][i]:4.2f}  "
                 f"{flag}"
@@ -409,16 +420,96 @@ def _summary(runs):
               f"{log['fuel'][0] - log['fuel'][-1]:>6.0f} kg "
               f"{log['v'][turn][-1]:>8.0f} m/s")
 
+    _explain_policies()
+    _explain_duty_cycle(runs["naive"])
+
     print("""
-  Asking for boost whenever the switching set allows it is not free. It
-  extracts more boost -- by living on the thermal limit -- and pays for it
-  with twenty mode changes, a thermal state that overshoots s_max, and
-  noticeably more fuel. The overshoot is the discretisation: the mode is
-  re-evaluated at step boundaries, so s passes the limit before anything
-  notices, and with tau_c = 90 s that 0.2 per cent takes a minute to decay
-  back under. None of this is the model misbehaving. The constraints are
-  doing exactly what they declare; the naive policy is simply a bad one, and
-  a demo is how you find that out.""")
+  None of this is the model misbehaving. The constraints do exactly what they
+  declare and the vehicle flies exactly what it is given; the naive policy is
+  simply a bad one. Finding that out is what a demo is for.""")
+
+
+def _explain_policies() -> None:
+    print(f"""
+  The two policies
+  ----------------
+  Both fly the identical mission and differ only in WHEN they ask for boost,
+  which is a planning decision and none of the vehicle's business.
+
+    naive        asks for boost for the whole of the second turn and lets the
+                 switching set S_q refuse it when it must. No notion of a
+                 budget: if it is allowed, take it.
+
+    hysteresis   stops asking at s = {DISENGAGE_AT:.2f}, before the limit, and does not
+                 ask again until s has fallen below {RE_ENGAGE_BELOW:.2f}. Two thresholds
+                 rather than one, which is what stops it thrashing.
+
+  BOOST, DENIED and nominal
+  -------------------------
+  The readout distinguishes three things, and the middle one is the
+  interesting one:
+
+    BOOST        asked for boost and got it
+    DENIED       asked for boost and S_q refused -- requesting, not receiving
+    nominal      not asking at all
+
+  DENIED is a visible finding rather than a silent substitution, which is the
+  point of the vehicle declaring its switching set instead of enforcing it: a
+  policy that keeps asking for something it cannot have shows up as such.""")
+
+
+def _explain_duty_cycle(log) -> None:
+    """Measure the limit cycle rather than describing it from memory."""
+    t = log["t"]
+    turn = (t >= BOOSTED_TURN[0]) & (t < BOOSTED_TURN[1])
+    engaged = log["mode_boost"][turn].astype(int)
+    times = t[turn]
+
+    edges = list(np.flatnonzero(np.diff(engaged)) + 1)
+    spans, start = [], 0
+    for end in edges + [len(engaged)]:
+        spans.append((bool(engaged[start]), times[end - 1] - times[start] + DT))
+        start = end
+    if len(spans) < 3:
+        return
+    first = spans[0][1]
+    # The last span of each kind is truncated by the end of the turn rather
+    # than by the cycle, so it is dropped: including it made the reported
+    # "denied" interval 0.4 s instead of the 4.5 s the cycle actually runs at.
+    on = [d for state, d in spans[2:-1] if state]
+    off = [d for state, d in spans[2:-1] if not state]
+    if not on or not off:
+        return
+    off_s, on_s = sum(off) / len(off), sum(on) / len(on)
+
+    tau_h = FIGHTER_THERMAL_TAU_HEAT_S
+    tau_c = FIGHTER_THERMAL_TAU_COOL_S
+    print(f"""
+  Why the naive trace flips between DENIED and BOOST
+  --------------------------------------------------
+  It is a limit cycle, and the dwell time causes it rather than preventing it.
+
+    1. boost is granted and held for {first:.0f} s, which is tau_h -- the
+       accumulator fills from cold and reaches s_max
+    2. S_q withdraws boost. That is a mode transition, so the dwell clock
+       restarts
+    3. for the next {off_s:.1f} s the platform is DENIED: it is still asking, and
+       the dwell forbids another transition. s decays at -s/tau_c, shedding
+       about {1.0 - math.exp(-off_s / tau_c):.3f}
+    4. the dwell expires with s just under the limit, so boost is granted
+       again -- and refills at 1/tau_h = {1 / tau_h:.4f}/s, so it is back at s_max
+       in {on_s:.1f} s
+    5. go to 2
+
+  The platform ends up pinned on its own thermal limit, cycling
+  {off_s:.1f} s off and {on_s:.1f} s on, {len(on)} times. The asymmetry is the whole
+  reason: tau_c is {tau_c / tau_h:.0f}x tau_h, so {off_s:.0f} s of cooling is undone by under
+  {on_s:.0f} s of boost. A dwell time stops fast chattering and does nothing about
+  this, because nothing here is switching faster than the dwell allows.
+
+  The hysteresis policy avoids it by leaving before the limit, which gives
+  the accumulator room to recover on the platform's terms rather than the
+  constraint's.""")
 
 
 def main() -> None:
