@@ -135,6 +135,23 @@ still yours to fix**.
 A new vehicle model needs a page before the suite will pass; the check is
 named after the module.
 
+**Maths in markdown is checked too.**
+
+```bash
+python tools/check_markdown_math.py
+```
+
+Two passes. Static rules always run and catch *silent fallbacks* — markup that
+renders without error and produces the wrong glyph, which a renderer cannot
+catch by definition. `\mathbb{1}` was accepted by KaTeX and emitted a plain
+`1`, because its blackboard font has no digits. The second pass renders every
+span through KaTeX and needs `npm install katex`; it is skipped when node is
+absent rather than becoming a dependency.
+
+Vectors and matrices are bold-italic: `\bm` in LaTeX, `\boldsymbol` in
+markdown, which render identically. `\bm` in a `.md` file is a static-rule
+failure, because KaTeX does not implement it.
+
 ## Testing philosophy
 
 Test properties, not appearances. Any component that publishes an uncertainty

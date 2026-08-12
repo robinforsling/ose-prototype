@@ -234,3 +234,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Optional: `npm install katex` enables the render pass of
+# tools/check_markdown_math.py. Nothing in the library needs node, so this is
+# never committed.
+node_modules/
+package-lock.json
+package.json
