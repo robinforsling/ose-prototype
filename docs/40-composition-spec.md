@@ -66,6 +66,10 @@ does not fully determine the run is invalid.
 Ports are typed by interface. **The catalogue lives in
 `docs/interfaces/README.md` and nowhere else.**
 
+Descriptors for the types that exist are in `ose/composition/catalogue.py`, and
+`check_ports` validates that every required port on a platform is satisfied
+exactly once. See ADR 0025.
+
 This section used to carry its own copy, and the copy drifted: it had
 `vehicle.state.v1` as `equipment → subsystem` while the catalogue had it
 published by a subsystem component, which is where `NavigationManager` actually

@@ -19,11 +19,20 @@ specification said the envelope included "empty and maximum mass". The intent
 was there and the declaration was not. It is now m_max in lambda, which made
 this a modelling change before it could be a validator one.
 
+Check 4, port satisfaction, is here too, since descriptors now carry ports and
+name components that exist (ADR 0025).
+
 What is NOT here, and why
 -------------------------
-Checks 4 to 7 -- port satisfaction, the truth boundary, layer discipline and
-parameter bounds -- need the port graph and the parameter schema, neither of
-which is modelled yet.
+Checks 5 to 7 -- the truth boundary, layer discipline and parameter bounds.
+
+The first two are enforced already, at import time and by the architecture
+generator (ADR 0008, ADR 0024), which is earlier and stricter than a
+composition check could be: they are properties of the code rather than of a
+platform. Restating them here would catch a descriptor that lied about its
+layer, which is what tests/test_descriptor_catalogue.py is for.
+
+Parameter bounds need the parameter schema, which is still not modelled.
 
 Findings, not exceptions
 ------------------------
@@ -228,6 +237,77 @@ def check_mass_budget(
     return []
 
 
+def _major_version(interface: str) -> str:
+    """`family.name.v2` -> `2`. Two components bind only if the names match
+    and the major versions are equal."""
+    return interface.rsplit(".v", 1)[-1]
+
+
+def check_ports(
+    platform: PlatformSpec, catalogue: Mapping[str, ComponentDescriptor]
+) -> list[Finding]:
+    """Check 4. Every required port is satisfied, exactly once.
+
+    Two failures, and the second is the interesting one.
+
+    A required port with no provider is a platform that cannot run: guidance
+    with no navigation under it has nothing to steer on, and finding that out
+    at composition time is the entire argument for descriptors.
+
+    A required port with SEVERAL providers is a platform the binder cannot
+    resolve. It is not obviously an error -- two components can legitimately
+    publish the same interface -- but nothing says which one a consumer gets,
+    and a binder that picked either would be choosing an architecture by
+    accident. This is the shape of the defect that had InsGnssEstimator and
+    NavigationManager both publishing vehicle.state.v1 (ADR 0021): it was
+    visible in a rendered diagram, and it would have been visible here.
+
+    Matching is on interface name and equal major version, per
+    docs/interfaces/README.md. A port is checked against every component on
+    the platform, including the one that declares it, because a component may
+    legitimately consume what it also produces -- and excluding itself would
+    hide a component that satisfies its own requirement, which is a cycle
+    worth seeing rather than a composition worth allowing.
+    """
+    out: list[Finding] = []
+
+    descriptors = []
+    for type_name in platform.component_types():
+        descriptor = catalogue.get(type_name)
+        if descriptor is None:
+            out.append(Finding("port", f"type {type_name!r} is not in the catalogue"))
+            continue
+        descriptors.append(descriptor)
+
+    providers: dict[tuple[str, str], list[str]] = {}
+    for descriptor in descriptors:
+        for port in descriptor.provides:
+            key = (port.interface, _major_version(port.interface))
+            providers.setdefault(key, []).append(descriptor.type)
+
+    for descriptor in descriptors:
+        for port in descriptor.requires:
+            key = (port.interface, _major_version(port.interface))
+            matched = providers.get(key, [])
+            if not matched:
+                if port.optional:
+                    continue
+                out.append(Finding(
+                    "port",
+                    f"{descriptor.type} requires {port.interface} on port "
+                    f"{port.name!r}, and nothing on this platform provides it",
+                ))
+            elif len(matched) > 1:
+                out.append(Finding(
+                    "port",
+                    f"{descriptor.type} requires {port.interface} on port "
+                    f"{port.name!r}, and {len(matched)} components provide it "
+                    f"({', '.join(sorted(matched))}) -- the binder cannot "
+                    "choose",
+                ))
+    return out
+
+
 def check_load(
     platform: PlatformSpec, catalogue: Mapping[str, ComponentDescriptor]
 ) -> list[Finding]:
@@ -237,4 +317,5 @@ def check_load(
         check_stations(platform, catalogue)
         + check_mass_budget(platform, catalogue)
         + check_power_budget(platform, catalogue)
+        + check_ports(platform, catalogue)
     )

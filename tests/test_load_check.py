@@ -15,6 +15,8 @@ test_a_station_is_checked_against_its_total_load -- two attachments can share
 a station, so a per-entry check passes while the station is overloaded.
 """
 
+import dataclasses
+
 import pytest
 
 from ose.composition import (
@@ -30,7 +32,9 @@ from ose.composition import (
     check_power_budget,
     check_stations,
 )
-from ose.composition.load_check import operating_modes
+from ose.composition.catalogue import CATALOGUE as REAL_CATALOGUE
+from ose.composition.descriptor import Port
+from ose.composition.load_check import check_ports, operating_modes
 
 FIGHTER = ComponentDescriptor(
     type="vehicle.fighter.generic_2d",
@@ -344,3 +348,139 @@ def test_check_load_runs_every_check():
 
     rules = {f.rule for f in check_load(platform, catalogue)}
     assert rules == {"station", "power"}, "one rule masked the other"
+
+
+# --------------------------------------------------------------------------
+# Check 4 -- port satisfaction
+#
+# Over the REAL catalogue, not the worked example above. The fixtures at the
+# top of this file are the specification's illustration and name no class that
+# exists; these check the platform the demos actually fly. See ADR 0025.
+# --------------------------------------------------------------------------
+
+def _blue_platform(**overrides) -> PlatformSpec:
+    """The aircraft demo_live_route.py and demo_navigation.py fly between them:
+    a fighter, the navigation sensors, the navigation and vehicle subsystems,
+    and a planner."""
+    spec = dict(
+        id="blue_01",
+        vehicle_type="vehicle.fighter.generic_2d",
+        attachments=(
+            Attachment("nav_bay", "nav_sensor.imu.tactical"),
+            Attachment("nav_bay", "nav_sensor.gnss.standard"),
+            Attachment("nav_bay", "nav_sensor.airdata.standard"),
+            Attachment("nav_bay", "nav_sensor.clock.standard"),
+            Attachment("nav_bay", "sensor.fuel_gauge.standard"),
+        ),
+        empty_mass_kg=12000.0,
+        fuel_kg=4000.0,
+        subsystems=(
+            "subsystem.navigation.ins_gnss",
+            "subsystem.navigation.manager",
+            "subsystem.time.estimator",
+            "subsystem.vehicle_system.manager",
+            "subsystem.vehicle_system.guidance",
+        ),
+        single_ship=("single_ship.planner.waypoint",),
+    )
+    spec.update(overrides)
+    return PlatformSpec(**spec)
+
+
+def test_a_real_platform_passes_every_check():
+    """The one that matters.
+
+    Before the catalogue existed, every check in this file ran against
+    components that do not exist. This is a platform the repository can
+    actually fly, validated before anything is constructed.
+    """
+    findings = check_load(_blue_platform(), REAL_CATALOGUE)
+    assert findings == [], "\n".join(str(f) for f in findings)
+
+
+def test_a_missing_provider_is_reported_for_every_consumer():
+    """Remove navigation and three components lose their own-state port.
+
+    All three are reported, not the first: a platform is fixed by seeing
+    everything wrong with it at once.
+    """
+    crippled = _blue_platform(subsystems=(
+        "subsystem.navigation.ins_gnss",
+        "subsystem.time.estimator",
+        "subsystem.vehicle_system.manager",
+        "subsystem.vehicle_system.guidance",
+    ))
+    findings = check_ports(crippled, REAL_CATALOGUE)
+
+    assert all(f.rule == "port" for f in findings)
+    assert all("vehicle.state.v1" in f.message for f in findings)
+    complaining = {f.message.split()[0] for f in findings}
+    assert complaining == {
+        "subsystem.vehicle_system.manager",
+        "subsystem.vehicle_system.guidance",
+        "single_ship.planner.waypoint",
+    }, complaining
+
+
+def test_two_providers_of_one_interface_are_reported():
+    """The check this exists for.
+
+    An interface with two providers is not obviously wrong -- but nothing says
+    which one a consumer binds, so a binder would be choosing an architecture
+    by accident. This is the shape of the defect that had InsGnssEstimator and
+    NavigationManager both publishing vehicle.state.v1, which was visible in a
+    rendered diagram and would have been visible here (ADR 0021).
+    """
+    rogue = dataclasses.replace(
+        REAL_CATALOGUE["subsystem.navigation.ins_gnss"],
+        type="subsystem.navigation.rogue",
+        provides=(Port("estimate", "vehicle.state.v1"),),
+    )
+    catalogue = {**REAL_CATALOGUE, rogue.type: rogue}
+    platform = _blue_platform(subsystems=(
+        "subsystem.navigation.ins_gnss",
+        "subsystem.navigation.manager",
+        "subsystem.navigation.rogue",
+        "subsystem.time.estimator",
+        "subsystem.vehicle_system.manager",
+        "subsystem.vehicle_system.guidance",
+    ))
+    findings = check_ports(platform, catalogue)
+
+    assert findings, "two publishers of one interface went unreported"
+    assert all("cannot choose" in f.message for f in findings)
+    assert all("vehicle.state.v1" in f.message for f in findings)
+
+
+def test_an_optional_port_may_go_unsatisfied():
+    """The difference between a component that cannot run and one that runs
+    degraded. Nothing is optional in the real catalogue, so this is checked
+    against a constructed descriptor rather than left untested."""
+    hopeful = ComponentDescriptor(
+        type="subsystem.hopeful", layer="subsystem", category="cyber",
+        requires=(
+            Port("nice_to_have", "tracking.tracks.v1", optional=True),
+            Port("essential", "sa.picture.v1"),
+        ),
+    )
+    catalogue = {**REAL_CATALOGUE, hopeful.type: hopeful}
+    # Added to the whole platform rather than replacing it: dropping the other
+    # subsystems would strip navigation and produce findings about them
+    # instead, which is a different test.
+    platform = _blue_platform(
+        subsystems=_blue_platform().subsystems + (hopeful.type,)
+    )
+
+    mine = [f for f in check_ports(platform, catalogue)
+            if f.message.startswith(hopeful.type)]
+    assert len(mine) == 1, [str(f) for f in mine]
+    assert "sa.picture.v1" in mine[0].message, "the essential port went unreported"
+    assert not any("tracking.tracks.v1" in f.message for f in mine), (
+        "an optional port with no provider was reported"
+    )
+
+
+def test_a_type_not_in_the_catalogue_is_reported():
+    platform = _blue_platform(single_ship=("single_ship.planner.imaginary",))
+    findings = check_ports(platform, REAL_CATALOGUE)
+    assert any("not in the catalogue" in f.message for f in findings)

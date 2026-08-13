@@ -9,9 +9,23 @@ there is no YAML or schema library in its dependencies today. Splitting them
 means the rules can be built and tested now, and a loader added later without
 touching them.
 
-Only the fields the load checks read are modelled. A descriptor carries more
-than this -- ports, an envelope, parameter bounds -- and those belong with the
-checks that consume them, not here in anticipation.
+Ports are modelled now that a check reads them (section 4 of the
+specification, `provides` and `requires`). The envelope and the parameter
+schema are still absent, on the same rule: they belong with the checks that
+consume them, not here in anticipation.
+
+Authored data, cross-checked against the code
+---------------------------------------------
+A descriptor states what a component is without constructing it -- that is what
+lets a binder validate a platform before anything is built, and what lets this
+be YAML one day. So the fields are written by hand, including the ones a
+program could derive.
+
+Which makes them able to drift, and this repository has been bitten by that
+often enough to have a rule about it: tests/test_descriptor_catalogue.py
+resolves every `implementation` and asserts the declared layer and ports match
+what the architecture generator derives from the source. Authored, and checked
+-- the same split as the generated tables in the model pages. See ADR 0025.
 """
 
 from __future__ import annotations
@@ -70,12 +84,41 @@ class Supplies:
 
 
 @dataclass(frozen=True)
+class Port:
+    """One service port a component offers or needs.
+
+    `name` is local to the component and exists so a component can hold two
+    ports of the same interface and tell them apart -- a fuser with two
+    own-state inputs would need exactly that. Matching at bind time is on
+    `interface`, never on the name.
+
+    `optional` is the difference between a component that cannot run without a
+    port and one that runs degraded. Nothing is optional today; the field is
+    the specification's and costs nothing.
+    """
+
+    name: str
+    interface: str                  # family.name.vN
+    optional: bool = False
+
+
+@dataclass(frozen=True)
 class ComponentDescriptor:
-    """Section 4, reduced to what the load checks need."""
+    """Section 4, reduced to what the load checks and the binder need."""
 
     type: str
     layer: str
     category: str
+
+    # Importable path to the class this type is built from, "module:Class".
+    # A string rather than the class itself: a descriptor is data, and
+    # resolving it is the binder's job, not this record's. It is also what
+    # makes the cross-check possible without this module importing any layer.
+    implementation: str = ""
+
+    provides: tuple[Port, ...] = ()
+    requires: tuple[Port, ...] = ()
+
     consumes: Consumes = field(default_factory=Consumes)
     supplies: Supplies = field(default_factory=Supplies)
 
@@ -104,3 +147,20 @@ class PlatformSpec:
     attachments: tuple[Attachment, ...] = ()
     empty_mass_kg: float = 0.0
     fuel_kg: float = 0.0
+
+    # The cyber layers, as type names. No stations and no attachment record:
+    # a cyber component has no physical part, so there is nothing to mount it
+    # on and nothing for the station and mass checks to say about it. The
+    # specification's worked example has had these sections all along; only
+    # `equipment` was modelled, because only the load checks existed.
+    subsystems: tuple[str, ...] = ()
+    single_ship: tuple[str, ...] = ()
+
+    def component_types(self) -> tuple[str, ...]:
+        """Every type this platform composes, in composition order."""
+        return (
+            (self.vehicle_type,)
+            + tuple(a.type for a in self.attachments)
+            + self.subsystems
+            + self.single_ship
+        )

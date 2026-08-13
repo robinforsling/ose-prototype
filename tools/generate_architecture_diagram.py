@@ -619,7 +619,16 @@ def _is_protocol(cls: type) -> bool:
 _component_classes: dict[str, type] = {}
 
 
-def build_graph() -> Graph:
+def build_graph(collapse: bool = True) -> Graph:
+    """The derived topology.
+
+    collapse=False keeps every component class as its own node. The diagram
+    wants the collapsed form -- a platform composes one vehicle -- but anything
+    reasoning per CLASS needs the uncollapsed one, because after a collapse
+    there is no PlanarPointMass to ask about. The descriptor cross-check is
+    exactly that: a descriptor names an implementation, and an implementation
+    is a class.
+    """
     discovered = discover_components()
     graph = Graph(components={name: layer for name, (layer, _) in discovered.items()})
     interfaces = record_interfaces()
@@ -637,7 +646,8 @@ def build_graph() -> Graph:
     # known until every component's publications have been extracted.
     for name, cls in sorted(_component_classes.items()):
         extract_bindings(cls, interfaces, graph)
-    collapse_alternatives(graph)
+    if collapse:
+        collapse_alternatives(graph)
     return graph
 
 

@@ -311,10 +311,19 @@ not have is wrong rather than cautious, and clipping against a margin would
 make a `Saturation` finding mean estimator doubt instead of an airframe
 limit.
 
-Partly implemented: the composition-time load checks live in
-`ose/composition/` -- station compatibility, the mass budget and the power
-budget, over descriptor records rather than YAML, since the repository has no
-schema library and parsing is separable from the rules.
+Partly implemented: the composition-time checks live in `ose/composition/` --
+station compatibility, the mass budget, the power budget and port satisfaction,
+over descriptor records rather than YAML, since the repository has no schema
+library and parsing is separable from the rules.
+
+`ose/composition/catalogue.py` holds a descriptor per implemented type, where a
+**type is a component class paired with a configuration** (`Imu` with
+`TACTICAL_GRADE`), not a class. Descriptors are authored, because a binder must
+be able to read one without constructing anything -- and cross-checked against
+the code, because authored data drifts: `tests/test_descriptor_catalogue.py`
+resolves every `implementation` and asserts the declared layer and ports match
+what the architecture generator derives. Add a port to a component and the
+descriptor has to follow, or the suite fails. See ADR 0025.
 
 Not implemented: the simulation core, the service registry, the composition
 binder, the rest of the descriptor validator, and every component type other than the above

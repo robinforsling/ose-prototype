@@ -36,6 +36,7 @@ the full history, so nothing is lost by keeping the working copy accurate.
 | [0022](0022-the-navigation-manager-is-the-pnt-publisher.md) | The navigation manager is the platform's PNT publisher | accepted |
 | [0023](0023-alternatives-behind-a-port-are-one-component.md) | Alternative implementations of a port are one component | accepted |
 | [0024](0024-layer-discipline-is-enforced-not-documented.md) | Layer discipline is enforced, not documented | accepted |
+| [0025](0025-descriptors-describe-components-that-exist.md) | Descriptors describe components that exist | accepted |
 
 ## Template
 
