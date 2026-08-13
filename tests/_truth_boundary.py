@@ -131,6 +131,7 @@ def vehicle_model_names() -> frozenset[str]:
     import dataclasses
     import inspect
     import pkgutil
+    from enum import Enum
 
     package = importlib.import_module(f"{EQUIPMENT_PACKAGE}.vehicle")
     names = set()
@@ -141,6 +142,12 @@ def vehicle_model_names() -> frozenset[str]:
                 inspect.isclass(obj)
                 and obj.__module__ == module.__name__
                 and not dataclasses.is_dataclass(obj)
+                # An enumeration is neither a record nor a model. Mode, the
+                # booster's propulsion setting, was being returned as a vehicle
+                # model -- harmless for the page check, which only wants the
+                # module a model lives in, but wrong for anything asking what a
+                # model must provide.
+                and not issubclass(obj, Enum)
             ):
                 names.add(attr)
     assert names, "no vehicle models discovered -- the walk is looking in the wrong place"
