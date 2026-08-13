@@ -12,10 +12,6 @@ estimator's signature contains no truth-carrying type, and that it is a pure
 function of the measurement stream it is fed.
 """
 
-# Default category for this file; a test that differs carries its own
-# marker, which wins. See tests/conftest.py.
-TEST_KIND = "integration"
-
 import ast
 import math
 from dataclasses import dataclass
@@ -172,14 +168,6 @@ def vehicle():
 # --------------------------------------------------------------------------
 # The truth boundary
 # --------------------------------------------------------------------------
-
-@pytest.mark.conformance
-def test_estimator_cannot_see_truth():
-    """Blunt by design: fails loudly if truth is reintroduced for convenience."""
-    path = component_path("subsystem", "navigation_state_estimator.py")
-    assert_no_truth_types(path)
-    assert_no_truth_parameters(path)
-
 
 def test_estimator_satisfies_the_protocol():
     estimator = InsGnssEstimator(np.zeros(2), 0.0, np.array([250.0, 0.0]))

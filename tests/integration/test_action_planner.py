@@ -12,10 +12,6 @@ what makes silence safe, and nothing but a test stops someone reinterpreting
 it later.
 """
 
-# Default category for this file; a test that differs carries its own
-# marker, which wins. See tests/conftest.py.
-TEST_KIND = "integration"
-
 import ast
 import dataclasses
 import math
@@ -85,15 +81,6 @@ def state():
 # --------------------------------------------------------------------------
 # The truth boundary
 # --------------------------------------------------------------------------
-
-@pytest.mark.conformance
-def test_planner_cannot_see_truth():
-    """Two layers above anything entitled to read truth, so the check is the
-    same one the subsystem components carry."""
-    path = component_path("single_ship", "action_planner.py")
-    assert_no_equipment_imports(path)
-    assert_no_truth_parameters(path)
-
 
 def test_satisfies_the_protocol():
     planner = WaypointPlanner([Waypoint(1000.0, 0.0, 250.0)], STANDARD)

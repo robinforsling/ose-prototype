@@ -23,6 +23,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from _discovery import equipment_components
+
 ROOT = Path(__file__).resolve().parents[2]
 GENERATOR = ROOT / "tools" / "generate_architecture_diagram.py"
 PAGE = ROOT / "docs" / "20-architecture.md"
@@ -127,8 +129,6 @@ def test_the_walk_agrees_with_the_capability_walk():
     tests/test_capability.py walks the equipment package for its own reasons.
     If the two disagree, one of them is wrong, and neither would notice alone.
     """
-    from test_capability import _discover_equipment_components
-
     graph = _load_generator().build_graph()
     equipment = {name for name, layer in graph.components.items()
                  if layer == "equipment"}
@@ -139,7 +139,7 @@ def test_the_walk_agrees_with_the_capability_walk():
         if port in equipment:
             equipment |= members
 
-    other = {name for name, _, _ in _discover_equipment_components()}
+    other = {name for name, _, _ in equipment_components()}
     assert other, "the capability walk found nothing -- this comparison is vacuous"
     assert other <= equipment, (
         f"the capability walk found components this one missed: "

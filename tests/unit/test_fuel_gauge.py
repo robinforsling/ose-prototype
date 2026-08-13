@@ -5,10 +5,6 @@ mass_above_dry_sigma_kg is honest -- sample mean and standard deviation
 against many draws.
 """
 
-# Default category for this file; a test that differs carries its own
-# marker, which wins. See tests/conftest.py.
-TEST_KIND = "unit"
-
 import dataclasses
 
 import numpy as np

@@ -33,10 +33,10 @@ the vehicle is a fixture supplying truth, not a collaborator under test.
 
 | Category | A failure indicts |
 |---|---|
-| `unit` | one component |
-| `integration` | a seam between components |
-| `behaviour` | the platform's emergent behaviour |
-| `conformance` | the codebase itself, not the simulated system |
+| `unit/` | one component |
+| `integration/` | a seam between components |
+| `behaviour/` | the platform's emergent behaviour |
+| `conformance/` | the codebase itself, not the simulated system |
 
 The four **partition** the suite: every test is exactly one, checked at
 collection.
@@ -53,24 +53,22 @@ memory are a different question and are deliberately out of scope: a filter can
 be accurate and slow, or fast and overconfident, and one marker for both would
 say neither.
 
-**Directories for the coarse split, markers for the rest.** `behaviour/` and
-`conformance/` are directories whose conftest applies their marker by location.
-Component tests stay at `tests/` root and declare a module-level `TEST_KIND`,
-which a per-test marker overrides. Only 7 files moved; the other 14 kept their
-history.
+**One directory per category.** `unit/`, `integration/`, `behaviour/` and
+`conformance/`, each with a conftest applying its marker by location, so
+`pytest -m unit` and `pytest tests/unit` select the same tests. Every test file
+moved into one of the four.
 
-`pytestmark` cannot do this: a module-level marker and a function-level one
-both apply, and the test would be in two categories at once. Hence a plain
-string that the root conftest turns into a marker only when nothing else
-claimed the test.
+**A test file outside them is a collection error**, as is a test in two
+categories. There is nowhere for it to belong, and a taxonomy nobody is obliged
+to apply decays into one nobody applies; the argument is ADR 0024's.
 
-**The marker is the category; the directory is a convenience.** Every
-`test_*_cannot_see_truth` is `conformance` — it ast-parses a module and runs
-nothing — while living beside the component it guards.
-
-**An unclassified test fails collection**, as does one in two categories. A
-taxonomy nobody is obliged to apply decays into one nobody applies; the
-argument is ADR 0024's.
+An earlier version of this decision kept component tests at `tests/` root and
+distinguished `unit` from `integration` with a module-level `TEST_KIND` string,
+reasoning that a file might hold both kinds and that fourteen files need not
+move. Neither held up. The classification turned out to be per-file anyway --
+no component test file mixed the two -- so the string bought nothing a
+directory does not, and the split it left was harder to see than the one it
+replaced.
 
 ## Consequences
 
@@ -89,15 +87,24 @@ rate equal the true limit exactly; it does not, because guidance clips at the
 were my error rather than the code's, and both are now asserted as the property
 that actually holds.
 
-**Marking is a judgement, and some of it is coarse.** `test_action_planner.py`
-is `integration` because it composes a guidance stack to obtain a capability,
-though several of its tests are pure waypoint geometry. A file-level default
-with per-test overrides makes that cheap to refine later; nothing depends on
-the current split being final.
+**Classification is a judgement, and some of it is coarse.**
+`integration/test_action_planner.py` sits there because it composes a guidance
+stack to obtain a capability, though several of its tests are pure waypoint
+geometry. Moving one test is a `git mv` and nothing depends on the current
+split being final.
 
 **`test_integration.py` was renamed `test_integrators.py`.** It tests the RK4
 integrators in `ose/integration.py` and had nothing to do with integration
 testing. The collision would have been permanent confusion.
+
+**Moving every file forced two improvements that were not the point.** The six
+`test_*_cannot_see_truth` calls, one per component file, became a single walk
+over every cyber component in `conformance/test_truth_boundary.py` -- they were
+conformance tests wherever they sat, and hand-listing six modules was the
+fragility ADR 0024 removed from layer discipline. And the equipment-layer walk
+that a unit test and a conformance test both need moved to
+`tests/_discovery.py`, replacing a test module importing another test module
+across what is now a directory boundary.
 
 **Two mechanical traps were hit and are worth recording.**
 `pytest_collection_modifyitems` in a subdirectory conftest is called with the

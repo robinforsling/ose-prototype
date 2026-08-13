@@ -1,28 +1,28 @@
 # Tests
 
 ```bash
-pytest                       # all 328
+pytest                       # all 327
+pytest tests/unit            # or -m unit; the directory and the marker agree
 pytest -m "not slow"         # the inner loop, about half the time
-pytest -m conformance        # the codebase checks, ~6 s, no simulation
-pytest -m behaviour          # whole-platform runs
+pytest tests/conformance     # the codebase checks, ~6 s, no simulation
 pytest -m performance        # every accuracy, envelope and endurance claim
 pytest -k consistent
 ```
 
-## Four categories
+## Four categories, four directories
 
-Every test is exactly one of these, and the split is **what a failure
-indicts** -- not how many components a test constructs. Ten of the component
-files build two or more; `test_fuel_gauge.py` builds a vehicle *and* a gauge,
-and is still a unit test, because the vehicle is a fixture supplying truth
-rather than a collaborator under test. See ADR 0028.
+Every test lives in exactly one, and the split is **what a failure indicts** --
+not how many components a test constructs. Ten of the component files build two
+or more; `tests/unit/test_fuel_gauge.py` builds a vehicle *and* a gauge and is
+still a unit test, because the vehicle is a fixture supplying truth rather than
+a collaborator under test. See ADR 0028.
 
-| Category | A failure indicts | Count |
+| Directory | A failure indicts | Count |
 |---|---|---|
-| `unit` | one component | 111 |
-| `integration` | a seam between components | 135 |
-| `behaviour` | the platform's emergent behaviour | 10 |
-| `conformance` | the codebase itself, not the simulated system | 72 |
+| `unit/` | one component | 111 |
+| `integration/` | a seam between components | 135 |
+| `behaviour/` | the platform's emergent behaviour | 10 |
+| `conformance/` | the codebase itself, not the simulated system | 71 |
 
 The seam definition earns its keep. The payload double-count (ADR 0026) lived
 entirely between `FuelGauge` and `VehicleManager`: neither component was wrong
@@ -38,26 +38,16 @@ Two orthogonal markers apply to any category:
 
 ### How a test gets its category
 
-A file states its usual kind once, near the top:
+By where it lives. Each directory's `conftest.py` applies its marker, so
+`pytest -m unit` and `pytest tests/unit` select the same tests. **A test file
+outside the four directories is a collection error** -- there is nowhere for it
+to belong, and a taxonomy nobody is obliged to apply decays into one nobody
+applies (ADR 0024).
 
-```python
-TEST_KIND = "unit"
-```
-
-and a test that differs carries a marker, which wins. `pytestmark` would not
-work: a module-level marker and a function-level one both apply, and the test
-would land in two categories at once.
-
-Tests under `behaviour/` and `conformance/` are marked by their directory, so
-those files need no `TEST_KIND`. The marker is the category; the directory is
-a convenience that applies one automatically. That is why every
-`test_*_cannot_see_truth` is marked `conformance` while living beside the
-component it guards -- it ast-parses a module and runs nothing, but it belongs
-next to its subject.
-
-An unclassified test, or one in two categories, is a **collection error**.
-A taxonomy nobody is obliged to apply decays into one nobody applies; the same
-argument as ADR 0024.
+Shared helpers live at `tests/` root and are not test modules:
+`_truth_boundary.py` for the ast guards, `_discovery.py` for the equipment-layer
+walk that a unit test and a conformance test both need. `conftest.py` puts that
+root on `sys.path`, without which nothing in a subdirectory could import them.
 
 ### Where behaviour tests come from
 
@@ -70,7 +60,7 @@ arguments, and open windows.
 
 ## What is being pinned
 
-`test_vehicle.py` checks identities that follow from the model document rather
+`unit/test_vehicle.py` checks identities that follow from the model document rather
 than numbers that happened to come out of a run: the coordinated-turn relation,
 induced drag scaling with load factor squared, the stall speed closed form,
 corner speed maximising instantaneous turn rate, thrust required equalling drag,
@@ -83,16 +73,15 @@ the separation in ADR 0006 has been broken.
 
 Navigation is split across four files, one per component (ADR 0009):
 
-`test_navigation_sensors.py` checks that each equipment-layer sensor's
+`unit/test_navigation_sensors.py` checks that each equipment-layer sensor's
 declared sigma is honest — sample mean and standard deviation against many
 draws — plus the IMU bias's Gauss-Markov steady state and GNSS
 denial/restoration.
 
-`test_navigation_state_estimator.py` checks the subsystem-layer filter: NEES
+`integration/test_navigation_state_estimator.py` checks the subsystem-layer filter: NEES
 consistency across several seeds, that the published covariance is positive
 semi-definite, the observability structure (heading variance must not shrink
-before the first turn, and must collapse during it), `ast`-parses the module
-to confirm it cannot see truth, and replays a recorded measurement stream
+before the first turn, and must collapse during it), and replays a recorded measurement stream
 into a fresh estimator to confirm it is a pure function of that stream.
 
 Consistency is checked on the **whole** object, not one channel: all four
@@ -103,7 +92,7 @@ airspeed through a GNSS outage and that a fifteen-degree initial heading error
 converges. That last group replaced the reassurance previously taken from
 comparing against a black-box stand-in, which ADR 0019 removed.
 
-`test_clock.py` and `test_time_estimator.py` are the same pattern applied to
+`unit/test_clock.py` and `unit/test_time_estimator.py` are the same pattern applied to
 the platform clock (ADR 0010): declared sigma honesty and the drift's
 Gauss-Markov steady state for the sensor; NEES consistency, the truth
 boundary, and replay determinism for the estimator, plus that
@@ -111,8 +100,8 @@ boundary, and replay determinism for the estimator, plus that
 never decreases — there is no correction source yet, so nothing should ever
 look more confident than dead reckoning warrants.
 
-`test_vehicle_guidance.py` (ADR 0011) is where enforcement is finally
-exercised: `test_vehicle.py`'s two tests above check that the vehicle
+`integration/test_vehicle_guidance.py` (ADR 0011) is where enforcement is finally
+exercised: `unit/test_vehicle.py`'s two tests above check that the vehicle
 itself does *not* clip an inadmissible command; `test_reports_saturation_
 when_setpoint_exceeds_envelope` checks that guidance does, and that the
 clipping comes back as a visible `Saturation` finding rather than being
@@ -120,7 +109,7 @@ absorbed silently. Also checks the truth boundary (guidance only ever
 touches `OwnStateEstimate`) and closed-loop convergence to a commanded
 heading and speed.
 
-`test_capability.py` (ADR 0012) applies the same honesty argument to
+`integration/test_capability.py` (ADR 0012) applies the same honesty argument to
 capability that the NEES tests apply to covariance. It does not check that
 `capability()` returns plausible numbers; it integrates the dynamics forward
 and checks the vehicle delivers what it claimed — the one thing capability
@@ -148,3 +137,13 @@ finishing thirty times overconfident.
 Four wrong hypotheses were investigated before the real cause was found. A NEES
 test would have pointed at it immediately. Any component that publishes an
 uncertainty should carry one.
+
+## The truth boundary is checked once, over everything
+
+`conformance/test_truth_boundary.py` walks every cyber component and asserts
+none imports a truth-carrying type or takes a `true_` parameter. That used to
+be six calls to `assert_no_truth_types`, one per component test file, each
+naming its module by hand -- the same hand-listed fragility ADR 0024 removed
+from layer discipline. The two components that additionally must not reference
+the equipment layer at all are still named individually, because that is a
+choice about those components rather than a property of their layer.

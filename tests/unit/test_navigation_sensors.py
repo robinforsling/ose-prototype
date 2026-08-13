@@ -5,10 +5,6 @@ sigma is honest -- the property the whole split exists to make checkable, per
 ADR 0009 and the testing philosophy in CLAUDE.md.
 """
 
-# Default category for this file; a test that differs carries its own
-# marker, which wins. See tests/conftest.py.
-TEST_KIND = "unit"
-
 import dataclasses
 import math
 

@@ -114,10 +114,11 @@ test that happens to need a vehicle for truth. Two orthogonal markers,
 `performance` and `slow`, apply to any category; `performance` means a SYSTEM
 performance claim -- accuracy, envelope, endurance -- not software speed.
 
-A file declares `TEST_KIND = "unit"` near the top and a test that differs
-carries its own marker, which wins. Tests under `tests/behaviour/` and
-`tests/conformance/` are marked by location. **An unclassified test, or one in
-two categories, fails collection.** See ADR 0028 and `tests/README.md`.
+One directory per category -- `tests/unit/`, `tests/integration/`,
+`tests/behaviour/`, `tests/conformance/` -- each applying its marker by
+location, so `pytest -m unit` and `pytest tests/unit` agree. **A test file
+outside the four is a collection error.** Shared helpers live at `tests/` root
+and are not test modules. See ADR 0028 and `tests/README.md`.
 
 **Never weaken a test threshold to make a test pass.** The NEES bound, the
 three-sigma containment fractions, and the observability ratios are calibrated.

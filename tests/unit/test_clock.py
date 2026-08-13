@@ -6,10 +6,6 @@ the drift's Gauss-Markov behaviour is the equipment's own true dynamics, not
 something it declares.
 """
 
-# Default category for this file; a test that differs carries its own
-# marker, which wins. See tests/conftest.py.
-TEST_KIND = "unit"
-
 import dataclasses
 import math
 

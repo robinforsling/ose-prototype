@@ -5,10 +5,6 @@ happened to come out of a run. A failure means either the model changed or the
 document is no longer being honoured -- both worth knowing about.
 """
 
-# Default category for this file; a test that differs carries its own
-# marker, which wins. See tests/conftest.py.
-TEST_KIND = "unit"
-
 import dataclasses
 import math
 

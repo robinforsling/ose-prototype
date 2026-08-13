@@ -14,10 +14,6 @@ truth-carrying type in the signature, and purity as a function of the
 measurement stream.
 """
 
-# Default category for this file; a test that differs carries its own
-# marker, which wins. See tests/conftest.py.
-TEST_KIND = "unit"
-
 import ast
 from pathlib import Path
 
@@ -40,13 +36,6 @@ from ose.subsystem.time_state_estimator import TimeEstimator, TimeEstimatorParam
 # --------------------------------------------------------------------------
 # The truth boundary
 # --------------------------------------------------------------------------
-
-@pytest.mark.conformance
-def test_estimator_cannot_see_truth():
-    path = component_path("subsystem", "time_state_estimator.py")
-    assert_no_equipment_imports(path)
-    assert_no_truth_parameters(path)
-
 
 def test_estimator_satisfies_the_protocol():
     estimator = TimeEstimator()

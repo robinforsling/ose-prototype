@@ -10,10 +10,6 @@ established for the two estimators (ADR 0009): guidance only ever touches
 OwnStateEstimate, never VehicleState or Disturbance directly.
 """
 
-# Default category for this file; a test that differs carries its own
-# marker, which wins. See tests/conftest.py.
-TEST_KIND = "integration"
-
 import ast
 import math
 from pathlib import Path
@@ -81,13 +77,6 @@ def guidance(manager):
 # --------------------------------------------------------------------------
 # The truth boundary
 # --------------------------------------------------------------------------
-
-@pytest.mark.conformance
-def test_guidance_cannot_see_truth():
-    path = component_path("subsystem", "vehicle_guidance.py")
-    assert_no_truth_types(path)
-    assert_no_truth_parameters(path)
-
 
 def test_satisfies_the_protocol(guidance):
     assert isinstance(guidance, interfaces.VehicleGuidance)

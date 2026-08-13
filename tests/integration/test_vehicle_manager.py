@@ -24,10 +24,6 @@ at all: a belief that does not move the reported envelope is not being bound
 to anything.
 """
 
-# Default category for this file; a test that differs carries its own
-# marker, which wins. See tests/conftest.py.
-TEST_KIND = "integration"
-
 import ast
 import dataclasses
 import math
@@ -109,57 +105,6 @@ def manager(vehicle):
 # --------------------------------------------------------------------------
 # The truth boundary
 # --------------------------------------------------------------------------
-
-@pytest.mark.conformance
-def test_manager_cannot_see_truth():
-    path = component_path("subsystem", "vehicle_manager.py")
-    assert_no_truth_types(path)
-    assert_no_truth_parameters(path)
-
-
-@pytest.mark.conformance
-def test_no_cyber_component_reads_the_true_burn_coefficient():
-    """The burn coefficient a filter predicts with must be the platform's
-    BELIEF, never the coefficient the vehicle actually burns at.
-
-    Predicting with the true one makes the prediction exact by construction:
-    tsfc_error is pinned at zero, the filter looks excellent for a reason that
-    never holds on a real platform, and every consistency test in this module
-    becomes vacuous.
-
-    Enforced across the repository rather than on vehicle_manager.py alone,
-    because predict() now takes the coefficient as an argument. A guard on
-    this one file would keep passing while a caller did
-    predict(t, T, vehicle.theta.c_tsfc) -- component clean, composition
-    leaking, which is precisely how the mass parameter went wrong before
-    ADR 0015.
-
-    The equipment layer is exempt: the vehicle owns the coefficient, and Imu
-    already reaches into the model for drag_N as a peer. Demos and tests are
-    out of scope for the same reason renderers may read truth -- they are
-    tools, not components -- and today they are the only callers. The rule
-    starts binding on real code the moment a vehicle system exists to drive
-    the cycle, which is the caller it is written for.
-    """
-    root = Path(__file__).resolve().parents[1] / "src" / "ose"
-    offenders = []
-    for path in sorted(root.rglob("*.py")):
-        if "equipment" in path.relative_to(root).parts:
-            continue
-        for node in ast.walk(ast.parse(path.read_text())):
-            if isinstance(node, ast.Attribute) and node.attr == "c_tsfc":
-                offenders.append(f"{path.relative_to(root)}:{node.lineno}")
-
-    assert not offenders, (
-        "these read the vehicle's true burn coefficient instead of a believed "
-        f"one: {offenders}"
-    )
-
-    # Not vacuous: the attribute really is spelt this way on the vehicle, so
-    # the walk would see it.
-    from ose.equipment.reference_configs.vehicle.planar_point_mass import reference_fighter
-    assert hasattr(reference_fighter().theta, "c_tsfc")
-
 
 # --------------------------------------------------------------------------
 # The mass belief
@@ -955,7 +900,7 @@ def test_only_the_vehicle_manager_binds_the_vehicle_model():
     Anything else importing PlanarPointMass is a component reaching past the
     manager for a mass-dependent answer.
     """
-    root = Path(__file__).resolve().parents[1] / "src" / "ose"
+    root = Path(__file__).resolve().parents[2] / "src" / "ose"
     exempt = {
         root / "integration.py",
         root / "subsystem" / "vehicle_manager.py",

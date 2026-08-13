@@ -15,10 +15,6 @@ delivers what it claimed, which is the one thing capability() promises to
 answer without integrating.
 """
 
-# Default category for this file; a test that differs carries its own
-# marker, which wins. See tests/conftest.py.
-TEST_KIND = "integration"
-
 import dataclasses
 import importlib
 import inspect
@@ -29,6 +25,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from _discovery import equipment_components
 
 from ose import interfaces
 from ose.equipment.air_data import AirDataSensor as AirDataSensorImpl
@@ -73,36 +70,6 @@ def _fly(vehicle, state, cmd, duration_s, dt=DT):
 # Protocol conformance
 # --------------------------------------------------------------------------
 
-def _discover_equipment_components():
-    """Every component class in the equipment layer, subpackages included.
-
-    Walks rather than globs. The glob version looked at `*.py` directly under
-    ose/equipment/, which silently stopped covering the vehicle the moment
-    vehicle.py became vehicle/ -- the test kept passing, kept claiming "every
-    equipment module", and had quietly dropped two models. That is the same
-    failure its predecessor had when a hand-written list omitted the
-    integrated navigation unit, one level up (since removed, ADR 0019).
-
-    reference_configs is skipped: it holds data, not components.
-    """
-    package = importlib.import_module("ose.equipment")
-    found = []
-    for info in pkgutil.walk_packages(package.__path__, prefix="ose.equipment."):
-        if "reference_configs" in info.name:
-            continue
-        module = importlib.import_module(info.name)
-        for attr, obj in vars(module).items():
-            if (
-                inspect.isclass(obj)
-                and obj.__module__ == module.__name__
-                and not attr.endswith("Parameters")
-                and not dataclasses.is_dataclass(obj)
-                and not issubclass(obj, Enum)
-            ):
-                found.append((attr, obj, info.name))
-    return found
-
-
 def test_every_equipment_component_answers_capability():
     """Discovered, not hand-listed, on purpose.
 
@@ -112,7 +79,7 @@ def test_every_equipment_component_answers_capability():
     component with no capability() at all passed unnoticed, and the coverage
     existed in the name only.
     """
-    found = _discover_equipment_components()
+    found = equipment_components()
     assert found, "no equipment components discovered -- test is vacuous"
 
     for attr, obj, module_name in found:
@@ -127,11 +94,11 @@ def test_the_walk_reaches_into_subpackages():
     real loss of coverage: when vehicle.py became a package, a glob over
     ose/equipment/*.py stopped seeing any vehicle model at all and nothing
     failed."""
-    modules = {m for _, _, m in _discover_equipment_components()}
+    modules = {m for _, _, m in equipment_components()}
     assert any(m.startswith("ose.equipment.vehicle.") for m in modules), (
         f"the walk no longer reaches vehicle models; it found {sorted(modules)}"
     )
-    names = {a for a, _, _ in _discover_equipment_components()}
+    names = {a for a, _, _ in equipment_components()}
     assert {"PlanarPointMass", "PlanarPointMassWithBooster"} <= names
 
 

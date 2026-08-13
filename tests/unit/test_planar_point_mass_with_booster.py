@@ -17,10 +17,6 @@ enforce, and integrating a mode outside S_q produces a visible finding rather
 than a silent substitution.
 """
 
-# Default category for this file; a test that differs carries its own
-# marker, which wins. See tests/conftest.py.
-TEST_KIND = "unit"
-
 import dataclasses
 import math
 

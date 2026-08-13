@@ -14,10 +14,6 @@ can be composed into a real platform and used for a claim about navigation
 performance, which is what happened to the component it replaces.
 """
 
-# Default category for this file; a test that differs carries its own
-# marker, which wins. See tests/conftest.py.
-TEST_KIND = "integration"
-
 import ast
 import math
 from pathlib import Path
@@ -78,13 +74,6 @@ class _SourceWithoutMeasurements:
 # --------------------------------------------------------------------------
 # The truth boundary
 # --------------------------------------------------------------------------
-
-@pytest.mark.conformance
-def test_manager_cannot_see_truth():
-    path = component_path("subsystem", "navigation_manager.py")
-    assert_no_truth_types(path)
-    assert_no_truth_parameters(path)
-
 
 # --------------------------------------------------------------------------
 # Publishing

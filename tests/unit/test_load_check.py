@@ -15,10 +15,6 @@ test_a_station_is_checked_against_its_total_load -- two attachments can share
 a station, so a per-entry check passes while the station is overloaded.
 """
 
-# Default category for this file; a test that differs carries its own
-# marker, which wins. See tests/conftest.py.
-TEST_KIND = "unit"
-
 import dataclasses
 
 import pytest
