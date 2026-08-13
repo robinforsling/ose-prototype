@@ -1,6 +1,7 @@
 # 0014. One navigation publisher per platform, and it does not fuse
 
-Status: accepted; the second source it arbitrates against was removed by 0019
+Status: accepted; the second source it arbitrates against was removed by 0019,
+and 0022 extends the one-publisher rule to timing
 Date: 2026-08-10
 
 ## Context

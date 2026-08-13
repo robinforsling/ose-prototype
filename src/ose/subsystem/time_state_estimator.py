@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import ClassVar
 
 import numpy as np
 
@@ -62,7 +63,16 @@ class TimeEstimatorParameters:
 
 class TimeEstimator:
     """Dead-reckoning two-state (offset, drift) filter over a ClockMeasurement
-    stream. See the module docstring for why there is no correction step."""
+    stream. See the module docstring for why there is no correction step.
+
+    It publishes on platform.time_source.v1, not platform.time.v1, for the
+    same reason InsGnssEstimator publishes on a source port: this is one time
+    source feeding the platform's navigation, and what the platform believes
+    the time to be is NavigationManager's to say. The record is the same
+    TimeEstimate; the port is not. See ADR 0021 and ADR 0022.
+    """
+
+    PUBLISHES: ClassVar[dict[str, str]] = {"estimate": "platform.time_source.v1"}
 
     def __init__(
         self,

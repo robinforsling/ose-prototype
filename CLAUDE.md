@@ -156,15 +156,23 @@ The prose around the blocks is written, not generated, and says what the
 derivation cannot see. Two things today: `FuelGauge` depends on the vehicle
 through a `float`, and `Clock`'s truth input is deliberately unprefixed.
 
-**An interface name lives on its record and nowhere else** — as
-`INTERFACE: ClassVar[str]`, e.g. `"sensing.imu.v1"`. A published record either
-declares one or is listed in `NOT_A_PORT` in `ose/interfaces.py` with the
+**An interface name belongs to the port, not the record** (ADR 0021). A record
+declares the default as `INTERFACE: ClassVar[str]`, e.g. `"sensing.imu.v1"`,
+and either has one or is listed in `NOT_A_PORT` in `ose/interfaces.py` with the
 reason; `catalogue()` raises on any record that is neither, which is what makes
-a forgotten registration an error rather than a silence. Names used to live in
-docstrings and a hand-written table, and had drifted three ways before anything
-could check them. The `ClassVar` annotation is load-bearing: without it
-`INTERFACE` becomes a real dataclass field, silently, and the name turns into a
-constructor argument.
+a forgotten registration an error rather than a silence. A component overrides
+it with `PUBLISHES: ClassVar[dict[str, str]]`, method name to interface, where
+one record serves two ports — an `OwnStateEstimate` from a navigation source is
+not the platform's published state, and until the ports were named apart
+nothing could tell.
+
+The `ClassVar` annotation is load-bearing: without it `INTERFACE` becomes a
+real dataclass field, silently, and the name turns into a constructor argument.
+
+**A constructor parameter typed by a protocol is a declared port**; one typed
+by a concrete class is composition. The diagram draws the first as a labelled
+publication and the second as a plain binding, which is what keeps it from
+inventing a consumption that is really just a method call.
 
 **Shared colours live in `prefs/palette.json`**, keyed by semantic role
 (`equipment`, `subsystem`, `truth`), not by colour. Plots and animations should
@@ -261,6 +269,13 @@ with a burn-coefficient error at constant thrust.
 
 ## Current state
 
+**`NavigationManager` is the platform's single PNT publisher** (ADR 0022). It
+publishes `vehicle.state.v1` and `platform.time.v1`, over one own-state source
+and one time source, each of which publishes on its own `*_source.v1` port so
+that a source estimate is distinguishable from the platform's answer. It does
+not fuse; `time_source` is keyword-only so that the constructor still refuses
+two own-state sources.
+
 Implemented, with tests: the baseline vehicle model; navigation sensors and the
 INS/GNSS estimator; a platform clock and a dead-reckoning time estimator; a fuel
 gauge feeding a vehicle manager; vehicle guidance; and a single-ship action
@@ -269,8 +284,11 @@ planner following a route of waypoints. Integrators live in
 composed from the vehicle's envelope and the navigation covariance it steers
 on.
 
-**`VehicleManager` is the only component that may bind `PlanarPointMass`** (ADR
-0015). It owns the platform's believed mass — dry + payload + fuel, where only
+**`VehicleManager` is the only component that may bind a vehicle model** (ADR
+0015). It and `Imu` bind the `Vehicle` port rather than a concrete model, which
+is why the diagram shows one `vehicle` node: the two models are alternatives
+chosen at composition time, not collaborators (ADR 0023). It owns the
+platform's believed mass — dry + payload + fuel, where only
 fuel is measured — and answers vehicle questions at that mass, so nothing above
 it takes a mass parameter. An import test enforces this; `ose/integration.py`
 and the equipment layer are the exemptions. Fuel is tracked by a two-state

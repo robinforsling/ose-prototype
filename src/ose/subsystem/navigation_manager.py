@@ -1,5 +1,6 @@
 """
-Navigation manager: the platform's single publisher of vehicle.state.v1.
+Navigation manager: the platform's single publisher of vehicle.state.v1 and
+platform.time.v1 -- position, navigation and timing, published from one place.
 
 Subsystem-layer: purely cyber. It must not import VehicleState or Disturbance
 from ose.equipment.vehicle, and no public method may take a parameter whose
@@ -7,25 +8,38 @@ name begins with true_ -- see test_manager_cannot_see_truth. It reads only
 estimates that other components have already published.
 
 A *navigation system* on a platform is composed of this manager plus whatever
-produces the estimate underneath it -- today, an InsGnssEstimator fed by Imu,
-GnssReceiver and AirDataSensor. Consumers bind to the manager and to nothing
-below it, so guidance and planning do not change when the navigation
-underneath is swapped.
+produces the estimates underneath it -- today, an InsGnssEstimator fed by Imu,
+GnssReceiver and AirDataSensor, and a TimeEstimator fed by the platform Clock.
+Consumers bind to the manager and to nothing below it, so guidance and
+planning do not change when the navigation underneath is swapped.
 
-The source need not be an estimator. OwnStateSource asks only for estimate();
+Which is why the sources publish on their own ports -- vehicle.state_source.v1
+and platform.time_source.v1 -- rather than on the ones this manager publishes.
+The records are identical; the ports are not, and until they were named apart
+nothing could tell a source estimate from the platform's answer. Binding a
+consumer straight to the estimator worked and was wrong. See ADR 0021.
+
+Timing is here rather than beside it because a platform has one answer to
+"where am I and when is it", not two. Nothing couples them yet: `time()`
+republishes what the time source says, exactly as `estimate()` does. In a real
+GNSS receiver they are coupled -- clock bias is a filter state -- and this is
+the shape that lets that arrive without moving consumers. See ADR 0022.
+
+A source need not be an estimator. OwnStateSource asks only for estimate();
 a position arriving over a datalink, or another platform's published estimate,
 would satisfy it without consuming a measurement stream. That is why
 consumes_measurements exists.
 
 WHAT THIS DOES NOT DO, and why
 ------------------------------
-It does not fuse. It owns exactly one source and republishes what that source
-says.
+It does not fuse. It owns exactly one own-state source and one time source,
+and republishes what each says.
 
-Only one source exists today, so nothing here is currently prevented. The
-constructor takes one source and there is no way to hand it two, and that is
-deliberate: the second source is the one that will arrive without anyone
-thinking about the arithmetic.
+One own-state source exists today, so nothing here is currently prevented. The
+constructor takes one and there is no way to hand it two alternatives -- the
+time source is keyword-only precisely so that adding it did not open that door
+-- and that is deliberate: the second source is the one that will arrive
+without anyone thinking about the arithmetic.
 
 Fusion of two sources that are not independent is worse than useless. Merging
 them reduces the reported variance, so the platform publishes an estimate
@@ -64,14 +78,33 @@ about one publisher per platform.
 
 from __future__ import annotations
 
-from ose.interfaces import NavigationEstimator, OwnStateEstimate, OwnStateSource
+from ose.interfaces import (
+    NavigationEstimator,
+    OwnStateEstimate,
+    OwnStateSource,
+    TimeEstimate,
+    TimeEstimator,
+)
 
 
 class NavigationManager:
-    """Owns one own-state source and publishes the platform's estimate."""
+    """Owns the platform's own-state and time sources, and publishes both."""
 
-    def __init__(self, source: OwnStateSource) -> None:
+    def __init__(
+        self,
+        source: OwnStateSource,
+        *,
+        time_source: TimeEstimator | None = None,
+    ) -> None:
+        # time_source is KEYWORD-ONLY, and that is load-bearing rather than
+        # stylistic. test_manager_refuses_to_fuse_alternatives asserts that
+        # NavigationManager(a, b) raises, which is how the no-fusion rule is
+        # enforced rather than merely documented. A positional second
+        # parameter would silently absorb that second argument as a time
+        # source, the guard would stop raising, and the test would keep
+        # passing while checking nothing.
         self.source = source
+        self.time_source = time_source
 
     @property
     def consumes_measurements(self) -> bool:
@@ -104,3 +137,29 @@ class NavigationManager:
     def estimate(self, t_s: float) -> OwnStateEstimate:
         """The platform's own-state estimate. Satisfies OwnStateSource."""
         return self.source.estimate(t_s)
+
+    def time(self, t_s: float) -> TimeEstimate:
+        """The platform's belief about the time.
+
+        Republished from the bound time source, exactly as estimate() is
+        republished from the own-state source, and for the same reason: one
+        publisher per platform. A consumer that needs position and time gets
+        both from the component that owns navigation, rather than binding a
+        clock filter directly and leaving the platform with two answers about
+        when it is.
+
+        That is the P, N and T of PNT arriving at one place. It is a
+        structural claim only -- nothing here couples the two, and in a real
+        GNSS receiver they are coupled, with clock bias as a filter state. See
+        ADR 0022.
+
+        Raises when no time source was composed. A platform without one has no
+        belief about the time, and returning a default would be inventing one.
+        """
+        if self.time_source is None:
+            raise TypeError(
+                "no time source was composed on this platform, so it has no "
+                "belief about the time. Construct the manager with "
+                "time_source= to publish platform.time.v1."
+            )
+        return self.time_source.estimate(t_s)

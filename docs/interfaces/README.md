@@ -5,6 +5,13 @@ Status: draft
 Ports are typed by interface, named `family.name.vN`. Two components bind only
 if the interface names match and the major versions are equal.
 
+An interface name belongs to the **port**, not to the record travelling on it.
+A record declares a default and most never need more, but the same record can
+travel on two ports meaning different things -- `vehicle.state.v1` and
+`vehicle.state_source.v1` both carry an `OwnStateEstimate`, and the difference
+between "what this source produced" and "what this platform publishes" is the
+whole of ADR 0014. See ADR 0021.
+
 Adding a field to a published record is backward compatible. Removing or
 renaming one is not, and requires a version increment.
 
@@ -14,8 +21,9 @@ copy is gone.
 
 ## Implemented
 
-Generated from the `INTERFACE` class variables on the records themselves (ADR
-0020), so this table cannot drift from the code. Regenerate with
+Generated from the ports the code declares -- the `INTERFACE` default on each
+record, plus any `PUBLISHES` override on a component (ADR 0020, ADR 0021) -- so
+this table cannot drift from the code. Regenerate with
 `python tools/generate_architecture_diagram.py`; `pytest` fails while it is
 stale.
 
@@ -28,15 +36,17 @@ the table is incomplete.
 |---|---|---|---|
 | `guidance.setpoint.v1` | `HeadingSpeedSetpoint`, `TurnRateSpeedSetpoint` | `WaypointPlanner` | `VehicleGuidance` |
 | `planning.action.v1` | `ActionSet` | `WaypointPlanner` | -- |
-| `platform.time.v1` | `TimeEstimate` | `TimeEstimator` | -- |
+| `platform.time.v1` | `TimeEstimate` | `NavigationManager` | -- |
+| `platform.time_source.v1` | `TimeEstimate` | `TimeEstimator` | `NavigationManager` |
 | `sensing.airdata.v1` | `AirDataMeasurement` | `AirDataSensor` | `InsGnssEstimator` |
 | `sensing.clock.v1` | `ClockMeasurement` | `Clock` | `TimeEstimator` |
 | `sensing.fuel.v1` | `FuelMeasurement` | `FuelGauge` | `VehicleManager` |
 | `sensing.gnss.v1` | `GnssFix` | `GnssReceiver` | `InsGnssEstimator` |
 | `sensing.imu.v1` | `ImuMeasurement` | `Imu` | `InsGnssEstimator` |
-| `vehicle.command.v1` | `Saturation`, `VehicleCommand` | `VehicleGuidance` | `PlanarPointMass`, `PlanarPointMassWithBooster` |
+| `vehicle.command.v1` | `Saturation`, `VehicleCommand` | `VehicleGuidance` | `Vehicle` |
 | `vehicle.mass.v1` | `MassEstimate` | `VehicleManager` | -- |
-| `vehicle.state.v1` | `OwnStateEstimate` | `InsGnssEstimator`, `NavigationManager` | `VehicleGuidance`, `VehicleManager`, `WaypointPlanner` |
+| `vehicle.state.v1` | `OwnStateEstimate` | `NavigationManager` | `VehicleGuidance`, `VehicleManager`, `WaypointPlanner` |
+| `vehicle.state_source.v1` | `OwnStateEstimate` | `InsGnssEstimator` | `NavigationManager` |
 <!-- end generated: implemented-interfaces -->
 
 ## Planned
@@ -80,21 +90,18 @@ a caller wanting to show or log it has to duplicate the control law.
 
 ### `vehicle.state.v1`
 
-`OwnStateEstimate`, published by any component satisfying the
-`OwnStateSource` protocol (`estimate(t_s) -> OwnStateEstimate`). Carries
-position, heading, airspeed, ground velocity, wind estimate, a 4x4 covariance
-over `[p_x, p_y, psi, v_air]`, and a GNSS availability flag.
+`OwnStateEstimate`, published by `NavigationManager` (subsystem layer) and by
+nothing else. Carries position, heading, airspeed, ground velocity, wind
+estimate, a 4x4 covariance over `[p_x, p_y, psi, v_air]`, and a GNSS
+availability flag.
 
-Consumers bind to `NavigationManager` (subsystem layer), the platform's
-single publisher of this interface, and to nothing below it. A *navigation
-system* is the manager plus whatever produces the estimate underneath:
+Consumers bind to the manager and to nothing below it. A *navigation system* is
+the manager plus whatever produces the estimate underneath, and what that
+produces travels on `vehicle.state_source.v1` rather than on this interface --
+the same record, a different port, which is what makes "one publisher per
+platform" a fact about the code rather than a rule to remember. See ADR 0021.
 
-- `InsGnssEstimator` (subsystem layer), which additionally satisfies
-  `NavigationEstimator` -- it is fed a measurement stream via `ingest()`
-  rather than reading truth, and is a pure, replayable function of that
-  stream. See ADR 0009.
-
-Exactly one of those, never both. The manager does not fuse them: they are
+Exactly one source, never two. The manager does not fuse them: they would be
 alternatives, and merging a fiction with a model would report an estimate
 better than either while looking self-consistent. See ADR 0014.
 
@@ -154,20 +161,51 @@ This interface had no name until the registry was introduced. The other four
 sensing interfaces were catalogued and this one was not, which is the drift ADR
 0020 exists to prevent rather than a statement about the gauge.
 
+### `vehicle.state_source.v1`
+
+`OwnStateEstimate` -- the same record as `vehicle.state.v1`, on a different
+port. What one navigation source produced, as opposed to what the platform
+publishes.
+
+Published by `InsGnssEstimator` (subsystem layer), consumed by
+`NavigationManager` across the `OwnStateSource` port it binds. A consumer above
+navigation should never see this interface: it is the inside of the navigation
+system, and binding it would give the platform two answers about where it is.
+
+The two ports exist because the records are identical and the claims are not.
+While a source and the manager both published `vehicle.state.v1`, ADR 0014's
+one-publisher-per-platform rule was a sentence in a document that nothing could
+check, and the generated diagram drew six edges where there should have been
+three. See ADR 0021.
+
+### `platform.time_source.v1`
+
+`TimeEstimate`, published by `TimeEstimator` (subsystem layer,
+`subsystem/time_state_estimator.py`) and consumed by `NavigationManager` across
+the `TimeEstimator` protocol port it binds. The timing counterpart of
+`vehicle.state_source.v1`, and there for the same reason.
+
+Carries `platform_time_s` (the running, unfiltered sum of the clock's own
+readings), `drift_rate`, and a 2x2 covariance over `[offset_s, drift_rate]`.
+
 ### `platform.time.v1`
 
-`TimeEstimate`, published by any component satisfying `TimeEstimator`
-(`ingest`/`estimate`, mirroring `NavigationEstimator`). Today that is only
-`TimeEstimator` (subsystem layer, `subsystem/time_state_estimator.py`),
-dead-reckoning `ClockMeasurement` readings with no correction source. Carries
-`platform_time_s` (the running, unfiltered sum of the clock's own readings),
-`drift_rate`, and a 2x2 covariance over `[offset_s, drift_rate]`.
+`TimeEstimate`, published by `NavigationManager` and by nothing else --
+republished from the bound time source, exactly as `vehicle.state.v1` is
+republished from the own-state source. Position, navigation and timing come
+from one component (ADR 0022).
+
+Nothing consumes it yet, which the generated table above says plainly.
 
 `platform_time_s` is exactly what the clock has read -- there is nothing to
 correct it with yet. The covariance is the actual product of this component:
 a calibrated, honestly growing bound on how far it may have diverged from
 true elapsed time. It never shrinks, by construction, until a correction
 source exists. See ADR 0010.
+
+Nothing couples this to `vehicle.state.v1` today. In a real GNSS receiver they
+are coupled -- clock bias is a filter state -- and publishing both from one
+component is the shape that lets that arrive without moving consumers.
 
 ### `vehicle.mass.v1`
 

@@ -28,11 +28,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from ose.equipment.air_data import AirDataSensor as AirDataSensorImpl
+from ose.equipment.clock import Clock
 from ose.equipment.gnss import GnssReceiver
 from ose.equipment.imu import Imu
 from ose.equipment.reference_configs.reference_air_data import (
     STANDARD as AIR_DATA_STANDARD,
 )
+from ose.equipment.reference_configs.reference_clock import STANDARD as CLOCK_STANDARD
 from ose.equipment.reference_configs.reference_gnss import STANDARD as GNSS_STANDARD
 from ose.equipment.reference_configs.reference_imu import TACTICAL_GRADE
 from ose.equipment.reference_configs.vehicle.planar_point_mass import reference_fighter
@@ -43,6 +45,7 @@ from ose.subsystem.navigation_state_estimator import (
     InitialUncertainty,
     InsGnssEstimator,
 )
+from ose.subsystem.time_state_estimator import TimeEstimator
 
 DT = 0.02
 T_END = 480.0
@@ -70,7 +73,14 @@ def guidance(t: float, vehicle, state: VehicleState) -> VehicleCommand:
 
 def run():
     # Each component derives its own stream from one run seed, per ADR 0005.
-    imu_seed, gnss_seed, air_seed, init_seed = np.random.SeedSequence(RUN_SEED).spawn(4)
+    # Adding the clock took this from spawn(4) to spawn(5), and the first
+    # four children are unchanged by that -- which is the ADR's promise that
+    # adding a component does not perturb any other component's stream,
+    # demonstrated rather than asserted. The navigation results below are
+    # identical to what they were before the clock existed.
+    imu_seed, gnss_seed, air_seed, init_seed, clock_seed = (
+        np.random.SeedSequence(RUN_SEED).spawn(5)
+    )
     vehicle = reference_fighter()
 
     state = VehicleState(0.0, 0.0, math.radians(30.0), 250.0, 16000.0)
@@ -81,6 +91,7 @@ def run():
     imu = Imu(TACTICAL_GRADE, np.random.default_rng(imu_seed), vehicle)
     gnss = GnssReceiver(GNSS_STANDARD, rng=np.random.default_rng(gnss_seed))
     air = AirDataSensorImpl(AIR_DATA_STANDARD, rng=np.random.default_rng(air_seed))
+    clock = Clock(CLOCK_STANDARD, rng=np.random.default_rng(clock_seed))
 
     # The initial guess handed to the estimator: truth corrupted by an
     # unmodelled alignment process. Producing it is scenario setup, not
@@ -95,10 +106,14 @@ def run():
         0.0, initial.velocity_sigma_mps, size=2
     )
     # The platform's navigation system: a manager publishing the single
-    # vehicle.state.v1, over an estimator fed by the three sensors. Consumers
-    # bind to the manager and never to the estimator underneath (ADR 0014).
+    # vehicle.state.v1 and the single platform.time.v1, over an estimator fed
+    # by the three sensors and a clock filter fed by the platform clock.
+    # Consumers bind to the manager and never to a source underneath it
+    # (ADR 0014, ADR 0022). Position, navigation and timing arrive from one
+    # component; nothing couples them yet.
     navigation = NavigationManager(
-        InsGnssEstimator(p0, psi0, v0, initial_uncertainty=initial)
+        InsGnssEstimator(p0, psi0, v0, initial_uncertainty=initial),
+        time_source=TimeEstimator(),
     )
 
     log = {k: [] for k in (
@@ -122,6 +137,7 @@ def run():
             navigation.ingest(fix)
         if air_m is not None:
             navigation.ingest(air_m)
+        navigation.time_source.ingest(clock.sample(t, DT))
         est = navigation.estimate(t)                # the published estimate refers to t
         navigation.ingest(imu_m)                    # prediction to t + dt
 
@@ -151,7 +167,14 @@ def run():
             violations.add(note.split(" ")[0])
         t += DT
 
-    return {k: np.array(v) for k, v in log.items()}, gnss.n_fixes, violations
+    # The published time comes back alongside the published state: both are
+    # the navigation manager's product now, not two components' (ADR 0022).
+    return (
+        {k: np.array(v) for k, v in log.items()},
+        gnss.n_fixes,
+        violations,
+        navigation.time(T_END),
+    )
 
 
 def plot(log, path: Path) -> None:
@@ -204,7 +227,7 @@ def plot(log, path: Path) -> None:
 
 
 def main() -> None:
-    log, n_gnss_fixes, violations = run()
+    log, n_gnss_fixes, violations, final_time = run()
 
     inside = np.abs(log["e_psi"]) <= 3.0 * log["s_psi"]
     pre = log["t"] < OUTAGE[0]
@@ -227,6 +250,17 @@ def main() -> None:
         f"[{log['wx'][-1]:6.2f}, {log['wy'][-1]:6.2f}] m/s"
         f"\n  true wind                         : "
         f"[{TRUE_WIND[0]:6.2f}, {TRUE_WIND[1]:6.2f}] m/s"
+    )
+
+    # The T of PNT, published by the same component as the P and the N. There
+    # is nothing to correct the clock against, so the offset stays at zero and
+    # the covariance is the whole product -- an honestly growing bound on how
+    # far the platform's clock may have drifted. See ADR 0010.
+    print(
+        f"\n  platform elapsed time             : "
+        f"{final_time.platform_time_s:8.2f} s   (true {T_END:.2f} s)"
+        f"\n  clock offset 3-sigma at end       : "
+        f"{3.0 * final_time.offset_sigma_s * 1e3:8.3f} ms"
     )
 
     PLOTS_DIR.mkdir(exist_ok=True)

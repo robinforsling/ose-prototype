@@ -35,7 +35,13 @@ from typing import ClassVar, Protocol, runtime_checkable
 
 import numpy as np
 
-from ose.equipment.vehicle import Disturbance, Saturation, VehicleCommand, VehicleState
+from ose.equipment.vehicle import (
+    Capability,
+    Disturbance,
+    Saturation,
+    VehicleCommand,
+    VehicleState,
+)
 
 
 @dataclass
@@ -602,6 +608,51 @@ class PromisedEnvelope:
     mass_margin_sigma: float         # how many sigma above the believed mass
 
 
+class Vehicle(Protocol):
+    """A planar vehicle model, as its consumers use it.
+
+    A platform carries one vehicle. PlanarPointMass and
+    PlanarPointMassWithBooster are alternatives, not collaborators, and this is
+    the port a consumer binds so that which of them is composed is a
+    configuration decision rather than a code one.
+
+    It exists because the annotations lied. `Imu.__init__` and
+    `VehicleManager.__init__` both said `PlanarPointMass` while the code was
+    duck-typed all along -- tests/test_vehicle_manager.py builds a manager on
+    reference_boosted_fighter(), a PlanarPointMassWithBooster, and always has.
+    The generated architecture diagram drew the annotation, showed one model
+    connected and the other stranded, and that is how the mismatch surfaced.
+    See ADR 0023.
+
+    The members are what the two consumers actually use, no more: Imu reads
+    drag_N, VehicleManager uses the other four. A model offers far more --
+    derivative, admissible, the aerodynamic queries -- and none of it belongs
+    here, because a port states what a consumer may rely on rather than what an
+    implementation happens to have.
+
+    NOT runtime_checkable, deliberately, and it could not be: dry_mass_kg is a
+    property, and `issubclass` against a protocol with a non-method member
+    raises `Protocols with non-method members don't support issubclass()`.
+    Dropping it to keep issubclass working would mean a port that cannot state
+    something its consumer reads, which is the wrong way round. Conformance is
+    checked structurally instead -- see tests/test_capability.py and
+    tools/generate_architecture_diagram.py.
+    """
+
+    @property
+    def dry_mass_kg(self) -> float: ...
+
+    def drag_N(self, v_mps: float, mass_kg: float, omega_rad_s: float) -> float: ...
+
+    def capability(self, state, omega_rad_s: float = 0.0) -> Capability: ...
+
+    def project_command(
+        self, state, command: VehicleCommand
+    ) -> tuple[VehicleCommand, Saturation]: ...
+
+    def state_from(self, estimate, beliefs): ...
+
+
 @runtime_checkable
 class CapabilityModel(Protocol):
     """Answerable without integrating anything forward.
@@ -677,6 +728,11 @@ NOT_A_PORT: dict[type, str] = {
     SensorCapability: (
         "capability is a query surface, not a port -- a consumer asks a bound "
         "component what it can do; it does not subscribe to it (ADR 0012)"
+    ),
+    Capability: (
+        "the vehicle's own query surface, the answer to capability() rather "
+        "than something published (ADR 0012). Imported here only so the "
+        "Vehicle protocol can name it"
     ),
     GuidanceCapability: "as SensorCapability, composed across two layers (ADR 0013)",
     PromisedEnvelope: "as SensorCapability, widened by the mass margin (ADR 0016)",

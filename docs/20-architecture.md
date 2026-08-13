@@ -54,8 +54,7 @@ flowchart LR
     FuelGauge["FuelGauge"]
     GnssReceiver["GnssReceiver"]
     Imu["Imu"]
-    PlanarPointMass["PlanarPointMass"]
-    PlanarPointMassWithBooster["PlanarPointMassWithBooster"]
+    Vehicle["Vehicle"]
   end
   subgraph layer_subsystem["subsystem layer"]
     InsGnssEstimator["InsGnssEstimator"]
@@ -73,41 +72,52 @@ flowchart LR
   FuelGauge -->|"sensing.fuel.v1"| VehicleManager
   GnssReceiver -->|"sensing.gnss.v1"| InsGnssEstimator
   Imu -->|"sensing.imu.v1"| InsGnssEstimator
-  InsGnssEstimator -->|"vehicle.state.v1"| VehicleGuidance
-  InsGnssEstimator -->|"vehicle.state.v1"| VehicleManager
-  InsGnssEstimator -->|"vehicle.state.v1"| WaypointPlanner
+  InsGnssEstimator -->|"vehicle.state_source.v1"| NavigationManager
   NavigationManager -->|"vehicle.state.v1"| VehicleGuidance
   NavigationManager -->|"vehicle.state.v1"| VehicleManager
   NavigationManager -->|"vehicle.state.v1"| WaypointPlanner
-  VehicleGuidance -->|"vehicle.command.v1"| PlanarPointMass
-  VehicleGuidance -->|"vehicle.command.v1"| PlanarPointMassWithBooster
+  TimeEstimator -->|"platform.time_source.v1"| NavigationManager
+  VehicleGuidance -->|"vehicle.command.v1"| Vehicle
   WaypointPlanner -->|"guidance.setpoint.v1"| VehicleGuidance
 
-  Imu ==> PlanarPointMass
+  Imu ==> Vehicle
   NavigationManager ==>|"OwnStateSource"| InsGnssEstimator
+  NavigationManager ==> TimeEstimator
   VehicleGuidance ==> VehicleManager
-  VehicleManager ==> PlanarPointMass
+  VehicleManager ==> Vehicle
 
   classDef equipment fill:#b8d8f5,stroke:#245a87,color:#0b1a28,stroke-width:1.5px
   classDef subsystem fill:#c2e3b4,stroke:#376e32,color:#101f0e,stroke-width:1.5px
   classDef single_ship fill:#f6dba4,stroke:#96690f,color:#241a06,stroke-width:1.5px
   classDef readsTruth stroke:#9c453e,stroke-width:2.5px,stroke-dasharray:5 3
-  class AirDataSensor,Clock,FuelGauge,GnssReceiver,Imu,PlanarPointMass,PlanarPointMassWithBooster equipment
+  class AirDataSensor,Clock,FuelGauge,GnssReceiver,Imu,Vehicle equipment
   class InsGnssEstimator,NavigationManager,TimeEstimator,VehicleGuidance,VehicleManager subsystem
   class WaypointPlanner single_ship
-  class AirDataSensor,FuelGauge,GnssReceiver,Imu,PlanarPointMass,PlanarPointMassWithBooster readsTruth
+  class AirDataSensor,FuelGauge,GnssReceiver,Imu,Vehicle readsTruth
   style layer_equipment fill:none,stroke:#9c453e,stroke-dasharray:5 4
   style layer_subsystem fill:none,stroke:#767676
   style layer_single_ship fill:none,stroke:#767676
 ```
 
-Published with no consumer: `platform.time.v1` (TimeEstimator), `vehicle.mass.v1` (VehicleManager), `planning.action.v1` (WaypointPlanner).
+Published with no consumer: `platform.time.v1` (NavigationManager), `vehicle.mass.v1` (VehicleManager), `planning.action.v1` (WaypointPlanner).
 <!-- end generated: topology -->
 
 Reading it. A plain arrow is a **publication**, labelled with the interface
-carried; a thick arrow is a **binding**, a component holding a reference to the
-one below it, labelled with the port type when that is a protocol rather than a
-concrete class. The equipment layer is drawn with a dashed border because it is
+carried, and it points the way the data goes. A thick arrow is a
+**composition**: a component holding a reference to one below it whose type is
+a concrete class rather than a port.
+
+The distinction is doing real work. A constructor parameter typed by a
+*protocol* is a declared port, so what the provider publishes crosses it and is
+drawn as a publication — which is how a navigation source reaches the manager.
+A parameter typed by a *concrete class* is a component reaching into one
+implementation, and claiming a publication there would invent one:
+`VehicleGuidance` holds a `VehicleManager` and calls `capability_bound()` on
+it, but never receives a `MassEstimate`. See ADR 0021.
+
+Where a port has several providers they are alternatives — a platform composes
+one — and the diagram draws a single node named for the port. `Vehicle` is the
+one such node today, standing for both vehicle models (ADR 0023). The equipment layer is drawn with a dashed border because it is
 the truth boundary: components inside it with a dashed outline are the ones that
 actually read ground truth, and no component above the boundary may. The tool
 enforces that itself and exits non-zero if a truth reader appears in a cyber
@@ -128,6 +138,9 @@ generated picture is worse than an admitted one:
   argument. A clock's truth input is the elapsed interval `dt_s`, deliberately
   unprefixed because for a clock the interval *is* the corrupted quantity — so
   `Clock` reads truth and is not marked as doing so.
+- **Which vehicle model a platform composes.** The `Vehicle` node stands for
+  both, and which one is in a given scenario is a composition decision the
+  architecture does not make.
 
 An interface published with nothing consuming it is listed beneath the diagram
 rather than drawn with a dangling arrow. That list is informative in its own
@@ -197,9 +210,14 @@ both consumes capability -- feedforwarding thrust for the turn the vehicle can
 actually fly rather than the one its error term asked for -- and publishes one
 of its own, composed from the vehicle's envelope and the navigation covariance
 it steers on (ADR 0013). Neither estimator publishes a capability; nothing asks
-them for one. `TimeEstimator` does publish `platform.time.v1`, which nothing
-consumes either -- the generated diagram above lists that alongside
-`vehicle.mass.v1` and `planning.action.v1`, and the list is derived rather than
+them for one.
+
+`NavigationManager` is the platform's single publisher of both its state and
+its time -- position, navigation and timing from one component (ADR 0022). The
+two estimators beneath it publish on their own source ports, which is what
+makes "one publisher per platform" checkable rather than merely stated (ADR
+0021). Nothing consumes `platform.time.v1` yet; the generated block above lists
+that alongside `vehicle.mass.v1` and `planning.action.v1`, derived rather than
 remembered.
 
 The first single-ship component exists: `WaypointPlanner`, publishing

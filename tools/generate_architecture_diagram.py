@@ -23,11 +23,22 @@ spots below. No version of this should try to produce it.
 
 How an edge is derived
 ----------------------
-A record is a port when it carries an INTERFACE class variable (ADR 0020). A
-component PUBLISHES the interface of any record a public method returns, and
-CONSUMES the interface of any record a public method takes -- by annotation,
-or by `isinstance` dispatch when the parameter is unannotated, which is how
-ingest() and command() accept several record types on one port.
+A record is a port when it carries an INTERFACE class variable (ADR 0020),
+which is the DEFAULT name; a component overrides it per method with PUBLISHES
+where one record serves two ports (ADR 0021). A component PUBLISHES the
+interface of any record a public method returns, and CONSUMES the interface of
+any record a public method takes -- by annotation, or by `isinstance` dispatch
+when the parameter is unannotated, which is how ingest() and command() accept
+several record types on one port.
+
+A constructor parameter typed by a PROTOCOL is a declared port: what the
+provider publishes crosses it, drawn as a publication in the data direction. A
+parameter typed by a concrete class is composition, drawn as a plain binding.
+Claiming a publication there would invent one -- VehicleGuidance holds a
+VehicleManager and calls capability_bound(), but never receives a MassEstimate.
+
+Where a port has several providers they are alternatives, and the diagram draws
+one node named for the port with their edges retargeted onto it (ADR 0023).
 
 Three rules keep false edges out. Each exists for a component in the tree now,
 and removing any one of them produces a wrong picture rather than a noisy one:
@@ -66,6 +77,9 @@ What it cannot see
   * The `isinstance` recovery is fragile by nature. Rewriting a dispatch as a
     match statement or a dict lookup drops edges silently -- visible only as a
     staleness failure here plus a warning line.
+  * Which of a port's providers a platform composes. The Vehicle node stands
+    for both models; choosing between them is a composition decision, and the
+    diagram describes the architecture.
 
 tests/test_architecture_diagram.py runs this with --check, so adding a
 component fails the suite until the diagram is regenerated.
@@ -233,6 +247,15 @@ class Graph:
     consumes: set[tuple[str, str]] = dataclasses.field(default_factory=set)
     bindings: set[tuple[str, str, str]] = dataclasses.field(default_factory=set)
     truth_readers: set[str] = dataclasses.field(default_factory=set)
+    # Interface name -> the record class names carried on it. Built while
+    # walking, because that is the only place a PUBLISHES override and the
+    # record it returns are both in hand. ose.interfaces knows the record
+    # defaults; it cannot know the overrides without importing components.
+    port_records: dict[str, set[str]] = dataclasses.field(default_factory=dict)
+    # Port name -> the component classes it stands for. A collapsed node is
+    # the only place a real class stops being a node, so it is recorded
+    # rather than left for a reader to infer from an absence.
+    collapsed: dict[str, set[str]] = dataclasses.field(default_factory=dict)
     warnings: list[str] = dataclasses.field(default_factory=list)
 
     def edges(self) -> list[tuple[str, str, str]]:
@@ -243,10 +266,52 @@ class Graph:
             for consumer, consumed in sorted(self.consumes)
             if consumed == interface and consumer != publisher
         ]
+        return sorted(set(out + self.port_edges()))
+
+    def port_edges(self) -> list[tuple[str, str, str]]:
+        """Edges across a protocol-typed binding, in the data direction.
+
+        A constructor parameter annotated with a PROTOCOL is a declared port,
+        so what the provider publishes reaches the binder across it. A
+        parameter annotated with a concrete class is not a port -- it is a
+        component reaching into one implementation -- and stays a plain
+        composition edge.
+
+        That distinction is what keeps false edges out. VehicleGuidance binds
+        VehicleManager by its concrete type, so nothing here claims guidance
+        consumes vehicle.mass.v1: it calls capability_bound(), and never takes
+        a MassEstimate.
+        """
+        out = []
+        for consumer, provider, protocol in self.bindings:
+            if not protocol:
+                continue
+            for publisher, interface in self.publishes:
+                if publisher == provider:
+                    out.append((provider, consumer, interface))
         return sorted(set(out))
 
+    def composition_bindings(self) -> list[tuple[str, str, str]]:
+        """Bindings that are not already drawn as a port edge.
+
+        A protocol binding whose provider publishes something is shown by that
+        publication instead, in the data direction; drawing both would put two
+        edges between the same pair saying the same thing. A provider that
+        publishes nothing -- Vehicle -- keeps its composition edge, which is
+        the only thing that would otherwise connect it.
+        """
+        drawn = {(consumer, provider) for provider, consumer, _ in self.port_edges()}
+        return sorted(
+            (consumer, provider, protocol)
+            for consumer, provider, protocol in self.bindings
+            if (consumer, provider) not in drawn
+        )
+
+    def consumed_interfaces(self) -> set[str]:
+        return {i for _, i in self.consumes} | {i for _, _, i in self.port_edges()}
+
     def unconsumed(self) -> list[tuple[str, str]]:
-        wanted = {interface for _, interface in self.consumes}
+        wanted = self.consumed_interfaces()
         return sorted(
             (publisher, interface)
             for publisher, interface in self.publishes
@@ -254,9 +319,60 @@ class Graph:
         )
 
 
+def collapse_alternatives(graph: Graph) -> None:
+    """Components providing one port are alternatives, and draw as one node.
+
+    A platform composes one vehicle model, not both. When a protocol-typed
+    binding resolves to several providers they are alternatives rather than
+    collaborators, so the architecture has one component there and the choice
+    between implementations is a configuration decision.
+
+    Drawn as one node named for the port, with every edge of the collapsed
+    members retargeted onto it. Nothing is hidden: the members are alternatives
+    for the same role, so an edge to one of them is an edge to whichever is
+    composed.
+
+    A port with a single provider does not collapse -- OwnStateSource resolves
+    to InsGnssEstimator alone, and naming that node after the port would hide
+    which implementation is in the tree.
+    """
+    providers: dict[str, set[str]] = {}
+    for _, target, protocol in graph.bindings:
+        if protocol:
+            providers.setdefault(protocol, set()).add(target)
+
+    for protocol, members in sorted(providers.items()):
+        if len(members) < 2:
+            continue
+        layers = {graph.components[m] for m in members if m in graph.components}
+        if len(layers) != 1:
+            graph.warnings.append(
+                f"{protocol} is provided from more than one layer ({sorted(layers)}); "
+                "not collapsed"
+            )
+            continue
+
+        for member in members:
+            graph.components.pop(member, None)
+        graph.components[protocol] = layers.pop()
+        graph.collapsed[protocol] = set(members)
+
+        def rename(name: str) -> str:
+            return protocol if name in members else name
+
+        graph.publishes = {(rename(c), i) for c, i in graph.publishes}
+        graph.consumes = {(rename(c), i) for c, i in graph.consumes}
+        graph.truth_readers = {rename(n) for n in graph.truth_readers}
+        graph.bindings = {
+            (rename(c), rename(t), p)
+            for c, t, p in graph.bindings
+            if rename(c) != rename(t)
+        }
+
+
 def nested_records(record: type, interfaces: dict[str, str]) -> set[str]:
     """Interfaces carried inside a record's own fields -- rule N."""
-    out = set()
+    out: set[str] = set()
     if not dataclasses.is_dataclass(record):
         return out
     for field in dataclasses.fields(record):
@@ -287,13 +403,29 @@ def extract(component: type, layer: str, interfaces: dict[str, str], graph: Grap
         if not isinstance(node, ast.FunctionDef) or node.name.startswith("_"):
             continue
 
+        # A component may name the port a method publishes on, overriding the
+        # record's default. Needed wherever one record serves two ports: an
+        # InsGnssEstimator and a NavigationManager both return an
+        # OwnStateEstimate, but a source estimate and the platform's published
+        # state are different ports. See ADR 0021.
+        override = getattr(component, "PUBLISHES", {}).get(node.name)
+
         published = set()
         for leaf in annotation_leaves(node.returns):
-            interface = interface_of(leaf)
+            interface = override or interface_of(leaf)
             if interface:
                 published.add(interface)
                 resolved = resolve(leaf, module_name)
                 if resolved:
+                    # An override names a port the record catalogue does not
+                    # know about, so the record has to be recorded here. The
+                    # default names are seeded from the catalogue instead,
+                    # which already handles one interface carrying several
+                    # records -- guidance.setpoint.v1 has two forms.
+                    if override:
+                        graph.port_records.setdefault(
+                            interface, set()
+                        ).add(resolved.__name__)
                     published |= nested_records(resolved, interfaces)
 
         consumed = set()
@@ -377,18 +509,25 @@ def extract_bindings(component: type, interfaces: dict[str, str], graph: Graph):
 
     for param in init.args.args[1:] + init.args.kwonlyargs:
         for leaf in annotation_leaves(param.annotation):
-            if leaf in graph.components:
+            # Resolve the name against the module that wrote it BEFORE asking
+            # whether it looks like a component. Three protocol names collide
+            # with implementation class names -- AirDataSensor, TimeEstimator
+            # and VehicleGuidance -- so a bare name check answers the wrong
+            # question. navigation_manager.py imports TimeEstimator from
+            # ose.interfaces, meaning the protocol; matching the component of
+            # that name instead turned a declared port into a concrete
+            # composition and silently dropped the edge across it.
+            resolved = resolve(leaf, component.__module__)
+            if resolved is not None and _is_protocol(resolved):
+                pass
+            elif leaf in graph.components:
                 graph.bindings.add((component.__name__, leaf, ""))
                 continue
-            resolved = resolve(leaf, component.__module__)
-            if resolved is None or not _is_protocol(resolved):
+            else:
                 continue
-            wanted = protocol_interfaces(resolved, interfaces)
             matches = sorted(
                 name for name, cls in _component_classes.items()
-                if name != component.__name__
-                and _satisfies(cls, resolved)
-                and _publishes_all(name, wanted, graph)
+                if name != component.__name__ and satisfies(cls, resolved, interfaces)
             )
             if not matches:
                 continue
@@ -402,47 +541,77 @@ def extract_bindings(component: type, interfaces: dict[str, str], graph: Graph):
                 graph.bindings.add((component.__name__, match, leaf))
 
 
-def protocol_interfaces(protocol: type, interfaces: dict[str, str]) -> set[str]:
-    """The interfaces a protocol's methods return.
-
-    Needed because `issubclass` against a runtime_checkable Protocol compares
-    METHOD NAMES ONLY -- it does not look at signatures or return types. So
-    TimeEstimator, whose `estimate(t_s)` returns a TimeEstimate, satisfies
-    OwnStateSource, whose `estimate(t_s)` returns an OwnStateEstimate. Purely
-    structural matching therefore bound the navigation manager to the clock
-    estimator, which is not a thing that can happen.
-
-    A port is typed by its interface, so satisfying one means publishing what
-    the protocol says it publishes, not merely having a method of the same
-    name.
-    """
+def protocol_members(protocol: type) -> set[str]:
+    """Every name a protocol requires -- methods, properties and annotations."""
     tree = class_tree(protocol)
     if tree is None:
         return set()
-    out = set()
+    names = set()
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and not node.name.startswith("_"):
+            names.add(node.name)
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            if not node.target.id.startswith("_"):
+                names.add(node.target.id)
+    return names
+
+
+def protocol_returns(protocol: type, interfaces: dict[str, str]) -> dict[str, str]:
+    """Method name -> the registered record it returns, for the methods that
+    return one."""
+    tree = class_tree(protocol)
+    if tree is None:
+        return {}
+    out = {}
     for node in tree.body:
         if isinstance(node, ast.FunctionDef) and not node.name.startswith("_"):
             for leaf in annotation_leaves(node.returns):
                 resolved = resolve(leaf, protocol.__module__)
                 if resolved and resolved.__name__ in interfaces:
-                    out.add(interfaces[resolved.__name__])
+                    out[node.name] = resolved.__name__
     return out
 
 
-def _publishes_all(name: str, wanted: set[str], graph: Graph) -> bool:
-    published = {i for c, i in graph.publishes if c == name}
-    return wanted <= published
+def satisfies(cls: type, protocol: type, interfaces: dict[str, str]) -> bool:
+    """Whether a component provides a protocol's port.
+
+    Structural, in two parts, and `issubclass` does neither of them properly.
+
+    It compares METHOD NAMES ONLY, which is how the first version of this tool
+    bound the navigation manager to the clock estimator: TimeEstimator.estimate
+    returns a TimeEstimate and satisfies OwnStateSource, whose estimate returns
+    an OwnStateEstimate. So the record a method returns is compared too.
+
+    And `issubclass` raises outright on a protocol with a non-method member --
+    `Protocols with non-method members don't support issubclass()`. The Vehicle
+    protocol has to declare `dry_mass_kg`, which is a property on the models,
+    because VehicleManager reads it. A protocol that cannot state what its
+    consumers use would be the wrong shape of protocol.
+
+    Comparison is by RECORD, not by interface name, so it survives a port being
+    renamed -- which is exactly what happens when a source publishes under its
+    own interface rather than the platform's.
+    """
+    members = protocol_members(protocol)
+    if not members or not all(hasattr(cls, name) for name in members):
+        return False
+
+    tree = class_tree(cls)
+    if tree is None:
+        return False
+    returns = {
+        node.name: annotation_leaves(node.returns)
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+    }
+    for method, record in protocol_returns(protocol, interfaces).items():
+        if record not in returns.get(method, []):
+            return False
+    return True
 
 
 def _is_protocol(cls: type) -> bool:
     return getattr(cls, "_is_protocol", False)
-
-
-def _satisfies(cls: type, protocol: type) -> bool:
-    try:
-        return issubclass(cls, protocol)
-    except TypeError:
-        return False
 
 
 _component_classes: dict[str, type] = {}
@@ -452,6 +621,9 @@ def build_graph() -> Graph:
     discovered = discover_components()
     graph = Graph(components={name: layer for name, (layer, _) in discovered.items()})
     interfaces = record_interfaces()
+    graph.port_records = {
+        name: {r.__name__ for r in records} for name, records in catalogue().items()
+    }
 
     _component_classes.clear()
     _component_classes.update({name: cls for name, (_, cls) in discovered.items()})
@@ -463,6 +635,7 @@ def build_graph() -> Graph:
     # known until every component's publications have been extracted.
     for name, cls in sorted(_component_classes.items()):
         extract_bindings(cls, interfaces, graph)
+    collapse_alternatives(graph)
     return graph
 
 
@@ -540,7 +713,9 @@ def mermaid(graph: Graph) -> str:
     for consumer, target, protocol in sorted(graph.bindings):
         # `A ==> B`, or `A ==>|"label"| B`. The label goes AFTER the arrow, not
         # inside it -- `===|"x"|>` is not an arrow at all.
-        label = f'|"{protocol}"|' if protocol else ""
+        # A label repeating the node it points at says nothing: after a
+        # collapse the target IS the port.
+        label = f'|"{protocol}"|' if protocol and protocol != target else ""
         lines.append(f"  {consumer} ==>{label} {target}")
 
     lines.append("")
@@ -590,23 +765,29 @@ def mermaid(graph: Graph) -> str:
 def interface_table(graph: Graph) -> str:
     """The implemented half of docs/interfaces/README.md.
 
-    Publisher and consumer come from the same derivation the diagram uses, so
-    the table and the picture cannot disagree. An interface with no consumer
-    prints a dash: nothing asks for it yet, which is a fact about the system
-    rather than a gap in the table.
+    Publisher, consumer and records all come from the same derivation the
+    diagram uses, so the table and the picture cannot disagree. An interface
+    with no consumer prints a dash: nothing asks for it yet, which is a fact
+    about the system rather than a gap in the table.
     """
     rows = [
         "| Interface | Record(s) | Published by | Consumed by |",
         "|---|---|---|---|",
     ]
-    for name, records in sorted(catalogue().items()):
+    consumers_of: dict[str, set[str]] = {}
+    for consumer, interface in graph.consumes:
+        consumers_of.setdefault(interface, set()).add(consumer)
+    for _, consumer, interface in graph.port_edges():
+        consumers_of.setdefault(interface, set()).add(consumer)
+
+    for name in sorted(graph.port_records):
         publishers = sorted(c for c, i in graph.publishes if i == name)
-        consumers = sorted(c for c, i in graph.consumes if i == name)
+        consumers = sorted(consumers_of.get(name, ()))
         if not publishers and not consumers:
             continue
+        records = ", ".join(f"`{r}`" for r in sorted(graph.port_records[name]))
         rows.append(
-            f"| `{name}` "
-            f"| {', '.join(f'`{r.__name__}`' for r in records)} "
+            f"| `{name}` | {records} "
             f"| {', '.join(f'`{p}`' for p in publishers) or '--'} "
             f"| {', '.join(f'`{c}`' for c in consumers) or '--'} |"
         )
@@ -648,8 +829,8 @@ def dump(graph: Graph) -> None:
     print(f"\nEdges ({len(graph.edges())})")
     for publisher, consumer, interface in graph.edges():
         print(f"  {publisher:28s} -> {consumer:24s} {interface}")
-    print(f"\nBindings ({len(graph.bindings)})")
-    for consumer, target, protocol in sorted(graph.bindings):
+    print(f"\nBindings ({len(graph.composition_bindings())} drawn, {len(graph.bindings)} total)")
+    for consumer, target, protocol in graph.composition_bindings():
         print(f"  {consumer:28s} => {target:24s} {protocol}")
     print(f"\nTruth readers: {', '.join(sorted(graph.truth_readers)) or 'none'}")
     unconsumed = graph.unconsumed()

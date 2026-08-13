@@ -91,7 +91,14 @@ def test_the_walk_is_not_vacuous():
     for layer, count in by_layer.items():
         assert count >= 1, f"layer {layer} discovered with no components"
 
-    assert {"PlanarPointMass", "PlanarPointMassWithBooster"} <= set(graph.components), (
+    # Discovered, whether or not they survive as their own nodes: the vehicle
+    # models collapse into the Vehicle port. The regression this guards is the
+    # walk failing to descend into subpackages, which would lose them from
+    # both sets at once.
+    reached = set(graph.components)
+    for members in graph.collapsed.values():
+        reached |= members
+    assert {"PlanarPointMass", "PlanarPointMassWithBooster"} <= reached, (
         "the vehicle models were not found -- the walk is not descending into "
         "subpackages"
     )
@@ -125,6 +132,13 @@ def test_the_walk_agrees_with_the_capability_walk():
     graph = _load_generator().build_graph()
     equipment = {name for name, layer in graph.components.items()
                  if layer == "equipment"}
+    # A collapsed node stands for its members, so they count as reached. This
+    # is why the graph records what it collapsed rather than letting the
+    # classes just vanish from the component set.
+    for port, members in graph.collapsed.items():
+        if port in equipment:
+            equipment |= members
+
     other = {name for name, _, _ in _discover_equipment_components()}
     assert other, "the capability walk found nothing -- this comparison is vacuous"
     assert other <= equipment, (
@@ -214,10 +228,15 @@ def test_the_diagram_is_internally_consistent():
 
 def test_every_edge_is_labelled_with_a_registered_interface():
     """A publication edge carries an interface name, and that name is one the
-    catalogue actually knows -- not a record class name that leaked through."""
-    from ose.interfaces import catalogue
+    catalogue actually knows -- not a record class name that leaked through.
 
-    known = set(catalogue())
+    Checked against the PORT catalogue, not the record one. A record's
+    INTERFACE is only the default: a component may publish the same record on
+    its own port, which is how a source estimate is told apart from the
+    platform's published state (ADR 0021). ose.interfaces cannot know those
+    names without importing components, so the generator composes them.
+    """
+    known = set(_load_generator().build_graph().port_records)
     labels = set(re.findall(r"-->\|\"([^\"]+)\"\|", generated_block()))
     assert labels, "no labelled publication edges"
     assert labels <= known, f"edge labels not in the catalogue: {sorted(labels - known)}"

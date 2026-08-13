@@ -1,6 +1,7 @@
 # 0010. Platform clock, estimated by dead reckoning only
 
-Status: accepted
+Status: accepted; 0022 moves publication of platform.time.v1 to the
+navigation manager, which republishes what this filter produces
 Date: 2026-08-09
 
 ## Context

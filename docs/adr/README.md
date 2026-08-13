@@ -25,13 +25,16 @@ the full history, so nothing is lost by keeping the working copy accurate.
 | [0011](0011-vehicle-guidance-decides-not-enforces.md) | Vehicle guidance decides what to command, not what is admissible | accepted |
 | [0012](0012-capability-is-a-tested-multi-channel-claim.md) | Capability is a tested, multi-channel claim | accepted, extended by 0013 |
 | [0013](0013-guidance-capability-composes-two-layers.md) | Guidance capability composes the vehicle's and navigation's | accepted |
-| [0014](0014-one-navigation-publisher-per-platform.md) | One navigation publisher per platform, and it does not fuse | accepted, amended by 0019 |
+| [0014](0014-one-navigation-publisher-per-platform.md) | One navigation publisher per platform, and it does not fuse | accepted, amended by 0019, extended by 0022 |
 | [0015](0015-the-vehicle-manager-owns-believed-mass.md) | The vehicle manager owns the platform's believed mass | accepted, extended by 0016 |
 | [0016](0016-promised-envelope-carries-the-mass-margin.md) | Only the promised envelope carries the mass margin | accepted |
 | [0017](0017-equipment-layer.md) | The resource layer is renamed the equipment layer | accepted |
 | [0018](0018-unweighted-mathematical-notation.md) | Mathematical symbols are written plain, in every artefact | accepted |
 | [0019](0019-remove-the-black-box-navigation-unit.md) | The black-box navigation unit is removed | accepted |
-| [0020](0020-the-implemented-topology-is-derived-from-the-code.md) | The implemented topology is derived from the code | accepted |
+| [0020](0020-the-implemented-topology-is-derived-from-the-code.md) | The implemented topology is derived from the code | accepted, amended by 0021 |
+| [0021](0021-an-interface-name-belongs-to-the-port.md) | An interface name belongs to the port, not the record | accepted |
+| [0022](0022-the-navigation-manager-is-the-pnt-publisher.md) | The navigation manager is the platform's PNT publisher | accepted |
+| [0023](0023-alternatives-behind-a-port-are-one-component.md) | Alternative implementations of a port are one component | accepted |
 
 ## Template
 

@@ -200,6 +200,52 @@ def test_every_implemented_interface_is_written_up():
     )
 
 
+def test_every_vehicle_model_provides_the_vehicle_port():
+    """Both models satisfy Vehicle, discovered rather than listed.
+
+    The port exists because the annotations lied: Imu and VehicleManager both
+    said PlanarPointMass while the code was duck-typed, and a manager has been
+    built on the boosted model in the tests all along. A model that stopped
+    providing the port would break a consumer that never named it.
+
+    Checked structurally, member by member, because Vehicle cannot be
+    runtime_checkable -- dry_mass_kg is a property, and issubclass against a
+    protocol with a non-method member raises. isinstance would work but needs
+    an instance, and a model needs parameters to build.
+    """
+    from _truth_boundary import vehicle_model_names
+    from ose.interfaces import Vehicle
+
+    members = [
+        name for name in vars(Vehicle)
+        if not name.startswith("_") and name not in {"mro"}
+    ]
+    assert members, "the Vehicle protocol declares nothing -- this test is vacuous"
+
+    models = vehicle_model_names()
+    assert models, "no vehicle models discovered -- this test is vacuous"
+
+    import importlib
+    import pkgutil
+    from ose.topology import TRUTH_PACKAGE
+
+    package = importlib.import_module(TRUTH_PACKAGE)
+    found = {}
+    for info in pkgutil.iter_modules(package.__path__):
+        module = importlib.import_module(f"{package.__name__}.{info.name}")
+        for name in models:
+            cls = getattr(module, name, None)
+            if cls is not None and cls.__module__ == module.__name__:
+                found[name] = cls
+
+    assert set(found) == set(models), (
+        f"could not locate every model: missing {sorted(set(models) - set(found))}"
+    )
+    for name, cls in sorted(found.items()):
+        missing = [m for m in members if not hasattr(cls, m)]
+        assert not missing, f"{name} does not provide Vehicle members {missing}"
+
+
 def test_truth_types_are_never_ports():
     """Invariant 1, asserted at the catalogue rather than at a component.
 

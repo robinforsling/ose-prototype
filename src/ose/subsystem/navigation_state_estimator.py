@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import ClassVar
 
 import numpy as np
 
@@ -88,7 +89,17 @@ class InsGnssEstimator:
     that guess (typically truth corrupted by some unmodelled alignment
     process) is the caller's responsibility; nothing in this class ever sees
     truth.
+
+    It publishes on vehicle.state_source.v1, not vehicle.state.v1. The record
+    is the same OwnStateEstimate either way; the PORT is not. A source
+    estimate is one input to the platform's navigation, and the platform's
+    published state is what NavigationManager says it is -- one publisher per
+    platform, ADR 0014. Binding a consumer straight to this estimator would
+    work and would be wrong, and until the ports were named apart nothing
+    could tell. See ADR 0021 and ADR 0022.
     """
+
+    PUBLISHES: ClassVar[dict[str, str]] = {"estimate": "vehicle.state_source.v1"}
 
     def __init__(
         self,

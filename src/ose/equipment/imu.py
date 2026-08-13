@@ -18,7 +18,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ose.equipment.vehicle import Disturbance, PlanarPointMass, VehicleCommand, VehicleState
+from ose.equipment.vehicle import Disturbance, VehicleCommand, VehicleState
+from ose.interfaces import Vehicle
 from ose.interfaces import ImuMeasurement, MeasurementChannel, SensorCapability
 
 
@@ -47,7 +48,7 @@ class Imu:
         self,
         parameters: ImuParameters,
         rng: np.random.Generator,
-        vehicle: PlanarPointMass,
+        vehicle: Vehicle,
     ) -> None:
         self.par = parameters
         self.rng = rng

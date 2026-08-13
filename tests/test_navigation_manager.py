@@ -34,6 +34,7 @@ from ose.subsystem.navigation_state_estimator import (
     InitialUncertainty,
     InsGnssEstimator,
 )
+from ose.subsystem.time_state_estimator import TimeEstimator
 
 
 def _estimator() -> InsGnssEstimator:
@@ -126,11 +127,55 @@ def test_consumers_need_not_know_which_source_is_underneath():
 # --------------------------------------------------------------------------
 
 def test_manager_refuses_to_fuse_alternatives():
-    """There is no way to hand the manager two sources. Fusing sources that
-    are not independent is actively misleading, so the constructor makes it
-    impossible rather than defining behaviour for it."""
+    """There is no way to hand the manager two OWN-STATE sources. Fusing
+    sources that are not independent is actively misleading, so the
+    constructor makes it impossible rather than defining behaviour for it.
+
+    The manager gained a time source (ADR 0022), and that is why time_source
+    is keyword-only. A positional second parameter would have absorbed the
+    argument below, this guard would have stopped raising, and the test would
+    have gone on passing while checking nothing at all.
+    """
     with pytest.raises(TypeError):
         NavigationManager(_estimator(), _SourceWithoutMeasurements())      # type: ignore[call-arg]
+
+
+# --------------------------------------------------------------------------
+# Timing -- the T of PNT
+# --------------------------------------------------------------------------
+
+def test_manager_republishes_the_time_source():
+    """The platform's time comes from the same component as its position.
+
+    Republished rather than recomputed, exactly as estimate() is: one
+    publisher per platform, and nothing here couples position and time.
+    """
+    clock_filter = TimeEstimator()
+    clock_filter.ingest(ClockMeasurement(1.0, 1.0, 1.0e-8))
+    manager = NavigationManager(_estimator(), time_source=clock_filter)
+
+    direct = clock_filter.estimate(1.0)
+    published = manager.time(1.0)
+    assert published.platform_time_s == direct.platform_time_s
+    assert published.drift_rate == direct.drift_rate
+    assert np.array_equal(published.covariance, direct.covariance)
+
+
+def test_a_platform_with_no_time_source_has_no_belief_about_time():
+    """Returning a default would be inventing one. A platform that was never
+    composed with a clock filter does not know what time it is, and saying so
+    is the only honest answer."""
+    manager = NavigationManager(_estimator())
+    assert manager.time_source is None
+    with pytest.raises(TypeError, match="no time source"):
+        manager.time(1.0)
+
+
+def test_the_time_source_cannot_be_passed_positionally():
+    """The guard above depends on it, so it is asserted directly rather than
+    left as a property of a signature someone could 'tidy'."""
+    with pytest.raises(TypeError):
+        NavigationManager(_estimator(), TimeEstimator())      # type: ignore[misc]
 
 
 def test_forwards_measurements_to_an_estimator_source():

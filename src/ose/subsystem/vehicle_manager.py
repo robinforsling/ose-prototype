@@ -131,13 +131,14 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ose.equipment.vehicle import Capability, Saturation, PlanarPointMass, VehicleCommand
+from ose.equipment.vehicle import Capability, Saturation, VehicleCommand
 from ose.interfaces import (
     FuelMeasurement,
     MassEstimate,
     OwnStateEstimate,
     PlatformBeliefs,
     PromisedEnvelope,
+    Vehicle,
 )
 
 I_FUEL = 0
@@ -181,7 +182,7 @@ class VehicleManagerParameters:
 class VehicleManager:
     """Owns the platform's believed mass and answers vehicle questions at it."""
 
-    def __init__(self, vehicle: PlanarPointMass, parameters: VehicleManagerParameters) -> None:
+    def __init__(self, vehicle: Vehicle, parameters: VehicleManagerParameters) -> None:
         self.vehicle = vehicle
         self.par = parameters
 

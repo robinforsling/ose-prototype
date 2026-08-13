@@ -1,6 +1,7 @@
 # 0020 — The implemented topology is derived from the code
 
-**Status:** Accepted
+**Status:** Accepted. Amended by ADR 0021, which moves an interface name off
+the record and onto the port.
 
 ## Context
 
@@ -105,16 +106,21 @@ indirect. `NavigationManager.ingest` already produces that warning legitimately
 `runtime_checkable` Protocol compares method *names* only, not signatures, so
 `TimeEstimator` satisfies `OwnStateSource` despite returning the wrong record —
 and the first version of the generator bound the navigation manager to the
-clock estimator on that basis. A protocol binding is now drawn only when the
-candidate also publishes what the protocol says it publishes. This is worth
-knowing about beyond this tool: nothing in the type system stops that
-substitution.
+clock estimator on that basis. This is worth knowing about beyond this tool:
+nothing in the type system stops that substitution. *(The fix recorded here
+was to require the candidate to publish what the protocol publishes. ADR 0021
+replaced it with a structural match on member names plus the record a method
+returns, because comparing interface names breaks as soon as a component
+publishes on its own port.)*
 
-**Both `vehicle.state.v1` publishers are drawn**, giving six edges where ADR
-0014 says a platform has one publisher. The alternative was a rule suppressing
-the wrapped publisher, which is an interpretation rather than a derivation and
-would have fired exactly once. The diagram shows what the code offers and
-leaves ADR 0014 to say which of them a consumer should bind.
+**Both `vehicle.state.v1` publishers were drawn**, giving six edges where ADR
+0014 says a platform has one publisher. The alternative considered was a rule
+suppressing the wrapped publisher, which is an interpretation rather than a
+derivation and would have fired exactly once; the diagram showed what the code
+offered and left ADR 0014 to say which a consumer should bind. *(That picture
+is what prompted ADR 0021 and ADR 0022: the code really did have two
+publishers, and the right fix was to the code rather than to the drawing.
+There is now one.)*
 
 **The palette is hardcoded hex, and the contrast tests are a proxy.** They
 check WCAG luminance ratios, pairwise fill separation, and that fills stay
