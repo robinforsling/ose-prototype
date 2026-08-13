@@ -4,13 +4,34 @@ Interface definitions. Contracts only -- no implementations.
 Every component depends on this module; no component depends on another
 component. Adding a field to a published record is backward compatible;
 removing or renaming one is not.
+
+Interface names
+---------------
+A port is typed by an interface named `family.name.vN`, and that name lives on
+the record as an `INTERFACE` class variable -- here and nowhere else. It
+travels with the object, so a consumer holding a record can ask what it is
+(`type(record).INTERFACE`) without importing a lookup table.
+
+They used to live only in docstrings and in a hand-written table in
+docs/interfaces/README.md, which drifted three ways before anything could
+check it: `vehicle.mass.v1` had a prose section and no table row,
+FuelMeasurement had no name at all, and docs/40-composition-spec.md carried a
+second copy stating the opposite direction for `vehicle.state.v1`. See ADR
+0020.
+
+`NOT_A_PORT` below is the other half. A record with no INTERFACE is
+indistinguishable from one that deliberately is not a port, so the negative is
+declared too, and `catalogue()` raises on any record in neither set. Without
+that, a new port record added to this module would be exactly as invisible as
+the three above.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from dataclasses import dataclass
-from typing import Protocol, runtime_checkable
+from typing import ClassVar, Protocol, runtime_checkable
 
 import numpy as np
 
@@ -25,6 +46,8 @@ class OwnStateEstimate:
     planning need not know which navigation implementation produced it. The
     covariance refers to [p_x, p_y, psi, v_air].
     """
+
+    INTERFACE: ClassVar[str] = "vehicle.state.v1"
 
     t_s: float
     p_x_m: float
@@ -52,6 +75,8 @@ class TimeEstimate:
     product of this component today: a calibrated, honestly growing bound
     on how far platform_time_s may have diverged from true elapsed time.
     """
+
+    INTERFACE: ClassVar[str] = "platform.time.v1"
 
     t_s: float
     platform_time_s: float
@@ -115,6 +140,8 @@ class MassEstimate:
     instead of a comment two fields could drift apart from.
     """
 
+    INTERFACE: ClassVar[str] = "vehicle.mass.v1"
+
     t_s: float
     mass_kg: float                   # dry + payload + fuel
     dry_mass_kg: float               # design constant, exact
@@ -139,6 +166,8 @@ class MassEstimate:
 
 @dataclass(frozen=True)
 class ImuMeasurement:
+    INTERFACE: ClassVar[str] = "sensing.imu.v1"
+
     valid_time_s: float
     interval_s: float                       # interval this sample is held over
     specific_force_body_mps2: np.ndarray    # [x forward, y right]
@@ -149,6 +178,8 @@ class ImuMeasurement:
 
 @dataclass(frozen=True)
 class GnssFix:
+    INTERFACE: ClassVar[str] = "sensing.gnss.v1"
+
     valid_time_s: float
     position_m: np.ndarray                  # [north, east]
     position_sigma_m: float
@@ -158,6 +189,8 @@ class GnssFix:
 
 @dataclass(frozen=True)
 class AirDataMeasurement:
+    INTERFACE: ClassVar[str] = "sensing.airdata.v1"
+
     valid_time_s: float
     airspeed_mps: float
     airspeed_sigma_mps: float
@@ -173,6 +206,8 @@ class ClockMeasurement:
     interval here would leak exactly the truth this component exists to
     hide."""
 
+    INTERFACE: ClassVar[str] = "sensing.clock.v1"
+
     valid_time_s: float
     elapsed_s: float          # the platform clock's own reading of elapsed time
     elapsed_sigma_s: float    # declared; covers the white-noise term only
@@ -183,6 +218,12 @@ class FuelMeasurement:
     """A direct reading of remaining fuel mass, not an integrated one --
     unlike Imu/Clock there is no drift term here, just additive white
     noise."""
+
+    # Minted with the registry (ADR 0020). The other four sensing interfaces
+    # had names in docs/interfaces/README.md and this one did not, which is
+    # the drift the registry exists to make impossible rather than a
+    # deliberate omission.
+    INTERFACE: ClassVar[str] = "sensing.fuel.v1"
 
     valid_time_s: float
     fuel_remaining_kg: float
@@ -218,6 +259,8 @@ class HeadingSpeedSetpoint:
     common case.
     """
 
+    INTERFACE: ClassVar[str] = "guidance.setpoint.v1"
+
     psi_cmd_rad: float
     v_cmd_mps: float
     psi_rate_cmd_rad_s: float = 0.0
@@ -240,6 +283,11 @@ class TurnRateSpeedSetpoint:
     complements, and the dispatch in VehicleGuidance.command() is what ADR
     0011 put there to allow it.
     """
+
+    # The same name as HeadingSpeedSetpoint: they are two forms of one
+    # interface, and a consumer binds the interface and dispatches on the
+    # form. So the catalogue maps a name to a SET of records, not to one.
+    INTERFACE: ClassVar[str] = "guidance.setpoint.v1"
 
     omega_cmd_rad_s: float
     v_cmd_mps: float
@@ -281,6 +329,8 @@ class ActionSet:
     the identical rule slightly differently. The record that defines the
     semantics is the one place that only has to get them right once.
     """
+
+    INTERFACE: ClassVar[str] = "planning.action.v1"
 
     t_s: float
     motion: "HeadingSpeedSetpoint | TurnRateSpeedSetpoint | None" = None
@@ -608,3 +658,69 @@ class VehicleGuidance(Protocol):
     def command(
         self, t_s: float, setpoint, own_state: OwnStateEstimate
     ) -> tuple[VehicleCommand, Saturation]: ...
+
+
+# ---------------------------------------------------------------------------
+# The catalogue
+# ---------------------------------------------------------------------------
+
+# Records visible from this module that deliberately carry no interface name,
+# with the reason. This is not documentation: catalogue() raises on any record
+# that is neither registered nor listed here, so the negative declaration is
+# what makes a forgotten registration an error rather than a silence.
+NOT_A_PORT: dict[type, str] = {
+    PlatformBeliefs: (
+        "an argument a vehicle model needs to dress an estimate as a state, "
+        "not something published on a wire"
+    ),
+    MeasurementChannel: "a field of SensorCapability, never sent alone",
+    SensorCapability: (
+        "capability is a query surface, not a port -- a consumer asks a bound "
+        "component what it can do; it does not subscribe to it (ADR 0012)"
+    ),
+    GuidanceCapability: "as SensorCapability, composed across two layers (ADR 0013)",
+    PromisedEnvelope: "as SensorCapability, widened by the mass margin (ADR 0016)",
+    VehicleState: (
+        "ground truth. truth.query.v1 is planned and unimplemented, and only "
+        "the equipment layer may ever hold this (ADR 0008)"
+    ),
+    Disturbance: "ground truth, as VehicleState",
+}
+
+
+def catalogue() -> dict[str, tuple[type, ...]]:
+    """Interface name -> the records carrying it, discovered not listed.
+
+    A name maps to several records when one interface has several forms:
+    `guidance.setpoint.v1` covers both setpoint types, and a consumer binds
+    the interface and dispatches on the form. So this is a name-to-set map,
+    and uniqueness is a property of the record-to-name direction instead --
+    which the ClassVar gives structurally, since a record has one.
+
+    Raises TypeError naming any record that is neither registered nor in
+    NOT_A_PORT. That is the whole point of the pairing: without it, a port
+    record added to this module and left unregistered would be invisible,
+    which is exactly how FuelMeasurement went unnamed for as long as it did.
+    """
+    found: dict[str, list[type]] = {}
+    unclassified = []
+    for name, obj in sorted(globals().items()):
+        if not isinstance(obj, type) or not dataclasses.is_dataclass(obj):
+            continue
+        # __dict__ rather than getattr: an inherited INTERFACE would be a name
+        # the subclass never chose. BoostCapability(Capability) is the live
+        # example of a record subclass existing at all.
+        interface = obj.__dict__.get("INTERFACE")
+        if interface is not None:
+            found.setdefault(interface, []).append(obj)
+        elif obj not in NOT_A_PORT:
+            unclassified.append(name)
+
+    if unclassified:
+        raise TypeError(
+            "record(s) in ose.interfaces are neither given an INTERFACE nor "
+            f"declared NOT_A_PORT: {sorted(unclassified)}. Give each an "
+            "INTERFACE: ClassVar[str] if it is published on a wire, or add it "
+            "to NOT_A_PORT with the reason if it is not."
+        )
+    return {name: tuple(records) for name, records in sorted(found.items())}

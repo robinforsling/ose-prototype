@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from typing import ClassVar
 
 from ose.environment import Environment
 
@@ -142,6 +143,8 @@ class VehicleCommand:
     arguments as a result.
     """
 
+    INTERFACE: ClassVar[str] = "vehicle.command.v1"
+
     thrust_N: float
     omega_rad_s: float
     mode: object | None = None
@@ -194,6 +197,13 @@ class Saturation:
     The notes stay: they are for a human reading a log. The numbers are for
     everything else.
     """
+
+    # The same interface as the command it describes, deliberately. This is the
+    # receipt that travels with a VehicleCommand rather than a wire format of
+    # its own -- docs/interfaces/README.md documents it under that heading --
+    # and naming it separately would suggest a consumer could bind one without
+    # the other.
+    INTERFACE: ClassVar[str] = "vehicle.command.v1"
 
     thrust_clipped: bool = False
     omega_clipped: bool = False
