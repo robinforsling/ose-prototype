@@ -17,7 +17,7 @@ again by `pytest` so that what it checks cannot be quietly left undone.
 | Tool | Does | Enforced by |
 |---|---|---|
 | `generate_model_docs.py` | Rewrites the computed tables in `docs/models/vehicle/` from the models and their reference configurations. | `tests/test_model_docs.py` |
-| `generate_architecture_diagram.py` | Derives the implemented topology from the source and writes the Mermaid diagram in `docs/20-architecture.md` and the implemented interface table in `docs/interfaces/README.md`. Also fails if a component outside the equipment layer reads truth. See ADR 0020. | `tests/test_architecture_diagram.py` |
+| `generate_architecture_diagram.py` | Derives the implemented topology from the source and writes the Mermaid diagram in `docs/20-architecture.md` and the implemented interface table in `docs/interfaces/README.md`. Also fails if a component outside the equipment layer reads truth, or if a binding goes upward or reaches past a layer. See ADR 0020, ADR 0024. | `tests/test_architecture_diagram.py` |
 | `check_markdown_math.py` | Static rules against markup that renders wrongly without erroring, plus an optional KaTeX render pass when node is present. | `tests/test_markdown_math.py` |
 
 Each takes `--check` (or, for the maths checker, no arguments) and exits

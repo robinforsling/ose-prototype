@@ -55,8 +55,12 @@ implementation, not a description of it.
 
 ## Layers
 
-Composition proceeds bottom-up. A layer may bind to the layer below it and to
-peers within the same layer on the same platform. Nothing binds upward.
+Composition proceeds bottom-up. A layer may bind to the layer directly below it
+and to peers within the same layer on the same platform. Nothing binds upward,
+and nothing reaches past a layer -- a single-ship component binding equipment
+would skip the subsystem that exists to integrate it.
+
+This is checked, not merely stated: see ADR 0024.
 
 | Layer | Contains | Physical? |
 |---|---|---|

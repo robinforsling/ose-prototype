@@ -18,8 +18,15 @@ repository are fictional and plausible, never claims about any real system.
 
 ## Layer structure
 
-Composition is bottom-up. A component may bind to the layer below it and to
-peers in the same layer on the same platform. **Nothing binds upward.**
+Composition is bottom-up. A component may bind to the layer *directly* below it
+and to peers in the same layer on the same platform. **Nothing binds upward, and
+nothing reaches past a layer.**
+
+Enforced rather than remembered (ADR 0024): `binding_is_allowed()` in
+`ose/topology.py` is the rule, `tests/test_layer_discipline.py` applies it to
+every component module's imports, and the architecture generator applies it to
+derived bindings. Both are needed — a component bound through a protocol has no
+import naming what it binds.
 
 | Layer | Contains | Physical? | Package |
 |---|---|---|---|

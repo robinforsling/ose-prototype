@@ -114,6 +114,8 @@ from ose.topology import (                                # noqa: E402
     LAYER_PACKAGES,
     PHYSICAL_LAYERS,
     TRUTH_TYPES,
+    binding_is_allowed,
+    layer_index,
 )
 
 PAGE = ROOT / "docs" / "20-architecture.md"
@@ -650,6 +652,35 @@ def truth_violations(graph: Graph) -> list[str]:
     )
 
 
+def layer_violations(graph: Graph) -> list[str]:
+    """Bindings that go upward, or reach past a layer.
+
+    Checked here as well as over imports in tests/test_layer_discipline.py
+    because the two see different things. An import guard catches a component
+    naming another directly. It does not catch one bound through a protocol in
+    ose.interfaces, which is an upward binding with no upward import to give it
+    away -- and a port is exactly how such a binding would arrive.
+    """
+    out = []
+    for consumer, provider, _ in sorted(graph.bindings):
+        consumer_layer = graph.components.get(consumer)
+        provider_layer = graph.components.get(provider)
+        if consumer_layer is None or provider_layer is None:
+            continue
+        if binding_is_allowed(consumer_layer, provider_layer):
+            continue
+        direction = (
+            "upward"
+            if layer_index(provider_layer) > layer_index(consumer_layer)
+            else "past a layer"
+        )
+        out.append(
+            f"{consumer} ({consumer_layer}) binds {provider} ({provider_layer}) "
+            f"-- {direction}"
+        )
+    return sorted(out)
+
+
 # ---------------------------------------------------------------------------
 # Rendering
 # ---------------------------------------------------------------------------
@@ -860,6 +891,14 @@ def main() -> int:
             print(f"  TRUTH BOUNDARY {violation}")
         print("\nOnly equipment-layer components may read ground truth "
               "(invariant 1, ADR 0008).")
+        return 1
+
+    crossings = layer_violations(graph)
+    if crossings:
+        for crossing in crossings:
+            print(f"  LAYER {crossing}")
+        print("\nA component may bind the layer directly below it and peers in "
+              "its own layer. Nothing binds upward. See docs/10-concepts.md.")
         return 1
 
     blocks = {

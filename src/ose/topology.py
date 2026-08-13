@@ -37,6 +37,36 @@ LAYER_PACKAGES = {
     "multi_ship": "ose.multi_ship",
 }
 
+# Bottom-up, and the order is load-bearing rather than presentational: it is
+# what "the layer below" means. Read through layer_index() rather than by
+# indexing LAYER_PACKAGES directly, so the dependency on ordering is stated
+# where it is relied on.
+LAYER_ORDER = tuple(LAYER_PACKAGES)
+
+
+def layer_index(layer: str) -> int:
+    """How far up the stack a layer sits. Equipment is 0."""
+    return LAYER_ORDER.index(layer)
+
+
+def binding_is_allowed(consumer_layer: str, provider_layer: str) -> bool:
+    """Whether a component in one layer may hold a reference to one in another.
+
+    A component may bind to the layer directly below it and to peers in the
+    same layer. Nothing binds upward, and nothing reaches past a layer -- a
+    single-ship component binding equipment would skip the subsystem that
+    exists to integrate it, which is the coupling the layering is for.
+
+    Stated in docs/10-concepts.md and CLAUDE.md, and enforced in two places
+    that catch different things: tests/test_layer_discipline.py over imports,
+    which sees a component naming another directly, and the architecture
+    generator over derived bindings, which sees one bound through a protocol
+    with no import to give it away.
+    """
+    gap = layer_index(consumer_layer) - layer_index(provider_layer)
+    return gap in (0, 1)
+
+
 # The layers whose components have a physical part, and therefore the only
 # ones that may read ground truth (invariant 1, ADR 0008). A frozenset rather
 # than a single name because the boundary is a property of the layer, not of
