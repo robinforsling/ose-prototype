@@ -34,6 +34,7 @@ the Python, where nothing is bold either (ADR 0018).
 | $f$ | vector field, 5 | system dynamics |
 | $G$ | matrix, 5×2 | noise input |
 | $U$, $X$ | sets | admissible commands, admissible states |
+| $V$ | set | admissible airspeed band at a given mass |
 | everything else | scalar | $v$, $m$, $T$, $\omega$, $c_p$, … |
 
 ---
@@ -168,8 +169,21 @@ U(x) = \lbrace \thinspace u : T_{\min} \le T \le T_{\max},\ |\omega| \le \omega_
 $$
 
 $$
-X(\lambda) = \lbrace \thinspace x : v_{\mathrm{s}}(m,1) \le v \le v_{\max},\ v \ge v_{\min},\ m_{\mathrm{dry}} \le m \le m_{\max} \thinspace \rbrace
+V(m, \lambda) = \lbrace \thinspace v : \max(v_{\mathrm{s}}(m,1),\ v_{\min}) \le v \le v_{\max} \thinspace \rbrace
 $$
+
+$$
+X(\lambda) = \lbrace \thinspace x : v \in V(m, \lambda),\ m_{\mathrm{dry}} \le m \le m_{\max} \thinspace \rbrace
+$$
+
+$V$ is the composed speed floor `v_min_achievable_mps()` returns and
+`Capability` publishes: whichever of stall-at-this-mass and the airframe's hard
+minimum binds. Factoring it out is what lets $X$ carry no state argument.
+Writing $X(x, \lambda)$ would be ill formed --- membership is $x \in X(\lambda)$,
+and a set cannot depend on the point being tested for it. The dependence is
+*within* $x$, not *on* it, which is what makes $X$ a curved region rather than a
+box. $U(x)$ by contrast takes a genuine state argument, because it is a set of
+*commands*: fix a state, then ask what is admissible.
 
 **The vehicle declares these and does not apply them** (ADR 0006).
 `project_command()` *offers* a projection onto $U$ and returns a

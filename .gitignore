@@ -79,6 +79,16 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
+# LaTeX build artifacts. The model document is built with pdflatex (SETUP.md)
+# and the PDF is tracked deliberately -- it is the artefact a reader opens --
+# but the intermediates it leaves behind are not.
+*.aux
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
 # Flask stuff:
 instance/
 .webassets-cache

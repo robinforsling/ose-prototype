@@ -33,6 +33,7 @@
 % fifteen lines rather than across a hundred and sixty call sites.
 \newcommand{\Xset}{X}
 \newcommand{\Uset}{U}
+\newcommand{\Vset}{V}
 \newcommand{\Qset}{Q}
 \newcommand{\Sset}{S}
 \newcommand{\vecx}{x}
@@ -383,15 +384,43 @@ The admissible input set is
   \right\}.
   \label{eq:U}
 \end{equation}
-The admissible state set is
+The admissible speed band is
+\begin{equation}
+  \Vset(m, \veclambda) = \left\{
+    v : \max\!\left(v_{\mathrm{s}}(m,1),\, v_{\min}\right) \le v \le v_{\max}
+  \right\},
+  \label{eq:V}
+\end{equation}
+where $v_{\mathrm{s}}$ is the stall speed defined in \cref{eq:v-stall}, and the
+admissible state set is
 \begin{equation}
   \Xset(\veclambda) = \left\{
-    \vecx : v_{\mathrm{s}}(m,1) \le v \le v_{\max},\;
-    v \ge v_{\min},\; m_{\mathrm{dry}} \le m \le m_{\max}
-  \right\},
+    \vecx : v \in \Vset(m, \veclambda),\;
+    m_{\mathrm{dry}} \le m \le m_{\max}
+  \right\}.
   \label{eq:X}
 \end{equation}
-where $v_{\mathrm{s}}$ is the stall speed defined in \cref{eq:v-stall}.
+
+\begin{remark}[Why $\Xset$ carries no state argument]
+\label{rem:X-not-state-dependent}
+The speed band depends on mass, and mass is a component of the state, so it is
+tempting to write $\Xset(\vecx, \veclambda)$. That would be ill formed:
+membership is the statement $\vecx \in \Xset(\veclambda)$, and a set that
+depended on the point being tested would have to exist before it could be
+constructed.
+
+The dependence is \emph{within} $\vecx$, not \emph{on} it. In the set builder
+above, $\vecx$ is bound, and its components may be coupled freely --- which is
+exactly what makes $\Xset$ a curved region of state space rather than a box.
+Factoring the speed band out as $\Vset(m, \veclambda)$ states that coupling
+where it lives, and is well formed because $\Vset$ is parameterised by mass and
+constrains airspeed.
+
+Contrast $\Uset(\vecx, \veclambda)$, whose state argument is genuine: it is a
+set of \emph{inputs}, so the state is exogenous to it. One fixes a state and
+then asks which commands are admissible. In $\Xset$ the state is the variable
+being quantified, not a parameter.
+\end{remark}
 
 \begin{remark}[The mass ceiling is a loading constraint, not a flight one]
 $m \le m_{\max}$ is the only element of $\Xset$ that cannot be violated by
@@ -664,11 +693,16 @@ The mode dependent input set is
     |\omega| \le \omega_{\max}(v, m)
   \right\},
 \end{equation}
+the mode dependent speed band is
+\begin{equation}
+  \Vset_q(m, \veclambda) = \left\{
+    v : \max\!\left(v_{\mathrm{s}}(m,1),\, v_{\min}\right) \le v \le v^{q}_{\max}
+  \right\},
+\end{equation}
 and the mode dependent state set is
 \begin{equation}
   \Xset_q(\veclambda) = \left\{
-    \vecx : v_{\mathrm{s}}(m,1) \le v \le v^{q}_{\max},\;
-    v \ge v_{\min},\;
+    \vecx : v \in \Vset_q(m, \veclambda),\;
     m_{\mathrm{dry}} \le m \le m_{\max},\;
     0 \le s \le s_{\max}
   \right\}.

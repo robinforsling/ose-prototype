@@ -32,6 +32,7 @@ drawn. Only the entries that differ from the baseline are listed.
 | $Q$ | set | $\lbrace \mathrm{nom},\ \mathrm{boost}\rbrace $ |
 | $S_q$ | set-valued map | modes reachable from $q$ — see section 3 |
 | $X_q$ | set | admissible states in mode $q$ |
+| $V_q$ | set | admissible airspeed band in mode $q$, at a given mass |
 | $f_q$ | vector field, 6 | system dynamics in mode $q$ |
 | $\chi[\thinspace \cdot\thinspace ]$ | indicator | 1 if the condition holds, 0 otherwise |
 | $s$ | scalar | thermal accumulator, normalised to $s_{\max} = 1$ |
@@ -183,7 +184,11 @@ whenever the delivered mode differs from the current one, including when the
 vehicle forced the fallback.
 
 $$
-X_q(\lambda) = \lbrace \thinspace x : v_{\mathrm{s}}(m,1) \le v \le v^{q}_{\max},\ v \ge v_{\min},\ m_{\mathrm{dry}} \le m \le m_{\max},\ 0 \le s \le s_{\max} \thinspace \rbrace
+V_q(m, \lambda) = \lbrace \thinspace v : \max(v_{\mathrm{s}}(m,1),\ v_{\min}) \le v \le v^{q}_{\max} \thinspace \rbrace
+$$
+
+$$
+X_q(\lambda) = \lbrace \thinspace x : v \in V_q(m, \lambda),\ m_{\mathrm{dry}} \le m \le m_{\max},\ 0 \le s \le s_{\max} \thinspace \rbrace
 $$
 
 ---
