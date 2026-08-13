@@ -353,12 +353,31 @@ class VehicleManager:
         R is the variance the measurement declared, never a configured one
         (invariant 4). A gauge that reports a worse sigma is trusted less, and
         this component has no opinion about whether that sigma is right.
+
+        The payload is subtracted first, because the gauge and this component
+        do not mean the same thing by "fuel". A fuel gauge reports the mass
+        above DRY -- it has no way to know what a platform is carrying, and
+        should not -- while this component decomposes mass as dry + payload +
+        fuel. The two agree only on a clean aircraft.
+
+        Correcting on the raw reading put the payload into the fuel state and
+        then added it again in the mass sum, so a platform with 500 kg of
+        stores believed itself 500 kg heavier than it was, at a stated sigma
+        of 1.4 kg -- 351 sigma wrong while looking perfectly confident. Every
+        fixture in the tests left payload at zero, where the two definitions
+        coincide and nothing could go wrong.
+
+        Subtracting here rather than configuring the gauge with dry + payload
+        is what lets payload become a runtime quantity: a payload manager that
+        publishes the current mass as stores are released would leave a
+        gauge-side constant stale from the first release onwards.
         """
         H = np.zeros((1, N_ERR))
         H[0, I_FUEL] = 1.0
         R = np.array([[m.fuel_remaining_sigma_kg**2]])
 
-        innovation = m.fuel_remaining_kg - self._fuel_kg
+        observed_fuel_kg = m.fuel_remaining_kg - self.par.payload_mass_kg
+        innovation = observed_fuel_kg - self._fuel_kg
         S = H @ self.P @ H.T + R
         K = self.P @ H.T @ np.linalg.inv(S)
 

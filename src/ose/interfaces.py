@@ -221,9 +221,20 @@ class ClockMeasurement:
 
 @dataclass(frozen=True)
 class FuelMeasurement:
-    """A direct reading of remaining fuel mass, not an integrated one --
-    unlike Imu/Clock there is no drift term here, just additive white
-    noise."""
+    """A direct reading of the mass a platform carries above its dry mass --
+    not an integrated one; unlike Imu/Clock there is no drift term here, just
+    additive white noise.
+
+    `fuel_remaining_kg` is fuel only on a clean aircraft. A gauge cannot know
+    what a platform is carrying, so this is mass above dry, and a consumer
+    that decomposes mass as dry + payload + fuel must subtract the payload it
+    believes in before treating this as fuel. VehicleManager does; correcting
+    on the raw reading double-counted the payload. See ADR 0026.
+
+    The field name predates the distinction and is kept, because renaming a
+    published field is not backward compatible and would cost a version
+    increment for a clarification the docstring can carry.
+    """
 
     # Minted with the registry (ADR 0020). The other four sensing interfaces
     # had names in docs/interfaces/README.md and this one did not, which is

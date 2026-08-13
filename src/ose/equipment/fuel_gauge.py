@@ -6,11 +6,29 @@ this layer has. Publishes FuelMeasurement, which carries no truth. See
 ADR 0008.
 
 Unlike Imu or Clock, this sensor has no drift term and needs none: it reads
-a quantity (remaining fuel), not a rate that must be integrated to be
-useful, so a single additive white-noise term is the whole error model.
+a quantity, not a rate that must be integrated to be useful, so a single
+additive white-noise term is the whole error model.
+
+WHAT IT ACTUALLY REPORTS
+------------------------
+Mass above DRY, not fuel. The two differ by whatever the platform is
+carrying, and this component has no way to know that and no business
+knowing it -- a fuel gauge measures a tank, not a loadout.
+
+The distinction is not pedantic. VehicleManager decomposes mass as
+dry + payload + fuel and used to correct its fuel state on this reading
+directly, which put the payload into the fuel state and then added it again
+in the mass sum: a platform with 500 kg of stores believed itself 500 kg
+heavy at a stated sigma of 1.4 kg. Every fixture left payload at zero, where
+the two definitions coincide. The manager now subtracts the payload it
+believes in; see ADR 0026.
+
 mass_dry_kg is a vehicle design constant (a Constraints field), not runtime
-truth, so holding it here is no different from Imu holding a PlanarPointMass
-reference for drag_N.
+truth. It is a COPY of one, though, taken at construction -- which is the
+one way this differs from Imu holding a vehicle reference for drag_N, since
+a reference cannot go stale and a copy can. It is also a dependency on the
+vehicle that no signature carries, so the architecture diagram and the
+composition descriptors both miss it. Both are recorded in ADR 0025.
 
 Rate-limiting is the caller's responsibility -- sample() is expected to be
 called only when due, per the ordering contract in ADR 0009. due() is

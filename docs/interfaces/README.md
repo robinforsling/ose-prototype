@@ -151,6 +151,16 @@ via `due()` at `fuel_rate_hz`. Carries `fuel_remaining_kg` -- true mass less
 dry mass, corrupted by additive white noise -- with its declared
 `fuel_remaining_sigma_kg`.
 
+**It is fuel only on a clean aircraft.** A gauge measures a tank and cannot
+know what a platform is carrying, so what this reports is mass above *dry*, and
+a consumer decomposing mass as dry + payload + fuel must subtract the payload
+it believes in first. `VehicleManager` does. Correcting on the raw reading put
+the payload into the fuel state and added it again in the mass sum, leaving a
+platform with 500 kg of stores believing itself 500 kg heavy at a stated sigma
+of 1.4 kg. The field name predates the distinction and is kept, since renaming
+a published field would cost a version increment for a clarification the
+documentation can carry. See ADR 0026.
+
 A direct reading rather than an integrated one, which is what distinguishes it
 from `sensing.imu.v1` and `sensing.clock.v1`: there is no drift term and no
 bias, so the consumer's filter needs no state for the sensor itself. The burn

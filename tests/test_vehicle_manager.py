@@ -373,7 +373,7 @@ def throttled(t_s: float) -> float:
 
 
 def _fly_one(seed: int, checkpoints, dt: float, thrust=cruise, gauge_par=GAUGE,
-             extra_drain_kg_s: float = 0.0):
+             extra_drain_kg_s: float = 0.0, payload_kg: float = 0.0):
     """One ensemble member. Returns (fuel NEES, full-state NEES) per checkpoint.
 
     Truth is drawn from the priors the filter declares -- the burn
@@ -388,6 +388,15 @@ def _fly_one(seed: int, checkpoints, dt: float, thrust=cruise, gauge_par=GAUGE,
     extra_drain_kg_s burns fuel that the filter's model knows nothing about.
     Zero for the consistency tests; non-zero only to prove those tests can
     actually fail.
+
+    payload_kg exists because every fixture in this file used to leave it at
+    zero, and a whole class of error is invisible there. The gauge reports mass
+    above DRY, while the manager decomposes mass as dry + payload + fuel, so
+    the two agree only when there is no payload -- and a filter corrected on a
+    reading that silently includes payload absorbs it and reports a mass wrong
+    by exactly that much, at a stated sigma of about 1.4 kg. This is the same
+    shape as the navigation bug in CLAUDE.md, which was invisible in straight
+    flight: excite the thing the fixture holds constant.
     """
     streams = np.random.SeedSequence(seed).spawn(2)
     truth_rng = np.random.default_rng(streams[0])
@@ -407,9 +416,11 @@ def _fly_one(seed: int, checkpoints, dt: float, thrust=cruise, gauge_par=GAUGE,
         nominal.eta,
     )
     gauge = FuelGauge(gauge_par, vehicle.lam.mass_dry_kg, gauge_rng)
-    manager = VehicleManager(vehicle, STANDARD)
+    manager = VehicleManager(vehicle, _params(payload_mass_kg=payload_kg))
 
-    state = VehicleState(0.0, 0.0, 0.0, 250.0, vehicle.lam.mass_dry_kg + fuel0)
+    state = VehicleState(
+        0.0, 0.0, 0.0, 250.0, vehicle.lam.mass_dry_kg + payload_kg + fuel0
+    )
 
     out, k, t = [], 0, 0.0
     while k < len(checkpoints):
@@ -422,13 +433,14 @@ def _fly_one(seed: int, checkpoints, dt: float, thrust=cruise, gauge_par=GAUGE,
             state = dataclasses.replace(
                 state,
                 mass_kg=max(state.mass_kg - extra_drain_kg_s * dt,
-                            vehicle.lam.mass_dry_kg),
+                            vehicle.lam.mass_dry_kg + payload_kg),
             )
         t += dt
         if t >= checkpoints[k] - 1e-9:
             est = manager.mass(t)
             error = np.array([
-                est.fuel_mass_kg - (state.mass_kg - vehicle.lam.mass_dry_kg),
+                est.fuel_mass_kg
+                - (state.mass_kg - vehicle.lam.mass_dry_kg - payload_kg),
                 est.tsfc_error - tsfc_error,
             ])
             out.append((
@@ -442,8 +454,9 @@ def _fly_one(seed: int, checkpoints, dt: float, thrust=cruise, gauge_par=GAUGE,
 CHECKPOINTS = [10.0, 30.0, 60.0, 100.0, 150.0]
 
 
+@pytest.mark.parametrize("payload_kg", [0.0, 750.0], ids=["clean", "loaded"])
 @pytest.mark.parametrize("thrust", [cruise, throttled], ids=["cruise", "throttled"])
-def test_the_filter_is_consistent_through_the_run(thrust):
+def test_the_filter_is_consistent_through_the_run(thrust, payload_kg):
     """The honesty test. Ensemble-average NEES must sit near its expectation
     at every checkpoint, not only at the end.
 
@@ -462,7 +475,8 @@ def test_the_filter_is_consistent_through_the_run(thrust):
     95 per cent band on the mean of N samples is k +- 1.96*sqrt(2k/N).
     """
     n_runs = 100
-    rows = np.array([_fly_one(s, CHECKPOINTS, dt=0.25, thrust=thrust)
+    rows = np.array([_fly_one(s, CHECKPOINTS, dt=0.25, thrust=thrust,
+                              payload_kg=payload_kg)
                      for s in range(n_runs)])          # (run, checkpoint, 2)
 
     for dof, channel, label in ((1, 0, "fuel"), (2, 1, "whole state")):

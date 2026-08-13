@@ -149,7 +149,9 @@ FUEL_GAUGE = ComponentDescriptor(
     implementation="ose.equipment.fuel_gauge:FuelGauge",
     provides=(Port("reading", "sensing.fuel.v1"),),
     # Its dependency on the vehicle arrives as mass_dry_kg: float and has no
-    # port to declare. See the module docstring.
+    # port to declare. See the module docstring. What it publishes is mass
+    # above dry rather than fuel, which the vehicle manager reconciles against
+    # the payload it believes in (ADR 0026).
     consumes=Consumes(
         mass_kg=1.2, power_kw={"cruise": 0.01}, station_type="internal"
     ),
