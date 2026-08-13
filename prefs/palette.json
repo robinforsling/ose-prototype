@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "roles": {
+    "equipment":   {"fill": "#b8d8f5", "stroke": "#245a87", "text": "#0b1a28"},
+    "subsystem":   {"fill": "#c2e3b4", "stroke": "#376e32", "text": "#101f0e"},
+    "single_ship": {"fill": "#f6dba4", "stroke": "#96690f", "text": "#241a06"},
+    "multi_ship":  {"fill": "#dcc4ef", "stroke": "#5f4494", "text": "#1b1026"},
+    "truth":       {"fill": "#f7c7c1", "stroke": "#9c453e", "text": "#2c0e0c"},
+    "neutral":     {"fill": "#dedede", "stroke": "#767676", "text": "#1a1a1a"}
+  }
+}
