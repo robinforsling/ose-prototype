@@ -23,7 +23,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 GENERATOR = ROOT / "tools" / "generate_architecture_diagram.py"
 PAGE = ROOT / "docs" / "20-architecture.md"
 

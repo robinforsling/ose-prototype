@@ -166,7 +166,7 @@ def test_no_interface_is_both_implemented_and_planned():
     """
     from pathlib import Path
 
-    page = (Path(__file__).resolve().parents[1] / "docs" / "interfaces"
+    page = (Path(__file__).resolve().parents[2] / "docs" / "interfaces"
             / "README.md").read_text()
     planned = page.split("## Planned", 1)[1].split("## Implemented interfaces", 1)[0]
     listed = set(re.findall(r"`([a-z0-9_.]+\.v[0-9]+)`", planned))
@@ -188,7 +188,7 @@ def test_every_implemented_interface_is_written_up():
     """
     from pathlib import Path
 
-    page = (Path(__file__).resolve().parents[1] / "docs" / "interfaces"
+    page = (Path(__file__).resolve().parents[2] / "docs" / "interfaces"
             / "README.md").read_text()
     documented = set(re.findall(r"^### `([^`]+)`", page, re.M))
 

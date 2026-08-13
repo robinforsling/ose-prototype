@@ -5,6 +5,10 @@ sigma is honest -- the property the whole split exists to make checkable, per
 ADR 0009 and the testing philosophy in CLAUDE.md.
 """
 
+# Default category for this file; a test that differs carries its own
+# marker, which wins. See tests/conftest.py.
+TEST_KIND = "unit"
+
 import dataclasses
 import math
 
@@ -101,6 +105,7 @@ def test_imu_mean_matches_true_specific_force_plus_bias(imu_draws):
     assert abs(omega_residual.mean()) < 5.0 * se_omega
 
 
+@pytest.mark.performance
 def test_imu_std_matches_declared_sigma(imu_draws):
     par, dt, f_residual, omega_residual = imu_draws
     declared_f = par.accel_noise_density / math.sqrt(dt)
@@ -149,6 +154,7 @@ def test_gnss_returns_none_while_denied_and_fix_once_restored():
     assert gnss.sample(2.0, state, dist) is not None
 
 
+@pytest.mark.performance
 def test_gnss_fix_declares_configured_sigma():
     par = dataclasses.replace(GNSS_STANDARD, gnss_position_sigma_m=7.0, gnss_velocity_sigma_mps=0.3)
     gnss = GnssReceiver(par, rng=np.random.default_rng(0))
@@ -157,6 +163,7 @@ def test_gnss_fix_declares_configured_sigma():
     assert fix.velocity_sigma_mps == 0.3
 
 
+@pytest.mark.performance
 def test_gnss_position_noise_std_matches_declared_sigma():
     par = GNSS_STANDARD
     gnss = GnssReceiver(par, rng=np.random.default_rng(4))
@@ -185,6 +192,7 @@ def test_gnss_velocity_disabled_omits_velocity():
 # Air data
 # --------------------------------------------------------------------------
 
+@pytest.mark.performance
 def test_air_data_declares_configured_sigma():
     par = dataclasses.replace(AIR_DATA_STANDARD, air_data_sigma_mps=2.0)
     air = AirDataSensorImpl(par, rng=np.random.default_rng(0))
@@ -192,6 +200,7 @@ def test_air_data_declares_configured_sigma():
     assert m.airspeed_sigma_mps == 2.0
 
 
+@pytest.mark.performance
 def test_air_data_noise_std_matches_declared_sigma():
     par = AIR_DATA_STANDARD
     air = AirDataSensorImpl(par, rng=np.random.default_rng(5))

@@ -5,6 +5,10 @@ happened to come out of a run. A failure means either the model changed or the
 document is no longer being honoured -- both worth knowing about.
 """
 
+# Default category for this file; a test that differs carries its own
+# marker, which wins. See tests/conftest.py.
+TEST_KIND = "unit"
+
 import dataclasses
 import math
 
@@ -184,6 +188,7 @@ def test_sustained_never_exceeds_instantaneous(vehicle):
         )
 
 
+@pytest.mark.performance
 def test_sustained_turn_actually_holds_speed(vehicle, state):
     """Integrate a sustained-rate turn: airspeed must not decay."""
     v0 = state.v_mps

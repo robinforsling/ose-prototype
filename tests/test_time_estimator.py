@@ -14,6 +14,10 @@ truth-carrying type in the signature, and purity as a function of the
 measurement stream.
 """
 
+# Default category for this file; a test that differs carries its own
+# marker, which wins. See tests/conftest.py.
+TEST_KIND = "unit"
+
 import ast
 from pathlib import Path
 
@@ -37,6 +41,7 @@ from ose.subsystem.time_state_estimator import TimeEstimator, TimeEstimatorParam
 # The truth boundary
 # --------------------------------------------------------------------------
 
+@pytest.mark.conformance
 def test_estimator_cannot_see_truth():
     path = component_path("subsystem", "time_state_estimator.py")
     assert_no_equipment_imports(path)
@@ -141,6 +146,7 @@ def test_uncertainty_grows_monotonically():
 # --------------------------------------------------------------------------
 
 @pytest.mark.parametrize("seed", [0, 1, 2, 3])
+@pytest.mark.performance
 def test_offset_uncertainty_is_consistent(seed):
     """NEES of platform_time_s against the true accumulated elapsed time,
     which only this test tracks -- the estimator never sees it. NEES far

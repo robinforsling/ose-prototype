@@ -17,6 +17,10 @@ enforce, and integrating a mode outside S_q produces a visible finding rather
 than a silent substitution.
 """
 
+# Default category for this file; a test that differs carries its own
+# marker, which wins. See tests/conftest.py.
+TEST_KIND = "unit"
+
 import dataclasses
 import math
 
@@ -285,6 +289,7 @@ def test_capability_is_a_capability(vehicle, state):
     assert isinstance(c, Capability)
 
 
+@pytest.mark.performance
 def test_boost_shortens_endurance_and_raises_available_thrust(vehicle, state):
     nom = vehicle.capability(_at(state, Mode.NOMINAL))
     boost = vehicle.capability(_at(state, Mode.BOOST))

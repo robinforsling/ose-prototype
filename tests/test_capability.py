@@ -15,6 +15,10 @@ delivers what it claimed, which is the one thing capability() promises to
 answer without integrating.
 """
 
+# Default category for this file; a test that differs carries its own
+# marker, which wins. See tests/conftest.py.
+TEST_KIND = "integration"
+
 import dataclasses
 import importlib
 import inspect
@@ -168,6 +172,7 @@ def test_every_sensor_declares_at_least_one_channel(vehicle):
 # Vehicle: claims checked against integrated dynamics
 # --------------------------------------------------------------------------
 
+@pytest.mark.performance
 def test_claimed_sustained_turn_rate_holds_speed(vehicle, state):
     """omega_sustained is claimed to be holdable without losing speed. Fly
     it and check. This is the claim a planner leans on hardest, because it
@@ -181,6 +186,7 @@ def test_claimed_sustained_turn_rate_holds_speed(vehicle, state):
     assert flown.v_mps >= state.v_mps - 0.1
 
 
+@pytest.mark.performance
 def test_claimed_instantaneous_turn_rate_is_not_sustainable(vehicle, state):
     """The converse claim, and the one that makes omega_available honest
     rather than merely optimistic: the instantaneous limit is achievable
@@ -193,6 +199,7 @@ def test_claimed_instantaneous_turn_rate_is_not_sustainable(vehicle, state):
     assert flown.v_mps < state.v_mps - 10.0
 
 
+@pytest.mark.performance
 def test_claimed_turn_radius_matches_flown_radius(vehicle, state):
     """turn_radius_min_m is claimed as v / omega_available. Fly a full
     instantaneous-rate turn and measure the radius actually described."""
@@ -217,6 +224,7 @@ def test_claimed_turn_radius_matches_flown_radius(vehicle, state):
     assert flown_radius == pytest.approx(c.turn_radius_min_m, rel=0.1)
 
 
+@pytest.mark.performance
 def test_claimed_max_acceleration_is_achievable(vehicle, state):
     """accel_max_mps2 is claimed for the current instant at full thrust,
     wings level. Check the dynamics agree at that instant."""
@@ -226,6 +234,7 @@ def test_claimed_max_acceleration_is_achievable(vehicle, state):
     assert v_dot == pytest.approx(c.accel_max_mps2, rel=1e-9)
 
 
+@pytest.mark.performance
 def test_claimed_min_acceleration_is_achievable(vehicle, state):
     c = vehicle.capability(state)
     cmd = VehicleCommand(vehicle.lam.thrust_min_N, 0.0)
@@ -233,6 +242,7 @@ def test_claimed_min_acceleration_is_achievable(vehicle, state):
     assert v_dot == pytest.approx(c.accel_min_mps2, rel=1e-9)
 
 
+@pytest.mark.performance
 def test_claimed_thrust_required_actually_holds_speed(vehicle, state):
     """thrust_required_N is claimed to hold the current speed. Fly it
     wings-level and check speed is steady."""
@@ -243,6 +253,7 @@ def test_claimed_thrust_required_actually_holds_speed(vehicle, state):
     assert abs(flown.v_mps - state.v_mps) < 2.0
 
 
+@pytest.mark.performance
 def test_claimed_endurance_is_honest(vehicle, state):
     """endurance_s claims how long the fuel lasts at the current burn rate.
 
@@ -272,6 +283,7 @@ def test_claimed_endurance_is_honest(vehicle, state):
     assert fuel_left < 0.01 * c.fuel_mass_kg
 
 
+@pytest.mark.performance
 def test_claimed_speed_band_agrees_with_admissibility(vehicle, state):
     """v_min/v_max_achievable claim the band the vehicle can hold. The
     vehicle's own admissible() is the independent authority on that, so the
@@ -289,6 +301,7 @@ def test_claimed_speed_band_agrees_with_admissibility(vehicle, state):
     assert not at(c.v_max_achievable_mps + 1.0)
 
 
+@pytest.mark.performance
 def test_claimed_speed_floor_reports_whichever_limit_binds(vehicle):
     """The floor is composed of two limits and must report the binding one.
 
@@ -329,6 +342,7 @@ def test_capability_degrades_as_fuel_burns(vehicle, state):
     assert light.fuel_mass_kg < heavy.fuel_mass_kg
 
 
+@pytest.mark.performance
 def test_dry_tanks_claim_no_thrust_and_no_endurance(vehicle):
     """At dry mass the vehicle claims no thrust available. A planner that
     trusts a non-zero claim here would plan flight it cannot perform."""
@@ -418,6 +432,7 @@ def test_imu_declares_densities_and_owns_no_rate():
     )
 
 
+@pytest.mark.performance
 def test_clock_owns_no_rate_but_declares_a_true_sigma():
     """Unlike the IMU, the clock's white noise is a fixed per-reading
     jitter, so its declared sigma is directly comparable to what its

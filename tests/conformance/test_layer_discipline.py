@@ -32,7 +32,7 @@ from pathlib import Path
 
 from ose.topology import LAYER_PACKAGES, binding_is_allowed
 
-SRC = Path(__file__).resolve().parents[1] / "src"
+SRC = Path(__file__).resolve().parents[2] / "src"
 
 # Reference configurations are data, not components. They may name whatever
 # they configure.

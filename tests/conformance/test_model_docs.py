@@ -25,7 +25,7 @@ from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 GENERATOR = ROOT / "tools" / "generate_model_docs.py"
 DOCS = ROOT / "docs" / "models" / "vehicle"
 

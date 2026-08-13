@@ -12,6 +12,10 @@ estimator's signature contains no truth-carrying type, and that it is a pure
 function of the measurement stream it is fed.
 """
 
+# Default category for this file; a test that differs carries its own
+# marker, which wins. See tests/conftest.py.
+TEST_KIND = "integration"
+
 import ast
 import math
 from dataclasses import dataclass
@@ -169,6 +173,7 @@ def vehicle():
 # The truth boundary
 # --------------------------------------------------------------------------
 
+@pytest.mark.conformance
 def test_estimator_cannot_see_truth():
     """Blunt by design: fails loudly if truth is reintroduced for convenience."""
     path = component_path("subsystem", "navigation_state_estimator.py")
@@ -247,6 +252,7 @@ def test_replay_determinism(vehicle):
 # --------------------------------------------------------------------------
 
 @pytest.mark.parametrize("seed", [0, 1, 2, 3])
+@pytest.mark.performance
 def test_filter_is_consistent(vehicle, seed):
     """Normalised estimation error squared must be of order one.
 
@@ -278,6 +284,7 @@ def _anees(errors, covariances):
 
 
 @pytest.mark.parametrize("seed", [0, 1, 2, 3])
+@pytest.mark.performance
 def test_the_whole_published_estimate_is_consistent(vehicle, seed):
     """All four published channels at once, against the full 4x4 covariance.
 
@@ -313,6 +320,7 @@ def test_the_whole_published_estimate_is_consistent(vehicle, seed):
 
 
 @pytest.mark.parametrize("seed", [0, 1, 2])
+@pytest.mark.performance
 def test_the_error_states_no_consumer_reads_are_consistent(vehicle, seed):
     """The IMU biases and the wind never reach a consumer, so no published
     channel moves when they go wrong -- and every test above would still pass.
@@ -347,6 +355,8 @@ def test_the_error_states_no_consumer_reads_are_consistent(vehicle, seed):
         )
 
 
+@pytest.mark.slow
+@pytest.mark.performance
 def test_air_data_holds_airspeed_while_gnss_is_out(vehicle):
     """The aiding sources are not interchangeable, and losing one must degrade
     only what it was aiding.
@@ -387,6 +397,7 @@ def test_air_data_holds_airspeed_while_gnss_is_out(vehicle):
 
 
 @pytest.mark.parametrize("initial_error_deg", [5.0, 15.0])
+@pytest.mark.performance
 def test_a_badly_initialised_heading_converges(vehicle, initial_error_deg):
     """Alignment is somebody else's problem (the estimator takes a numeric
     guess, never truth) so it must tolerate a bad one.
@@ -434,6 +445,7 @@ def test_a_badly_initialised_heading_converges(vehicle, initial_error_deg):
 
 
 @pytest.mark.parametrize("seed", [0, 1, 2])
+@pytest.mark.performance
 def test_position_error_within_three_sigma(vehicle, seed):
     rows, _ = _fly(vehicle, 200.0, seed=seed, collect_from=30.0)
 
@@ -469,6 +481,7 @@ def test_turning_makes_heading_observable(vehicle):
     assert math.sqrt(after.covariance[2, 2] / before.covariance[2, 2]) < 0.1
 
 
+@pytest.mark.performance
 def test_wind_is_estimated_after_a_turn(vehicle):
     """Wind needs heading diversity: unobservable straight, recovered by turning."""
     rows, _ = _fly(vehicle, 200.0, seed=0, wind=(12.0, -18.0))
@@ -480,6 +493,8 @@ def test_wind_is_estimated_after_a_turn(vehicle):
 # Degraded operation
 # --------------------------------------------------------------------------
 
+@pytest.mark.slow
+@pytest.mark.performance
 def test_gnss_outage_grows_uncertainty_and_recovers(vehicle):
     rows, _ = _fly(vehicle, 320.0, seed=0, outage=(150.0, 250.0))
 
@@ -492,6 +507,8 @@ def test_gnss_outage_grows_uncertainty_and_recovers(vehicle):
     assert after < 2.0 * before
 
 
+@pytest.mark.slow
+@pytest.mark.performance
 def test_outage_error_stays_within_its_own_bound(vehicle):
     """Dead reckoning must remain consistent, not merely bounded."""
     rows, _ = _fly(vehicle, 260.0, seed=1, outage=(150.0, 250.0), collect_from=150.0)

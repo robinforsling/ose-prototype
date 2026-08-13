@@ -24,6 +24,10 @@ at all: a belief that does not move the reported envelope is not being bound
 to anything.
 """
 
+# Default category for this file; a test that differs carries its own
+# marker, which wins. See tests/conftest.py.
+TEST_KIND = "integration"
+
 import ast
 import dataclasses
 import math
@@ -106,12 +110,14 @@ def manager(vehicle):
 # The truth boundary
 # --------------------------------------------------------------------------
 
+@pytest.mark.conformance
 def test_manager_cannot_see_truth():
     path = component_path("subsystem", "vehicle_manager.py")
     assert_no_truth_types(path)
     assert_no_truth_parameters(path)
 
 
+@pytest.mark.conformance
 def test_no_cyber_component_reads_the_true_burn_coefficient():
     """The burn coefficient a filter predicts with must be the platform's
     BELIEF, never the coefficient the vehicle actually burns at.
@@ -187,6 +193,7 @@ def test_answers_before_any_measurement(manager):
     assert est.mass_sigma_kg == pytest.approx(STANDARD.initial_fuel_sigma_kg)
 
 
+@pytest.mark.performance
 def test_mass_sigma_is_the_fuel_sigma(manager):
     """Dry mass and payload are exact, so the uncertainty in the mass is
     exactly the uncertainty in the fuel. Derived from the covariance rather
@@ -208,6 +215,7 @@ def test_a_measurement_moves_the_belief_and_sharpens_it(manager):
     assert post.mass_sigma_kg < prior.mass_sigma_kg
 
 
+@pytest.mark.performance
 def test_a_worse_declared_sigma_is_trusted_less(vehicle):
     """Invariant 4. The declared uncertainty travelling with the measurement
     is what sets the gain, not a configured value of the manager's own, so a
@@ -456,6 +464,8 @@ CHECKPOINTS = [10.0, 30.0, 60.0, 100.0, 150.0]
 
 @pytest.mark.parametrize("payload_kg", [0.0, 750.0], ids=["clean", "loaded"])
 @pytest.mark.parametrize("thrust", [cruise, throttled], ids=["cruise", "throttled"])
+@pytest.mark.slow
+@pytest.mark.performance
 def test_the_filter_is_consistent_through_the_run(thrust, payload_kg):
     """The honesty test. Ensemble-average NEES must sit near its expectation
     at every checkpoint, not only at the end.
@@ -490,6 +500,7 @@ def test_the_filter_is_consistent_through_the_run(thrust, payload_kg):
             )
 
 
+@pytest.mark.slow
 def test_the_whole_state_is_checked_not_just_the_fuel():
     """Why the test above checks two degrees of freedom rather than one.
 
@@ -530,6 +541,7 @@ def test_the_whole_state_is_checked_not_just_the_fuel():
     )
 
 
+@pytest.mark.slow
 def test_consistency_survives_a_worse_gauge():
     """The filter must be honest against whatever gauge is bolted to it, not
     only against the reference one.
@@ -561,6 +573,8 @@ def test_consistency_survives_a_worse_gauge():
         )
 
 
+@pytest.mark.slow
+@pytest.mark.performance
 def test_the_filter_beats_the_raw_gauge():
     """If filtering did not improve on a single reading there would be no
     reason to carry a filter. Eight-fold here, which is also why the

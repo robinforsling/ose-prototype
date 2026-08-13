@@ -28,4 +28,21 @@ pythonpath = ["src"]
 # not depend on, and crash collection before any test runs. Harmless to
 # disable on machines without ROS: `-p no:X` is a no-op if X was never
 # registered.
-addopts = "-p no:launch_testing -p no:launch_ros"
+addopts = "-p no:launch_testing -p no:launch_ros --strict-markers"
+
+# Four categories, and they partition the suite: every test is exactly one.
+# The axis is what a FAILURE INDICTS, not how many components a test builds --
+# ten of the test files construct two or more, so counting them would put half
+# the suite in `integration` and the label would stop meaning anything. See
+# ADR 0028 and tests/README.md.
+#
+# --strict-markers above is deliberate: an unregistered marker is a silent
+# no-match, which is the failure mode ADR 0024 exists about.
+markers = [
+    "unit: a failure indicts one component",
+    "integration: a failure indicts a seam between components",
+    "behaviour: a failure indicts the platform's emergent behaviour",
+    "conformance: a failure indicts the codebase itself, not the simulated system",
+    "performance: asserts a SYSTEM performance claim -- accuracy, envelope, endurance. Orthogonal to the four above; not software speed",
+    "slow: over about half a second, usually a Monte Carlo ensemble",
+]

@@ -100,8 +100,24 @@ any other component's stream. See ADR 0005.
 Run the tests after every change:
 
 ```bash
-pytest
+pytest                       # all of them
+pytest -m "not slow"         # the inner loop, about half the time
+pytest -m conformance        # the codebase checks alone, ~6 s
 ```
+
+**Every test is exactly one of four categories**, and the axis is what a
+failure indicts: `unit` (one component), `integration` (a seam between
+components), `behaviour` (the platform's emergent behaviour), `conformance`
+(the codebase itself, not the simulated system). Not how many components a
+test builds -- ten files build two or more, and `test_fuel_gauge.py` is a unit
+test that happens to need a vehicle for truth. Two orthogonal markers,
+`performance` and `slow`, apply to any category; `performance` means a SYSTEM
+performance claim -- accuracy, envelope, endurance -- not software speed.
+
+A file declares `TEST_KIND = "unit"` near the top and a test that differs
+carries its own marker, which wins. Tests under `tests/behaviour/` and
+`tests/conformance/` are marked by location. **An unclassified test, or one in
+two categories, fails collection.** See ADR 0028 and `tests/README.md`.
 
 **Never weaken a test threshold to make a test pass.** The NEES bound, the
 three-sigma containment fractions, and the observability ratios are calibrated.

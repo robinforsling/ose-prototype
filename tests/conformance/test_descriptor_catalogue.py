@@ -28,7 +28,7 @@ import pytest
 from ose.composition.catalogue import CATALOGUE
 from ose.composition.descriptor import ComponentDescriptor, Port
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 GENERATOR = ROOT / "tools" / "generate_architecture_diagram.py"
 
 

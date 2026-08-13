@@ -10,6 +10,10 @@ heading wrap it carries was previously buried inside the vehicle's own
 integrator and had no test at all.
 """
 
+# Default category for this file; a test that differs carries its own
+# marker, which wins. See tests/conftest.py.
+TEST_KIND = "unit"
+
 import math
 
 import numpy as np

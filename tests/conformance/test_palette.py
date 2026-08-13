@@ -22,7 +22,7 @@ import json
 import re
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 PALETTE = ROOT / "prefs" / "palette.json"
 
 HEX = re.compile(r"^#[0-9a-f]{6}$")

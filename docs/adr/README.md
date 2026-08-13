@@ -39,6 +39,7 @@ the full history, so nothing is lost by keeping the working copy accurate.
 | [0025](0025-descriptors-describe-components-that-exist.md) | Descriptors describe components that exist | accepted |
 | [0026](0026-the-fuel-gauge-reports-mass-above-dry.md) | The fuel gauge reports mass above dry, and the manager reconciles it | accepted, amended by 0027 |
 | [0027](0027-sensing-fuel-v2-renames-the-measured-quantity.md) | `sensing.fuel.v2` names the quantity actually measured | accepted |
+| [0028](0028-tests-are-classified-by-what-a-failure-indicts.md) | Tests are classified by what a failure indicts | accepted |
 
 ## Template
 

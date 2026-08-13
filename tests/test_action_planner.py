@@ -12,6 +12,10 @@ what makes silence safe, and nothing but a test stops someone reinterpreting
 it later.
 """
 
+# Default category for this file; a test that differs carries its own
+# marker, which wins. See tests/conftest.py.
+TEST_KIND = "integration"
+
 import ast
 import dataclasses
 import math
@@ -82,6 +86,7 @@ def state():
 # The truth boundary
 # --------------------------------------------------------------------------
 
+@pytest.mark.conformance
 def test_planner_cannot_see_truth():
     """Two layers above anything entitled to read truth, so the check is the
     same one the subsystem components carry."""
@@ -292,6 +297,7 @@ def test_planner_does_not_clamp_an_infeasible_speed(vehicle, guidance, state):
 # The whole stack
 # --------------------------------------------------------------------------
 
+@pytest.mark.slow
 def test_flies_the_whole_route(vehicle, guidance, state):
     """Planner to guidance to vehicle to integrator, closed loop.
 

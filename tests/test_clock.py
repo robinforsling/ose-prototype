@@ -6,6 +6,10 @@ the drift's Gauss-Markov behaviour is the equipment's own true dynamics, not
 something it declares.
 """
 
+# Default category for this file; a test that differs carries its own
+# marker, which wins. See tests/conftest.py.
+TEST_KIND = "unit"
+
 import dataclasses
 import math
 
@@ -28,6 +32,7 @@ def test_valid_time_equals_time_requested():
     assert m.valid_time_s == 12.5
 
 
+@pytest.mark.performance
 def test_declared_sigma_matches_configured_white_noise():
     par = dataclasses.replace(STANDARD, white_noise_sigma_s=2.0e-7)
     clock = Clock(par, rng=np.random.default_rng(0))
@@ -64,6 +69,7 @@ def test_clock_mean_matches_true_elapsed_time_plus_drift(clock_draws):
     assert abs(residual.mean()) < 5.0 * se
 
 
+@pytest.mark.performance
 def test_clock_std_matches_declared_sigma(clock_draws):
     par, residual = clock_draws
     assert abs(residual.std() - par.white_noise_sigma_s) < 0.1 * par.white_noise_sigma_s

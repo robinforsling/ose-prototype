@@ -10,6 +10,10 @@ established for the two estimators (ADR 0009): guidance only ever touches
 OwnStateEstimate, never VehicleState or Disturbance directly.
 """
 
+# Default category for this file; a test that differs carries its own
+# marker, which wins. See tests/conftest.py.
+TEST_KIND = "integration"
+
 import ast
 import math
 from pathlib import Path
@@ -78,6 +82,7 @@ def guidance(manager):
 # The truth boundary
 # --------------------------------------------------------------------------
 
+@pytest.mark.conformance
 def test_guidance_cannot_see_truth():
     path = component_path("subsystem", "vehicle_guidance.py")
     assert_no_truth_types(path)
@@ -114,6 +119,7 @@ def test_zero_error_commands_steady_level_flight(vehicle, guidance):
     )
 
 
+@pytest.mark.performance
 def test_holds_heading_and_speed_setpoint(vehicle, guidance):
     """Closed loop: start away from the setpoint, drive truth forward with
     guidance's own commands, and check it converges."""
@@ -261,6 +267,7 @@ def test_unreachable_turn_rate_saturates_and_stays_saturated(
     assert len(set(signs)) == 1, "the turn reversed, which is the wrap bug"
 
 
+@pytest.mark.performance
 def test_turn_rate_setpoint_still_holds_speed(vehicle, guidance):
     """It replaces the heading loop, not the speed loop."""
     state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
@@ -372,6 +379,7 @@ def test_admits_rejects_unholdable_speeds(vehicle, guidance):
 
 
 @pytest.mark.parametrize("nav_heading_error_deg", [1.0, 3.0, 5.0])
+@pytest.mark.performance
 def test_claimed_hold_accuracy_is_honest(vehicle, guidance, nav_heading_error_deg):
     """The honesty test for a composed capability, and the reason the claim
     is worth making at all.
