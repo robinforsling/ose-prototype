@@ -359,8 +359,8 @@ def test_sensor_capability_matches_published_measurements(vehicle):
 
     gauge = FuelGauge(FUEL_STANDARD, vehicle.lam.mass_dry_kg, rng=np.random.default_rng(0))
     assert (
-        gauge.capability().channel("fuel_remaining").sigma
-        == gauge.sample(0.0, fuelled).fuel_remaining_sigma_kg
+        gauge.capability().channel("mass_above_dry").sigma
+        == gauge.sample(0.0, fuelled).mass_above_dry_sigma_kg
     )
 
     clock = Clock(CLOCK_STANDARD, rng=np.random.default_rng(0))

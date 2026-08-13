@@ -69,7 +69,7 @@ flowchart LR
 
   AirDataSensor -->|"sensing.airdata.v1"| InsGnssEstimator
   Clock -->|"sensing.clock.v1"| TimeEstimator
-  FuelGauge -->|"sensing.fuel.v1"| VehicleManager
+  FuelGauge -->|"sensing.fuel.v2"| VehicleManager
   GnssReceiver -->|"sensing.gnss.v1"| InsGnssEstimator
   Imu -->|"sensing.imu.v1"| InsGnssEstimator
   InsGnssEstimator -->|"vehicle.state_source.v1"| NavigationManager

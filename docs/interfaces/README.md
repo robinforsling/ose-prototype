@@ -40,7 +40,7 @@ the table is incomplete.
 | `platform.time_source.v1` | `TimeEstimate` | `TimeEstimator` | `NavigationManager` |
 | `sensing.airdata.v1` | `AirDataMeasurement` | `AirDataSensor` | `InsGnssEstimator` |
 | `sensing.clock.v1` | `ClockMeasurement` | `Clock` | `TimeEstimator` |
-| `sensing.fuel.v1` | `FuelMeasurement` | `FuelGauge` | `VehicleManager` |
+| `sensing.fuel.v2` | `FuelMeasurement` | `FuelGauge` | `VehicleManager` |
 | `sensing.gnss.v1` | `GnssFix` | `GnssReceiver` | `InsGnssEstimator` |
 | `sensing.imu.v1` | `ImuMeasurement` | `Imu` | `InsGnssEstimator` |
 | `vehicle.command.v1` | `Saturation`, `VehicleCommand` | `VehicleGuidance` | `Vehicle` |
@@ -144,12 +144,12 @@ elapsed time *is* the corrupted quantity, so publishing the true interval
 alongside it would leak exactly the truth this component exists to hide.
 See ADR 0010.
 
-### `sensing.fuel.v1`
+### `sensing.fuel.v2`
 
 `FuelMeasurement`, published by `FuelGauge.sample()`, rate-limited externally
-via `due()` at `fuel_rate_hz`. Carries `fuel_remaining_kg` -- true mass less
+via `due()` at `fuel_rate_hz`. Carries `mass_above_dry_kg` -- true mass less
 dry mass, corrupted by additive white noise -- with its declared
-`fuel_remaining_sigma_kg`.
+`mass_above_dry_sigma_kg`.
 
 **It is fuel only on a clean aircraft.** A gauge measures a tank and cannot
 know what a platform is carrying, so what this reports is mass above *dry*, and
@@ -157,9 +157,14 @@ a consumer decomposing mass as dry + payload + fuel must subtract the payload
 it believes in first. `VehicleManager` does. Correcting on the raw reading put
 the payload into the fuel state and added it again in the mass sum, leaving a
 platform with 500 kg of stores believing itself 500 kg heavy at a stated sigma
-of 1.4 kg. The field name predates the distinction and is kept, since renaming
-a published field would cost a version increment for a clarification the
-documentation can carry. See ADR 0026.
+of 1.4 kg. See ADR 0026.
+
+**v2 renamed the fields** from `fuel_remaining_kg` and
+`fuel_remaining_sigma_kg`. That name was not merely imprecise: it is what made
+the double-counting natural, since a consumer trusting the field had no reason
+to read further. The rename is a breaking change to a published record, so it
+took a major increment -- the first this repository has made, and the first
+exercise of the rule at the top of this page. See ADR 0027.
 
 A direct reading rather than an integrated one, which is what distinguishes it
 from `sensing.imu.v1` and `sensing.clock.v1`: there is no drift term and no

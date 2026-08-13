@@ -374,9 +374,9 @@ class VehicleManager:
         """
         H = np.zeros((1, N_ERR))
         H[0, I_FUEL] = 1.0
-        R = np.array([[m.fuel_remaining_sigma_kg**2]])
+        R = np.array([[m.mass_above_dry_sigma_kg**2]])
 
-        observed_fuel_kg = m.fuel_remaining_kg - self.par.payload_mass_kg
+        observed_fuel_kg = m.mass_above_dry_kg - self.par.payload_mass_kg
         innovation = observed_fuel_kg - self._fuel_kg
         S = H @ self.P @ H.T + R
         K = self.P @ H.T @ np.linalg.inv(S)

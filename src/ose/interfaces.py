@@ -225,26 +225,29 @@ class FuelMeasurement:
     not an integrated one; unlike Imu/Clock there is no drift term here, just
     additive white noise.
 
-    `fuel_remaining_kg` is fuel only on a clean aircraft. A gauge cannot know
-    what a platform is carrying, so this is mass above dry, and a consumer
-    that decomposes mass as dry + payload + fuel must subtract the payload it
-    believes in before treating this as fuel. VehicleManager does; correcting
-    on the raw reading double-counted the payload. See ADR 0026.
+    Fuel only on a clean aircraft. A gauge measures a tank and cannot know
+    what a platform is carrying, so a consumer that decomposes mass as
+    dry + payload + fuel must subtract the payload it believes in before
+    treating this as fuel. VehicleManager does; correcting on the raw reading
+    double-counted the payload (ADR 0026).
 
-    The field name predates the distinction and is kept, because renaming a
-    published field is not backward compatible and would cost a version
-    increment for a clarification the docstring can carry.
+    The fields say so. They were `fuel_remaining_kg` and
+    `fuel_remaining_sigma_kg` until the double-counting was found, and that
+    name is what made the mistake natural: a consumer trusting it had no
+    reason to read further. Renaming cost a major version, which is the price
+    the versioning rule sets and the reason the rule exists. See ADR 0027.
     """
 
-    # Minted with the registry (ADR 0020). The other four sensing interfaces
-    # had names in docs/interfaces/README.md and this one did not, which is
-    # the drift the registry exists to make impossible rather than a
-    # deliberate omission.
-    INTERFACE: ClassVar[str] = "sensing.fuel.v1"
+    # v2: the fields were renamed from fuel_remaining_*, which is a breaking
+    # change to a published record and therefore a major increment.
+    # docs/interfaces/README.md: two components bind only if the names match
+    # and the major versions are equal, so nothing built against v1 binds this
+    # by accident.
+    INTERFACE: ClassVar[str] = "sensing.fuel.v2"
 
     valid_time_s: float
-    fuel_remaining_kg: float
-    fuel_remaining_sigma_kg: float    # declared
+    mass_above_dry_kg: float
+    mass_above_dry_sigma_kg: float    # declared
 
 
 # ---------------------------------------------------------------------------

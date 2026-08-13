@@ -1,7 +1,7 @@
 """Tests for the equipment-layer fuel gauge.
 
 Mirrors the pattern established for AirDataSensor: declared
-fuel_remaining_sigma_kg is honest -- sample mean and standard deviation
+mass_above_dry_sigma_kg is honest -- sample mean and standard deviation
 against many draws.
 """
 
@@ -39,8 +39,8 @@ def test_reading_centres_on_true_remaining_fuel(mass_dry_kg):
     gauge = FuelGauge(par, mass_dry_kg, rng=np.random.default_rng(0))
     state = VehicleState(0.0, 0.0, 0.0, 250.0, mass_dry_kg + 4000.0)
     m = gauge.sample(0.0, state)
-    assert m.fuel_remaining_sigma_kg == 10.0
-    assert abs(m.fuel_remaining_kg - 4000.0) < 100.0    # a handful of sigma
+    assert m.mass_above_dry_sigma_kg == 10.0
+    assert abs(m.mass_above_dry_kg - 4000.0) < 100.0    # a handful of sigma
 
 
 def test_fuel_noise_std_matches_declared_sigma(mass_dry_kg):
@@ -53,7 +53,7 @@ def test_fuel_noise_std_matches_declared_sigma(mass_dry_kg):
     residual = np.empty(n)
     for i in range(n):
         m = gauge.sample(float(i), state)
-        residual[i] = m.fuel_remaining_kg - true_fuel_kg
+        residual[i] = m.mass_above_dry_kg - true_fuel_kg
 
     assert abs(residual.mean()) < 5.0 * par.fuel_sigma_kg / np.sqrt(n)
     assert abs(residual.std() - par.fuel_sigma_kg) < 0.1 * par.fuel_sigma_kg

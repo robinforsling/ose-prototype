@@ -11,9 +11,10 @@ additive white-noise term is the whole error model.
 
 WHAT IT ACTUALLY REPORTS
 ------------------------
-Mass above DRY, not fuel. The two differ by whatever the platform is
-carrying, and this component has no way to know that and no business
-knowing it -- a fuel gauge measures a tank, not a loadout.
+Mass above DRY, not fuel, and the field is now named for it. The two differ
+by whatever the platform is carrying, and this component has no way to know
+that and no business knowing it -- a fuel gauge measures a tank, not a
+loadout.
 
 The distinction is not pedantic. VehicleManager decomposes mass as
 dry + payload + fuel and used to correct its fuel state on this reading
@@ -21,7 +22,8 @@ directly, which put the payload into the fuel state and then added it again
 in the mass sum: a platform with 500 kg of stores believed itself 500 kg
 heavy at a stated sigma of 1.4 kg. Every fixture left payload at zero, where
 the two definitions coincide. The manager now subtracts the payload it
-believes in; see ADR 0026.
+believes in (ADR 0026), and the field is `mass_above_dry_kg` rather than
+`fuel_remaining_kg`, which is what made the mistake natural (ADR 0027).
 
 mass_dry_kg is a vehicle design constant (a Constraints field), not runtime
 truth. It is a COPY of one, though, taken at construction -- which is the
@@ -78,7 +80,7 @@ class FuelGauge:
         return SensorCapability(
             rate_hz=self.par.fuel_rate_hz,
             channels=(
-                MeasurementChannel("fuel_remaining", self.par.fuel_sigma_kg, "kg"),
+                MeasurementChannel("mass_above_dry", self.par.fuel_sigma_kg, "kg"),
             ),
             available=True,
         )
@@ -93,6 +95,6 @@ class FuelGauge:
         reading = true_fuel_kg + float(self.rng.normal(0.0, p.fuel_sigma_kg))
         return FuelMeasurement(
             valid_time_s=t_s,
-            fuel_remaining_kg=reading,
-            fuel_remaining_sigma_kg=p.fuel_sigma_kg,
+            mass_above_dry_kg=reading,
+            mass_above_dry_sigma_kg=p.fuel_sigma_kg,
         )

@@ -1,6 +1,7 @@
 # 0026 — The fuel gauge reports mass above dry, and the manager reconciles it
 
-**Status:** Accepted.
+**Status:** Accepted. Amended by ADR 0027, which renames the field this record
+kept and takes the interface to v2.
 
 ## Context
 
@@ -52,7 +53,7 @@ equipment component depend on a platform configuration decision.
 the reading as fuel:
 
 ```python
-observed_fuel_kg = m.fuel_remaining_kg - self.par.payload_mass_kg
+observed_fuel_kg = m.mass_above_dry_kg - self.par.payload_mass_kg
 innovation = observed_fuel_kg - self._fuel_kg
 ```
 
@@ -75,13 +76,14 @@ with `dry + payload` instead — the smaller-looking fix — that constant would
 stale from the first release onwards, and stale in the direction that makes a
 platform believe it is heavier than it is.
 
-**`fuel_remaining_kg` is now a misleading field name**, and it is kept. It is
-fuel only on a clean aircraft; what it carries is mass above dry. Renaming a
-published field is not backward compatible and costs an interface version
-increment (`sensing.fuel.v2`), which is more than a clarification needs — so
-the docstrings on the record, the gauge and the catalogue page all say what it
-actually is. A reader who trusts the field name and not the docstring can still
-make the original mistake, and that is the price of not versioning.
+**`fuel_remaining_kg` was a misleading field name**, and this record kept it,
+reasoning that a version increment was more than a clarification needed. That
+was wrong, and the sentence that followed it here is why: *a reader who trusts
+the field name and not the docstring can still make the original mistake.* The
+name is not incidental to the defect, it is the defect — a consumer reading
+`fuel_remaining_kg` has no reason to suspect it is not fuel remaining, and
+therefore no reason to read the docstring saying so. ADR 0027 renames the
+fields to `mass_above_dry_*` and takes the interface to `sensing.fuel.v2`.
 
 **The subtraction uses believed payload, which is currently exact.**
 `MassEstimate` documents payload as "configuration, exact", so it contributes

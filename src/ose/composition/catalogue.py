@@ -147,7 +147,7 @@ FUEL_GAUGE = ComponentDescriptor(
     layer="equipment",
     category="sensor",
     implementation="ose.equipment.fuel_gauge:FuelGauge",
-    provides=(Port("reading", "sensing.fuel.v1"),),
+    provides=(Port("reading", "sensing.fuel.v2"),),
     # Its dependency on the vehicle arrives as mass_dry_kg: float and has no
     # port to declare. See the module docstring. What it publishes is mass
     # above dry rather than fuel, which the vehicle manager reconciles against
@@ -206,7 +206,7 @@ VEHICLE_MANAGER = ComponentDescriptor(
     implementation="ose.subsystem.vehicle_manager:VehicleManager",
     provides=(Port("mass", "vehicle.mass.v1"),),
     requires=(
-        Port("fuel", "sensing.fuel.v1"),
+        Port("fuel", "sensing.fuel.v2"),
         Port("own_state", "vehicle.state.v1"),
     ),
 )
