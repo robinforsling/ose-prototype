@@ -63,24 +63,18 @@ does not fully determine the run is invalid.
 
 ## 3. Interface catalogue
 
-Ports are typed by interface. The full catalogue lives in `30-interfaces/`; this
-is the subset used in the worked example.
+Ports are typed by interface. **The catalogue lives in
+`docs/interfaces/README.md` and nowhere else.**
 
-| Interface | Direction | Carries |
-|---|---|---|
-| `truth.query.v1` | core → equipment | Privileged read of ground-truth world state. Only equipment-layer components may hold this port. |
-| `power.bus.v1` | vehicle → equipment | Abstract power draw negotiation (electrical plus cooling, combined). |
-| `vehicle.command.v1` | subsystem → equipment | Commanded speed, turn rate, throttle. |
-| `vehicle.state.v1` | equipment → subsystem | Own-ship state as the platform believes it to be, from navigation sensors. |
-| `sensing.detections.v1` | equipment → subsystem | Time-stamped detections with measurement uncertainty. |
-| `sensing.control.v1` | subsystem → equipment | Sensor tasking: pointing, mode, priority. |
-| `comms.message.v1` | bidirectional | Addressed message transport with loss and latency applied. |
-| `effect.request.v1` | subsystem → equipment | Employment request against a designated track. |
-| `effect.status.v1` | equipment → subsystem | Inventory, readiness, in-flight effector state. |
-| `tracking.tracks.v1` | subsystem → single-ship | Fused track picture. |
-| `sa.picture.v1` | single-ship → single-ship | Assessed situation, threat evaluation. |
-| `planning.action.v1` | single-ship → subsystem | Committed actions for execution. |
-| `coord.intent.v1` | multi-ship → single-ship | Assigned role, tasking, constraints. |
+This section used to carry its own copy, and the copy drifted: it had
+`vehicle.state.v1` as `equipment → subsystem` while the catalogue had it
+published by a subsystem component, which is where `NavigationManager` actually
+sits (ADR 0014). Two tables that must agree and cannot be checked against each
+other will disagree, so there is now one. The names used by the worked example
+below are `truth.query.v1`, `power.bus.v1`, `vehicle.command.v1`,
+`vehicle.state.v1`, `sensing.detections.v1`, `sensing.control.v1` and
+`effect.request.v1`; the catalogue says what each carries and whether it is
+implemented.
 
 The truth boundary is enforced by port type. `truth.query.v1` is only grantable
 to components whose descriptor declares `layer: equipment`. The binder refuses it

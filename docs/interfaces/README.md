@@ -8,29 +8,54 @@ if the interface names match and the major versions are equal.
 Adding a field to a published record is backward compatible. Removing or
 renaming one is not, and requires a version increment.
 
-## Catalogue
+This is the only catalogue. `docs/40-composition-spec.md` used to carry a second
+copy and the two disagreed about which layer publishes `vehicle.state.v1`; that
+copy is gone.
 
-| Interface | Direction | Carries | Status |
+## Implemented
+
+Generated from the `INTERFACE` class variables on the records themselves (ADR
+0020), so this table cannot drift from the code. Regenerate with
+`python tools/generate_architecture_diagram.py`; `pytest` fails while it is
+stale.
+
+Publishers and consumers are derived too, which is why a row may show no
+consumer: it means nothing in the system asks for that interface yet, not that
+the table is incomplete.
+
+<!-- generated: implemented-interfaces -->
+| Interface | Record(s) | Published by | Consumed by |
 |---|---|---|---|
-| `truth.query.v1` | core to equipment | Privileged read of ground-truth state. Grantable only to `layer: equipment`. | planned |
-| `power.bus.v1` | vehicle to equipment | Abstract power draw negotiation, electrical and cooling combined. | planned |
-| `vehicle.command.v1` | subsystem to equipment | Commanded thrust and turn rate. | **implemented** |
-| `vehicle.state.v1` | subsystem to above | Own-ship state as the platform believes it, with covariance. Published by `NavigationManager`, one per platform. | **implemented** |
-| `sensing.imu.v1` | equipment to subsystem | Specific force and angular rate, with declared uncertainty. | **implemented** |
-| `sensing.gnss.v1` | equipment to subsystem | Position and optional velocity fix, with declared uncertainty. | **implemented** |
-| `sensing.airdata.v1` | equipment to subsystem | Airspeed, with declared uncertainty. | **implemented** |
-| `sensing.clock.v1` | equipment to subsystem | The platform clock's own elapsed-time reading, with declared uncertainty. | **implemented** |
-| `platform.time.v1` | subsystem to above | Platform's belief about its own clock: accumulated reading, drift, covariance. | **implemented** |
-| `guidance.setpoint.v1` | within a platform | Commanded heading and speed, or turn rate and speed. Carried inside `planning.action.v1`'s motion field. | **implemented** |
-| `sensing.detections.v1` | equipment to subsystem | Time-stamped detections with measurement uncertainty. | planned |
-| `sensing.control.v1` | subsystem to equipment | Sensor tasking: pointing, mode, priority. | planned |
-| `comms.message.v1` | bidirectional | Addressed transport with loss and latency applied. | planned |
-| `effect.request.v1` | subsystem to equipment | Employment request against a designated track. | planned |
-| `effect.status.v1` | equipment to subsystem | Inventory, readiness, in-flight effector state. | planned |
-| `tracking.tracks.v1` | subsystem to single-ship | Fused track picture. | planned |
-| `sa.picture.v1` | within single-ship | Assessed situation, threat evaluation. | planned |
-| `planning.action.v1` | single-ship to subsystem | Committed actions for execution, one field per subsystem. | **implemented** |
-| `coord.intent.v1` | multi-ship to single-ship | Assigned role, tasking, constraints. | planned |
+| `guidance.setpoint.v1` | `HeadingSpeedSetpoint`, `TurnRateSpeedSetpoint` | `WaypointPlanner` | `VehicleGuidance` |
+| `planning.action.v1` | `ActionSet` | `WaypointPlanner` | -- |
+| `platform.time.v1` | `TimeEstimate` | `TimeEstimator` | -- |
+| `sensing.airdata.v1` | `AirDataMeasurement` | `AirDataSensor` | `InsGnssEstimator` |
+| `sensing.clock.v1` | `ClockMeasurement` | `Clock` | `TimeEstimator` |
+| `sensing.fuel.v1` | `FuelMeasurement` | `FuelGauge` | `VehicleManager` |
+| `sensing.gnss.v1` | `GnssFix` | `GnssReceiver` | `InsGnssEstimator` |
+| `sensing.imu.v1` | `ImuMeasurement` | `Imu` | `InsGnssEstimator` |
+| `vehicle.command.v1` | `Saturation`, `VehicleCommand` | `VehicleGuidance` | `PlanarPointMass`, `PlanarPointMassWithBooster` |
+| `vehicle.mass.v1` | `MassEstimate` | `VehicleManager` | -- |
+| `vehicle.state.v1` | `OwnStateEstimate` | `InsGnssEstimator`, `NavigationManager` | `VehicleGuidance`, `VehicleManager`, `WaypointPlanner` |
+<!-- end generated: implemented-interfaces -->
+
+## Planned
+
+Hand-written, and necessarily so: nothing about an interface with no records
+and no components is derivable from the source.
+
+| Interface | Direction | Carries |
+|---|---|---|
+| `truth.query.v1` | core to equipment | Privileged read of ground-truth state. Grantable only to `layer: equipment`. |
+| `power.bus.v1` | vehicle to equipment | Abstract power draw negotiation, electrical and cooling combined. |
+| `sensing.detections.v1` | equipment to subsystem | Time-stamped detections with measurement uncertainty. |
+| `sensing.control.v1` | subsystem to equipment | Sensor tasking: pointing, mode, priority. |
+| `comms.message.v1` | bidirectional | Addressed transport with loss and latency applied. |
+| `effect.request.v1` | subsystem to equipment | Employment request against a designated track. |
+| `effect.status.v1` | equipment to subsystem | Inventory, readiness, in-flight effector state. |
+| `tracking.tracks.v1` | subsystem to single-ship | Fused track picture. |
+| `sa.picture.v1` | within single-ship | Assessed situation, threat evaluation. |
+| `coord.intent.v1` | multi-ship to single-ship | Assigned role, tasking, constraints. |
 
 ## Implemented interfaces
 
@@ -111,6 +136,23 @@ other measurement record, this one has no true-interval field: for a clock,
 elapsed time *is* the corrupted quantity, so publishing the true interval
 alongside it would leak exactly the truth this component exists to hide.
 See ADR 0010.
+
+### `sensing.fuel.v1`
+
+`FuelMeasurement`, published by `FuelGauge.sample()`, rate-limited externally
+via `due()` at `fuel_rate_hz`. Carries `fuel_remaining_kg` -- true mass less
+dry mass, corrupted by additive white noise -- with its declared
+`fuel_remaining_sigma_kg`.
+
+A direct reading rather than an integrated one, which is what distinguishes it
+from `sensing.imu.v1` and `sensing.clock.v1`: there is no drift term and no
+bias, so the consumer's filter needs no state for the sensor itself. The burn
+*coefficient* is still estimated, but that is a property of the propulsion
+model rather than of this gauge. See ADR 0015.
+
+This interface had no name until the registry was introduced. The other four
+sensing interfaces were catalogued and this one was not, which is the drift ADR
+0020 exists to prevent rather than a statement about the gauge.
 
 ### `platform.time.v1`
 
