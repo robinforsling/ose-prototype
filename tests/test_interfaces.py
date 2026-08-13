@@ -156,6 +156,50 @@ def test_a_port_record_is_not_also_declared_not_a_port():
     assert not overlap, f"records both registered and declared NOT_A_PORT: {overlap}"
 
 
+def test_no_interface_is_both_implemented_and_planned():
+    """The catalogue page has a generated half and a written half.
+
+    The generated table cannot drift from the code. The planned table is
+    hand-written and can: implementing an interface without deleting its
+    planned row leaves the page listing it twice, once as working and once as
+    not. That is the shape of drift the registry cannot fix on its own.
+    """
+    from pathlib import Path
+
+    page = (Path(__file__).resolve().parents[1] / "docs" / "interfaces"
+            / "README.md").read_text()
+    planned = page.split("## Planned", 1)[1].split("## Implemented interfaces", 1)[0]
+    listed = set(re.findall(r"`([a-z0-9_.]+\.v[0-9]+)`", planned))
+
+    assert listed, "no planned interfaces parsed -- this comparison is vacuous"
+    overlap = listed & set(catalogue())
+    assert not overlap, (
+        f"interface(s) listed as planned but implemented in code: {sorted(overlap)}. "
+        "Delete the planned row; the generated table already covers them."
+    )
+
+
+def test_every_implemented_interface_is_written_up():
+    """A generated row says an interface exists; the prose says what it means.
+
+    A new interface reaching the table with no section beneath it is how a
+    catalogue becomes a list of names. `sensing.fuel.v1` was exactly that case
+    -- a record in the code with no name and no description anywhere.
+    """
+    from pathlib import Path
+
+    page = (Path(__file__).resolve().parents[1] / "docs" / "interfaces"
+            / "README.md").read_text()
+    documented = set(re.findall(r"^### `([^`]+)`", page, re.M))
+
+    assert documented, "no interface sections found -- this comparison is vacuous"
+    missing = set(catalogue()) - documented
+    assert not missing, (
+        f"implemented interface(s) with no section in the catalogue page: "
+        f"{sorted(missing)}"
+    )
+
+
 def test_truth_types_are_never_ports():
     """Invariant 1, asserted at the catalogue rather than at a component.
 

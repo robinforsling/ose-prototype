@@ -135,6 +135,42 @@ still yours to fix**.
 A new vehicle model needs a page before the suite will pass; the check is
 named after the module.
 
+**Adding a component or an interface means regenerating the architecture
+diagram.**
+
+```bash
+python tools/generate_architecture_diagram.py
+```
+
+`docs/20-architecture.md` carries a Mermaid diagram of the implemented
+topology, and `docs/interfaces/README.md` the implemented half of the
+interface catalogue. Both are derived from the source between
+`<!-- generated: NAME -->` markers — components, layers, publications,
+consumptions — and `pytest` fails while either is stale. `--dump` prints the
+derived graph and writes nothing, which is how to see what changed before it
+reaches a page. The tool also exits non-zero if a component outside the
+equipment layer reads truth, so it enforces invariant 1 as well as drawing it.
+See ADR 0020.
+
+The prose around the blocks is written, not generated, and says what the
+derivation cannot see. Two things today: `FuelGauge` depends on the vehicle
+through a `float`, and `Clock`'s truth input is deliberately unprefixed.
+
+**An interface name lives on its record and nowhere else** — as
+`INTERFACE: ClassVar[str]`, e.g. `"sensing.imu.v1"`. A published record either
+declares one or is listed in `NOT_A_PORT` in `ose/interfaces.py` with the
+reason; `catalogue()` raises on any record that is neither, which is what makes
+a forgotten registration an error rather than a silence. Names used to live in
+docstrings and a hand-written table, and had drifted three ways before anything
+could check them. The `ClassVar` annotation is load-bearing: without it
+`INTERFACE` becomes a real dataclass field, silently, and the name turns into a
+constructor argument.
+
+**Shared colours live in `prefs/palette.json`**, keyed by semantic role
+(`equipment`, `subsystem`, `truth`), not by colour. Plots and animations should
+read the same file rather than choosing their own, so one concept is one
+colour everywhere. The values are constrained by contrast tests, not free.
+
 **Maths in markdown is checked too.**
 
 ```bash
@@ -274,6 +310,7 @@ documentation.
 | Why something is the way it is | `docs/adr/` |
 | Interface catalogue | `docs/interfaces/README.md` |
 | Composition specification format | `docs/40-composition-spec.md` |
+| Shared colours for diagrams and plots | `prefs/` |
 | Vehicle model mathematics | `docs/preliminary_models/vehicle/vehicle_model.pdf` |
 | What a model does, and its reference numbers | `docs/models/` |
 | Planned tooling | `docs/50-tooling.md` |

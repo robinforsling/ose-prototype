@@ -1,14 +1,40 @@
 # Tooling
 
-Status: draft. None of the four tools below is built. The composition-time
-load checks the GUI section depends on are partly implemented in
-`ose/composition/`; the live demos are throwaway prototypes of the
+Status: draft. None of the four *planned* tools below is built. The
+composition-time load checks the GUI section depends on are partly implemented
+in `ose/composition/`; the live demos are throwaway prototypes of the
 renderer, not the renderer.
 
-All four tools below are views or transforms over the composition specification.
-Building them that way is what keeps them from becoming four separate systems.
+All four planned tools are views or transforms over the composition
+specification. Building them that way is what keeps them from becoming four
+separate systems.
 
-## Visualisation
+## Tools that exist
+
+Three, all of the same shape: a script under `tools/`, run by hand, and run
+again by `pytest` so that what it checks cannot be quietly left undone.
+
+| Tool | Does | Enforced by |
+|---|---|---|
+| `generate_model_docs.py` | Rewrites the computed tables in `docs/models/vehicle/` from the models and their reference configurations. | `tests/test_model_docs.py` |
+| `generate_architecture_diagram.py` | Derives the implemented topology from the source and writes the Mermaid diagram in `docs/20-architecture.md` and the implemented interface table in `docs/interfaces/README.md`. Also fails if a component outside the equipment layer reads truth. See ADR 0020. | `tests/test_architecture_diagram.py` |
+| `check_markdown_math.py` | Static rules against markup that renders wrongly without erroring, plus an optional KaTeX render pass when node is present. | `tests/test_markdown_math.py` |
+
+Each takes `--check` (or, for the maths checker, no arguments) and exits
+non-zero with the command to run. `generate_architecture_diagram.py` also takes
+`--dump`, which prints the derived graph and writes nothing — the way to see
+what changed before it reaches a page.
+
+They generate numbers and structure, never prose. What a page *means* is a
+judgement, and a generator that tried to produce it would write a worse version
+of the source code.
+
+## Planned
+
+None of these exists. Each is a view or a transform over the
+composition specification, which nothing consumes yet.
+
+### Visualisation
 
 Priority one, ahead of everything else in this file. A crude 2D plan-view
 renderer showing platform positions, headings, and detections, updating during a
@@ -80,12 +106,12 @@ renderer must also draw truth and belief as two separate things, because they
 will differ; the prototype hands guidance a perfect estimate, so they coincide
 and it cannot show the distinction it will eventually need to.
 
-## Scenario builder
+### Scenario builder
 
 Generates scenario specifications: N platforms from named platform specs, with
 initial conditions, termination conditions, and metrics. Command-line first.
 
-## Monte Carlo runner
+### Monte Carlo runner
 
 Takes a campaign specification, expands the sweep, runs replications in parallel
 processes, reduces results. Writes the run manifest alongside results so that
@@ -94,7 +120,7 @@ processes, reduces results. Writes the run manifest alongside results so that
 Parallelism is across independent replications, which is why the GIL does not
 bind. See ADR 0002.
 
-## Lab environments
+### Lab environments
 
 A lab is a scenario with one real component and stubs elsewhere. Because ports
 are typed and the truth boundary is enforced by the binder, a stub is generatable
@@ -105,7 +131,7 @@ Labs should carry acceptance tests, not just plots. A navigation filter that is
 overconfident is invisible in straight flight and corrupts every tracker
 downstream; the check that catches it is a NEES test, and it belongs in the lab.
 
-## Composition GUI
+### Composition GUI
 
 A graphical editor for platform specifications, with pieces that will not fit
 together greyed out. The greying-out is the composition-time validator, already

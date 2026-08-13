@@ -31,6 +31,7 @@ the full history, so nothing is lost by keeping the working copy accurate.
 | [0017](0017-equipment-layer.md) | The resource layer is renamed the equipment layer | accepted |
 | [0018](0018-unweighted-mathematical-notation.md) | Mathematical symbols are written plain, in every artefact | accepted |
 | [0019](0019-remove-the-black-box-navigation-unit.md) | The black-box navigation unit is removed | accepted |
+| [0020](0020-the-implemented-topology-is-derived-from-the-code.md) | The implemented topology is derived from the code | accepted |
 
 ## Template
 
