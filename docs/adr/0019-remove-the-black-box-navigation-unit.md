@@ -75,18 +75,28 @@ the results. That was written about a specific component and is true of any.
 
 ## Consequences
 
-**Standing up navigation is now more work.** Four components, independent RNG
-streams, an initial guess, and a per-step measurement schedule — about twenty
-lines, against three. Someone testing a planner pays that cost for navigation
-they do not care about, and the temptation will be to write a quick fake
-in-place. That is acceptable in a test and not in `src/`; if it recurs often
-enough, the answer is a composition helper in `tests/`, not a shipped
-component.
+**Standing up navigation is now more work — and that is all it is.** Four
+components, independent RNG streams, an initial guess, and a per-step
+measurement schedule: about twenty lines, against three. That is a *wiring*
+cost, not a capability gap, and the distinction decides what to do about it.
 
-**Cheap scaffolding is gone and nothing replaces it.** There is no longer a
-way to get a plausible own-state estimate without simulating the sensors that
-produce it. For a teaching repository that is a real loss: the black box was
-the thing a student could read in one sitting.
+A fake is warranted only when the real thing cannot be used. This one can:
+consistent on every channel and every internal state, honest about GNSS loss,
+and correlated the way real navigation error is. There is no property a
+fiction would supply that the composed stack does not already supply better,
+so the answer to the wiring cost is never a fiction. It is composition, which
+this repository has already named as a thing it will own — the binder in
+`docs/40-composition-spec.md` is the designated home for exactly this, and
+until it exists the tests share `_build_components` and the demos each wire it
+once.
+
+**Using navigation and reading it are different, and only the second got
+harder.** A consumer binds to `NavigationManager` and receives an
+`OwnStateEstimate`; that is unchanged, and nobody has to read the error-state
+filter to fly a planner against it. What is gone is the version a student
+could read end to end in one sitting. For a teaching repository that is a
+genuine loss on the *reading* side — but the black box was never what made
+navigation usable, only what made it unwired.
 
 **Some history now names a component that does not exist.** ADRs 0009, 0012
 and 0014 refer to it, and their Context is kept as written because that is the
