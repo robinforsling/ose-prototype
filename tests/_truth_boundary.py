@@ -19,10 +19,16 @@ outright. It was checked by planting exactly that leak, and the test passed.
 
 Two defences, because naming it once is not enough on its own:
 
-  1. The layer is named once, here, so a future rename has one place to touch.
+  1. The layer is named once, so a future rename has one place to touch. That
+     place is now `ose.topology`, not this module -- a tool outside tests/
+     needs the same vocabulary, and a second copy of a literal whose failure
+     mode is "matches nothing" is the last thing this guard should acquire.
+     The names are re-exported below so the six test modules importing them
+     from here do not care where they live.
   2. `_assert_guard_is_live()` imports the module the guard names before using
      it. A stale name now raises ImportError instead of quietly matching
      nothing. Centralising alone would not have caught the failure; this does.
+     It now covers the tool as well, since the tool reads the same names.
 """
 
 from __future__ import annotations
@@ -31,19 +37,11 @@ import ast
 import importlib
 from pathlib import Path
 
-EQUIPMENT_PACKAGE = "ose.equipment"
-# A package since the second vehicle model was planned, so the guard has to
-# cover its submodules too: importing VehicleState from
-# ose.equipment.vehicle.planar_point_mass is the same leak as importing it
-# from ose.equipment.vehicle, and an equality test would have missed it.
-# Checked -- before this was widened, that import passed.
-TRUTH_PACKAGE = f"{EQUIPMENT_PACKAGE}.vehicle"
-
-# The types that carry ground truth. A cyber-layer component holding one of
-# these is wrong regardless of what it does with it (ADR 0008). VehicleCommand
-# and Saturation live in the same module and are not truth -- they are records
-# a component may legitimately construct and receive.
-TRUTH_TYPES = frozenset({"VehicleState", "Disturbance"})
+from ose.topology import (  # noqa: F401  -- re-exported for the six guards
+    EQUIPMENT_PACKAGE,
+    TRUTH_PACKAGE,
+    TRUTH_TYPES,
+)
 
 SRC = Path(__file__).resolve().parents[1] / "src"
 
