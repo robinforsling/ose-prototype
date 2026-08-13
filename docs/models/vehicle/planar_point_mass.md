@@ -165,7 +165,7 @@ $$
 <!-- end generated: lambda -->
 
 $$
-U(x) = \lbrace \thinspace u : T_{\min} \le T \le T_{\max},\ |\omega| \le \omega_{\max}(v,m) \thinspace \rbrace
+U(x, \lambda) = \lbrace \thinspace u : T_{\min} \le T \le T_{\max},\ |\omega| \le \omega_{\max}(v,m) \thinspace \rbrace
 $$
 
 $$
@@ -182,7 +182,7 @@ minimum binds. Factoring it out is what lets $X$ carry no state argument.
 Writing $X(x, \lambda)$ would be ill formed --- membership is $x \in X(\lambda)$,
 and a set cannot depend on the point being tested for it. The dependence is
 *within* $x$, not *on* it, which is what makes $X$ a curved region rather than a
-box. $U(x)$ by contrast takes a genuine state argument, because it is a set of
+box. $U(x, \lambda)$ by contrast takes a genuine state argument, because it is a set of
 *commands*: fix a state, then ask what is admissible.
 
 **The vehicle declares these and does not apply them** (ADR 0006).
