@@ -36,6 +36,19 @@ All values are fictional and plausible, never claims about a real system.
 | [Planar point mass](vehicle/planar_point_mass.md) | `ose.equipment.vehicle.planar_point_mass` |
 | [Planar point mass with booster](vehicle/planar_point_mass_with_booster.md) | `ose.equipment.vehicle.planar_point_mass_with_booster` |
 
+## Guidance
+
+| Model | Module |
+|---|---|
+| [Vehicle guidance](guidance/vehicle_guidance.md) | `ose.subsystem.vehicle_guidance` |
+
+The first page here for something that is not a physical model, and the first
+with no preliminary modelling behind it — a proportional law needs no
+derivation. What it needs is the three things it does that reading it does not
+reveal: which turn rate the thrust feedforward is evaluated at, what a moving
+setpoint costs without its rate declared, and why the same believed mass is
+asked for in two different forms.
+
 ## Where this sits
 
 ```
@@ -52,9 +65,13 @@ is what it is; see its README for what happens when the three disagree.
 
 ## Everything else
 
-Navigation sensors, the INS/GNSS estimator, the clock, the fuel gauge, the
-vehicle manager and vehicle guidance have no page here yet. Their behaviour is
-currently described in their module docstrings, which is where a reader should
-look until this directory catches up. A page here is worth writing when a
-model's behaviour is surprising enough that a reader would get it wrong from
-the code alone — which is the test both vehicle pages meet.
+Navigation sensors, the INS/GNSS estimator, the clock, the fuel gauge and the
+vehicle manager have no page here yet. Their behaviour is currently described
+in their module docstrings, which is where a reader should look until this
+directory catches up. A page here is worth writing when a model's behaviour is
+surprising enough that a reader would get it wrong from the code alone — which
+is the test the vehicle and guidance pages meet.
+
+The vehicle manager is the strongest remaining candidate: a two-state filter
+whose burn-coefficient state is weakly observable by design, and which
+reconciles a gauge reading that is not what it is named after (ADR 0026).

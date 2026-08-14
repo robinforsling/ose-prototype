@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Regenerate the computed tables in docs/models/vehicle/.
+Regenerate the computed tables in docs/models/.
 
     python tools/generate_model_docs.py            rewrite them in place
     python tools/generate_model_docs.py --check    exit non-zero if stale
@@ -49,8 +49,14 @@ from ose.equipment.reference_configs.vehicle.planar_point_mass_with_booster impo
     reference_boosted_fighter,
 )
 from ose.equipment.vehicle import BoostState, Mode, VehicleState
+from ose.subsystem.reference_configs.reference_vehicle_guidance import (
+    STANDARD as GUIDANCE,
+)
 
-DOCS = Path(__file__).resolve().parents[1] / "docs" / "models" / "vehicle"
+# The whole of docs/models/, one directory per model family. Block keys below
+# are paths relative to this, so a page for a non-vehicle component needs no
+# change here.
+DOCS = Path(__file__).resolve().parents[1] / "docs" / "models"
 MASS_KG = 16000.0
 SPEEDS = (100.0, 150.0, 200.0, 225.0, 250.0, 300.0, 400.0, 500.0, 600.0)
 BOOST_SPEEDS = (150.0, 200.0, 225.0, 250.0, 300.0, 400.0, 500.0)
@@ -192,6 +198,74 @@ def boost_turn_performance_table() -> str:
 
 
 # --------------------------------------------------------------------------
+# Guidance
+#
+# The vehicle is asked directly rather than through a VehicleManager. Guidance
+# reaches these same numbers through the manager, which evaluates at the mass
+# it believes; at the reference configuration that belief equals the state's
+# mass, so the values are identical and the page says so. Importing the
+# subsystem layer here to prove it would buy nothing.
+# --------------------------------------------------------------------------
+
+# Commanded sweep rates for the ramp-lag table. A proportional law chasing a
+# ramp settles at rate/gain, so this is the cost of the setpoint not declaring
+# its own rate.
+SWEEP_RATES_DEG_S = (2.0, 5.0, 10.0, 20.0, 30.0)
+
+# Heading errors for the feedforward table. 180 degrees is the reversal the
+# guidance docstring is written about.
+HEADING_ERRORS_DEG = (10.0, 45.0, 90.0, 135.0, 180.0)
+
+GUIDANCE_SPEED_MPS = 250.0
+
+
+def guidance_gains_table() -> str:
+    return "\n".join([
+        "| | reference | units |",
+        "|---|---|---|",
+        f"| $k_\\psi$ | {GUIDANCE.heading_gain_per_s} | 1/s |",
+        f"| $k_v$ | {GUIDANCE.speed_gain_per_s} | 1/s |",
+    ])
+
+
+def guidance_ramp_lag_table() -> str:
+    """Standing heading error against a moving setpoint, without feedforward."""
+    rows = [
+        "| commanded sweep [°/s] | standing error [°] |",
+        "|---|---|",
+    ]
+    for rate in SWEEP_RATES_DEG_S:
+        rows.append(f"| {rate:.0f} | {rate / GUIDANCE.heading_gain_per_s:.1f} |")
+    return "\n".join(rows)
+
+
+def guidance_feedforward_table() -> str:
+    """What the feedforward would demand at the requested rate, against what it
+    demands at the achievable one."""
+    v = reference_fighter()
+    state = VehicleState(0.0, 0.0, 0.0, GUIDANCE_SPEED_MPS, MASS_KG)
+    available = v.capability(state).omega_available_rad_s
+
+    rows = [
+        "| $\\Delta\\psi$ [°] | $\\omega$ requested [°/s] | $\\omega$ achievable [°/s] "
+        "| $n$ requested | $n$ achievable | $T$ requested [kN] | $T$ achievable [kN] |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    for error_deg in HEADING_ERRORS_DEG:
+        requested = GUIDANCE.heading_gain_per_s * math.radians(error_deg)
+        achievable = math.copysign(min(abs(requested), available), requested)
+        rows.append(
+            f"| {error_deg:.0f} "
+            f"| {math.degrees(requested):.1f} | {math.degrees(achievable):.1f} "
+            f"| {v.load_factor(GUIDANCE_SPEED_MPS, requested):.2f} "
+            f"| {v.load_factor(GUIDANCE_SPEED_MPS, achievable):.2f} "
+            f"| {v.capability(state, omega_rad_s=requested).thrust_required_N / 1e3:.0f} "
+            f"| {v.capability(state, omega_rad_s=achievable).thrust_required_N / 1e3:.0f} |"
+        )
+    return "\n".join(rows)
+
+
+# --------------------------------------------------------------------------
 # Scalars quoted in prose. Not substituted -- checked.
 # --------------------------------------------------------------------------
 
@@ -206,32 +280,59 @@ def prose_figures() -> dict[str, list[str]]:
         b, MASS_KG, FIGHTER_BOOST_LIMITS.thrust_max_boost_N
     )
     return {
-        "planar_point_mass.md": [
+        "vehicle/planar_point_mass.md": [
             f"{v.v_stall_mps(MASS_KG):.1f}",              # stall at 16 t
             f"{v.v_corner_mps(MASS_KG):.1f}",             # corner speed
             f"{v.v_min_achievable_mps(MASS_KG):.0f}",     # usable floor
             f"{base:.0f}",                                # level-flight ceiling
             f"{v.thrust_required_N(600.0, MASS_KG, 0.0) / 1e3:.1f}",
         ],
-        "planar_point_mass_with_booster.md": [
+        "vehicle/planar_point_mass_with_booster.md": [
             f"{base:.0f}",
             f"{boost:.0f}",
             f"{b.theta.tau_h_s:.0f}",
             f"{b.theta.tau_c_s:.0f}",
             f"{b.theta.c_tsfc_boost / b.theta.nominal.c_tsfc:.1f}",
         ],
+        "guidance/vehicle_guidance.md": _guidance_prose_figures(v),
     }
 
 
+def _guidance_prose_figures(v) -> list[str]:
+    """The headline numbers section 3 and section 4 quote in sentences.
+
+    All of them move if a gain changes, and a page arguing from a 54 degree
+    per second demand while the code would ask for something else is worse
+    than a page with no numbers in it.
+    """
+    state = VehicleState(0.0, 0.0, 0.0, GUIDANCE_SPEED_MPS, MASS_KG)
+    available = v.capability(state).omega_available_rad_s
+    reversal = GUIDANCE.heading_gain_per_s * math.pi
+    return [
+        f"{math.degrees(reversal):.1f}",                      # requested, 180 deg
+        f"{math.degrees(available):.1f}",                     # achievable
+        f"{v.capability(state, omega_rad_s=reversal).thrust_required_N / 1e3:.0f}",
+        f"{v.capability(state, omega_rad_s=available).thrust_required_N / 1e3:.0f}",
+        f"{20.0 / GUIDANCE.heading_gain_per_s:.1f}",          # lag at a 20 deg/s sweep
+        # the heading error at which the two feedforward columns diverge
+        f"{math.degrees(available) / GUIDANCE.heading_gain_per_s:.0f}",
+    ]
+
+
 BLOCKS = {
-    "planar_point_mass.md": {
+    "vehicle/planar_point_mass.md": {
         "theta": theta_table,
         "lambda": lambda_table,
         "turn-performance": turn_performance_table,
     },
-    "planar_point_mass_with_booster.md": {
+    "vehicle/planar_point_mass_with_booster.md": {
         "boost-parameters": boost_parameter_table,
         "boost-turn-performance": boost_turn_performance_table,
+    },
+    "guidance/vehicle_guidance.md": {
+        "guidance-gains": guidance_gains_table,
+        "guidance-ramp-lag": guidance_ramp_lag_table,
+        "guidance-feedforward": guidance_feedforward_table,
     },
 }
 

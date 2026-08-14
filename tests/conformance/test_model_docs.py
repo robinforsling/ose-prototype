@@ -27,7 +27,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 GENERATOR = ROOT / "tools" / "generate_model_docs.py"
-DOCS = ROOT / "docs" / "models" / "vehicle"
+DOCS = ROOT / "docs" / "models"
 
 
 def _load_generator():
@@ -76,7 +76,7 @@ def test_every_vehicle_model_has_a_page():
     modules."""
     import _truth_boundary
 
-    documented = {p.stem for p in DOCS.glob("*.md")}
+    documented = {p.stem for p in (DOCS / "vehicle").glob("*.md")}
     modules = {
         m.rsplit(".", 1)[-1]
         for _, _, m in _equipment_vehicle_modules(_truth_boundary)
