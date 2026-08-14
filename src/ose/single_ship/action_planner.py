@@ -36,6 +36,26 @@ through it and would orbit instead. Turn radius is v divided by the
 achievable turn rate, both of which move with state, so the radius is
 recomputed rather than configured once.
 
+What a route cannot say
+-----------------------
+A Waypoint is a position and a speed. It carries no time and no heading, so
+"be at this position, on this heading, at time t" cannot be expressed: there is
+no required time of arrival, no arrival heading, and no schedule. The heading
+at capture is whatever the geometry leaves, since a leg is flown on the
+instantaneous bearing to the active waypoint.
+
+plan() takes t_s and uses it only to stamp the ActionSet -- it never reaches a
+decision. Capture is by radius, sized from the vehicle's current turn radius.
+The planner is therefore time invariant: the same estimate at a different t_s
+yields the same motion, differing only in the timestamp on the record.
+test_the_plan_is_time_invariant pins it.
+
+That is coherent for one platform following a geometric route, and it is a
+ceiling rather than an oversight. Coordination across platforms is where a time
+constraint stops being optional, and adding one turns this from a geometric
+planner into a scheduled one -- a decision worth an ADR, not a field on a
+record.
+
 It deliberately does NOT clamp a commanded speed into the achievable band.
 Emitting what the route asks for and letting enforcement clip it leaves a
 visible Saturation finding, where silently clamping here would hide an

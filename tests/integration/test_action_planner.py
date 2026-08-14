@@ -280,6 +280,29 @@ def test_planner_does_not_clamp_an_infeasible_speed(vehicle, guidance, state):
     assert not cap.admits(actions.motion)      # and the check is available
 
 
+def test_the_plan_is_time_invariant(guidance, state):
+    """t_s reaches no decision: it only stamps the record.
+
+    A Waypoint carries no time, capture is by radius rather than by clock, and
+    nothing in plan() reads t_s except the ActionSet it builds. So the same
+    estimate at a different time yields the same motion.
+
+    Pinned because the module docstring claims it, and because a
+    time-of-arrival constraint would break it -- which is the point at which
+    this planner stops being geometric, and the claim should be revisited
+    deliberately rather than discovered.
+    """
+    route = [Waypoint(20000.0, 0.0, 250.0)]
+    estimate = _estimate(state)
+    capability = guidance.capability(estimate)
+
+    early = WaypointPlanner(route, STANDARD).plan(0.0, estimate, capability)
+    late = WaypointPlanner(route, STANDARD).plan(999.0, estimate, capability)
+
+    assert early.motion == late.motion
+    assert early.t_s != late.t_s, "the timestamp should still be the one given"
+
+
 # --------------------------------------------------------------------------
 # The whole stack
 # --------------------------------------------------------------------------

@@ -90,6 +90,38 @@ $$
 and the pair $(T_{\mathrm{cmd}}, \omega_{\mathrm{cmd}})$ goes to the manager's
 `project_command()`.
 
+### It is a feedback law
+
+Both channels are closed on the navigation estimate. $\hat\psi$ and $\hat v$
+come from the `OwnStateEstimate` the navigation manager publishes, so the
+error terms above are the feedback, and the loop is closed every cycle:
+
+$$
+\omega_{\mathrm{cmd}} = \underbrace{k_\psi \thinspace \Delta\psi}_{\mathrm{feedback}}
++ \underbrace{\dot\psi_{\mathrm{cmd}}}_{\mathrm{feedforward}}
+\qquad
+T_{\mathrm{cmd}} = \underbrace{T_{\mathrm{req}}}_{\mathrm{feedforward}}
++ \underbrace{\hat m \thinspace k_v \thinspace \Delta v}_{\mathrm{feedback}}
+$$
+
+Worth saying plainly, because the two feedforward terms get most of the
+discussion below and are the parts a reader would not guess. They are also of
+different kinds:
+
+| Term | Kind | Does what |
+|---|---|---|
+| $\dot\psi_{\mathrm{cmd}}$ | reference feedforward | cancels the lag against a moving setpoint (section 4) |
+| $T_{\mathrm{req}}$ | plant-model feedforward | supplies the steady-state thrust, so the speed loop only trims (section 3) |
+
+Remove either and a worse controller remains. Remove the feedback and nothing
+useful is left — and section 6's claim that steady-state accuracy equals the
+navigation sigma one for one is only true *because* the loop is closed on the
+estimate.
+
+It is closed on the estimate and never on truth. That is the truth boundary,
+and it is what makes the hold accuracy navigation's number rather than
+guidance's.
+
 Note which $\omega$ appears where. The feedforward is evaluated at the
 **achievable** rate; the command carries the **requested** one, unclipped.
 Section 3 is about why.
@@ -258,6 +290,19 @@ also give the component state, which would end its replayability.
 **No waypoint setpoint.** The planner decides *where* and guidance decides
 *how*, so a route is converted to a heading one layer up, where the route is
 known. See [`action_planner.py`](../../../src/ose/single_ship/action_planner.py).
+
+**No time.** Neither setpoint type carries one, and neither does a `Waypoint`,
+which is position and speed only. So *be at this position, on this heading, at
+time t* is not expressible anywhere in the motion pipeline: there is no
+required time of arrival, no arrival heading, and no schedule. `plan()` takes
+`t_s` and uses it solely to stamp the `ActionSet`; it never reaches a decision,
+and capture is by radius rather than by clock.
+
+That is coherent for what exists — a single platform following a geometric
+route — and it is a ceiling rather than an oversight. Coordinating two
+platforms is where a time constraint stops being optional, and adding one turns
+the planner from geometric into scheduled, which is an architectural decision
+rather than a field on a record.
 
 **No lateral acceleration or bank command.** The vehicle is a planar point mass
 whose input is a turn rate; there is no roll axis to command.
