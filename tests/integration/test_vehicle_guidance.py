@@ -10,26 +10,20 @@ established for the two estimators (ADR 0009): guidance only ever touches
 OwnStateEstimate, never VehicleState or Disturbance directly.
 """
 
-import ast
 import math
-from pathlib import Path
 
 import numpy as np
 import pytest
 
-from _truth_boundary import (
-    assert_no_truth_parameters,
-    assert_no_truth_types,
-    component_path,
-)
 
 from ose import interfaces
 from ose.equipment.reference_configs.vehicle.planar_point_mass import reference_fighter
-from ose.equipment.vehicle import VehicleState
+from ose.equipment.vehicle import Disturbance, VehicleState
 from ose.integration import step_rk4
 from ose.interfaces import (
     HeadingSpeedSetpoint,
     OwnStateEstimate,
+    TrackSpeedSetpoint,
     TurnRateSpeedSetpoint,
 )
 from ose.subsystem.reference_configs.reference_vehicle_guidance import STANDARD
@@ -125,6 +119,153 @@ def test_holds_heading_and_speed_setpoint(vehicle, guidance):
     heading_error = math.remainder(state.psi_rad - setpoint.psi_cmd_rad, 2.0 * math.pi)
     assert abs(math.degrees(heading_error)) < 1.0
     assert abs(state.v_mps - setpoint.v_cmd_mps) < 1.0
+
+
+def _estimate_in_wind(t_s, state, wind, wind_estimate=None, gv_cov=None):
+    """A perfect estimate of a platform flying in wind.
+
+    Ground velocity is air velocity plus wind, which is the only place wind
+    appears in the dynamics and therefore the only place a perfect estimate
+    should show it. `wind_estimate` can be set to something deliberately wrong,
+    to prove the track law does not read it.
+    """
+    air = state.v_mps * np.array([math.cos(state.psi_rad), math.sin(state.psi_rad)])
+    return OwnStateEstimate(
+        t_s=t_s,
+        p_x_m=state.p_x_m,
+        p_y_m=state.p_y_m,
+        psi_rad=state.psi_rad,
+        v_air_mps=state.v_mps,
+        ground_velocity_mps=air + np.asarray(wind, dtype=float),
+        wind_estimate_mps=(
+            np.asarray(wind, dtype=float) if wind_estimate is None
+            else np.asarray(wind_estimate, dtype=float)
+        ),
+        covariance=np.zeros((4, 4)),
+        ground_velocity_covariance=(
+            np.zeros((2, 2)) if gv_cov is None else np.asarray(gv_cov, dtype=float)
+        ),
+    )
+
+
+def _fly_track(guidance, vehicle, setpoint, wind, t_end=120.0, wind_estimate=None):
+    """Closed loop in wind: guidance commands, the integrator applies the wind."""
+    state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
+    disturbance = Disturbance(wind_x_mps=wind[0], wind_y_mps=wind[1])
+    dt, t = 0.05, 0.0
+    while t < t_end:
+        estimate = _estimate_in_wind(t, state, wind, wind_estimate)
+        cmd, _ = guidance.command(t, setpoint, estimate)
+        state = step_rk4(vehicle, state, cmd, dt, disturbance)
+        t += dt
+    return state
+
+
+# --------------------------------------------------------------------------
+# Track hold
+# --------------------------------------------------------------------------
+
+@pytest.mark.performance
+def test_track_setpoint_holds_a_track_through_a_crosswind(vehicle, guidance):
+    """The claim the type exists for.
+
+    A heading setpoint here would leave the ground track arctan(30/250) =
+    6.84 degrees off, permanently. The track loop drives that to zero, and
+    holds it there, without ever computing a crab angle.
+    """
+    wind = (0.0, 30.0)
+    setpoint = TrackSpeedSetpoint(psi_g_cmd_rad=0.0, v_cmd_mps=250.0)
+    state = _fly_track(guidance, vehicle, setpoint, wind)
+
+    ground = state.v_mps * np.array(
+        [math.cos(state.psi_rad), math.sin(state.psi_rad)]
+    ) + np.asarray(wind)
+    track_error = math.remainder(
+        setpoint.psi_g_cmd_rad - math.atan2(ground[1], ground[0]), 2.0 * math.pi
+    )
+    assert abs(math.degrees(track_error)) < 0.1, (
+        f"track error {math.degrees(track_error):.3f}° -- the loop did not close"
+    )
+
+
+@pytest.mark.performance
+def test_holding_a_track_leaves_the_heading_crabbed(vehicle, guidance):
+    """The crab is where the heading ENDS UP, not something computed.
+
+    Guidance never evaluates arcsin(w/v); the loop leaves the heading wherever
+    zero track error requires, and that place is the crab angle. Asserting the
+    closed form is what shows the loop found the right answer rather than an
+    answer that happens to look settled.
+    """
+    wind = (0.0, 30.0)
+    state = _fly_track(
+        guidance, vehicle, TrackSpeedSetpoint(0.0, 250.0), wind
+    )
+
+    expected = -math.asin(wind[1] / state.v_mps)
+    assert abs(state.psi_rad - expected) < math.radians(0.2), (
+        f"heading settled at {math.degrees(state.psi_rad):.2f}°, crab angle is "
+        f"{math.degrees(expected):.2f}°"
+    )
+
+
+@pytest.mark.performance
+def test_the_track_law_does_not_read_the_wind_estimate(vehicle, guidance):
+    """Deliberately, and it is why the law is exact.
+
+    A crab feedforward could only enter as a heading command, where it would
+    balance against the track-error term at a non-zero equilibrium -- measured
+    at 1.03 degrees of standing error for a 30 per cent wind-estimate error.
+    Feeding the loop a wildly wrong wind estimate must change nothing at all.
+    See ADR 0029.
+    """
+    wind = (0.0, 30.0)
+    setpoint = TrackSpeedSetpoint(0.0, 250.0)
+
+    honest = _fly_track(guidance, vehicle, setpoint, wind)
+    lying = _fly_track(
+        guidance, vehicle, setpoint, wind, wind_estimate=(90.0, -60.0)
+    )
+
+    assert honest.psi_rad == lying.psi_rad
+    assert honest.p_y_m == lying.p_y_m
+
+
+def test_a_track_cannot_be_held_at_a_standstill(vehicle, guidance):
+    """The track angle is undefined there, so the setpoint is refused rather
+    than answered with a fabricated one."""
+    state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
+    stopped = _estimate_in_wind(0.0, state, (0.0, 0.0))
+    stopped.ground_velocity_mps = np.zeros(2)
+
+    with pytest.raises(ValueError, match="too low for a track"):
+        guidance.command(0.0, TrackSpeedSetpoint(0.0, 250.0), stopped)
+
+
+@pytest.mark.performance
+def test_claimed_track_hold_accuracy_is_the_projected_ground_velocity_sigma(
+    vehicle, guidance
+):
+    """Not the heading sigma, which is a different and air-relative claim.
+
+    sigma_track = |J P J^T|^(1/2) with J the gradient of atan2 -- for isotropic
+    ground-velocity uncertainty that reduces to sigma_v / speed, which is what
+    is checked here because it can be written down independently.
+    """
+    state = VehicleState(0.0, 0.0, 0.0, 250.0, 16000.0)
+    sigma_v = 2.0
+    estimate = _estimate_in_wind(
+        0.0, state, (0.0, 0.0), gv_cov=np.diag([sigma_v**2, sigma_v**2])
+    )
+    capability = guidance.capability(estimate)
+
+    assert capability.track_hold_sigma_rad == pytest.approx(
+        sigma_v / state.v_mps, rel=1e-9
+    )
+    assert capability.heading_hold_sigma_rad == 0.0, (
+        "the heading covariance is zero here, so reporting it as the track "
+        "sigma would have passed this test for the wrong reason"
+    )
 
 
 def test_feedforward_matches_the_turn_actually_commanded(vehicle, guidance):

@@ -12,25 +12,18 @@ what makes silence safe, and nothing but a test stops someone reinterpreting
 it later.
 """
 
-import ast
 import dataclasses
 import math
-from pathlib import Path
 
 import numpy as np
 import pytest
 
-from _truth_boundary import (
-    assert_no_equipment_imports,
-    assert_no_truth_parameters,
-    component_path,
-)
 
 from ose import interfaces
 from ose.equipment.reference_configs.vehicle.planar_point_mass import reference_fighter
 from ose.equipment.vehicle import VehicleState
 from ose.integration import step_rk4
-from ose.interfaces import ActionSet, HeadingSpeedSetpoint, OwnStateEstimate
+from ose.interfaces import ActionSet, TrackSpeedSetpoint, OwnStateEstimate
 from ose.single_ship.action_planner import (
     Waypoint,
     WaypointPlanner,
@@ -167,12 +160,12 @@ def test_propulsion_carries_over_independently_of_motion():
     boost, and vice versa. The generic guard above proves every field is
     carried; this proves they are carried separately."""
     previous = ActionSet(
-        t_s=0.0, motion=HeadingSpeedSetpoint(1.0, 250.0), propulsion="boost"
+        t_s=0.0, motion=TrackSpeedSetpoint(1.0, 250.0), propulsion="boost"
     )
 
-    new_heading = ActionSet(t_s=1.0, motion=HeadingSpeedSetpoint(2.0, 250.0))
+    new_heading = ActionSet(t_s=1.0, motion=TrackSpeedSetpoint(2.0, 250.0))
     merged = new_heading.merged_onto(previous)
-    assert merged.motion.psi_cmd_rad == 2.0
+    assert merged.motion.psi_g_cmd_rad == 2.0
     assert merged.propulsion == "boost", "a new heading cancelled the mode"
 
     new_mode = ActionSet(t_s=2.0, propulsion="nominal")
@@ -184,7 +177,7 @@ def test_propulsion_carries_over_independently_of_motion():
 def test_the_merge_takes_the_new_timestamp():
     """t_s labels this cycle, not the cycle the carried-over action came
     from -- otherwise a held action would make time appear to stop."""
-    previous = ActionSet(t_s=0.0, motion=HeadingSpeedSetpoint(0.0, 250.0))
+    previous = ActionSet(t_s=0.0, motion=TrackSpeedSetpoint(0.0, 250.0))
     assert ActionSet(t_s=7.5).merged_onto(previous).t_s == 7.5
 
 
@@ -194,11 +187,11 @@ def test_merging_is_the_rule_the_route_end_relies_on(vehicle, guidance, state):
     planner = WaypointPlanner([Waypoint(10.0, 0.0, 250.0)], STANDARD)
     est = _estimate(state)
 
-    committed = ActionSet(t_s=0.0, motion=HeadingSpeedSetpoint(1.23, 251.0))
+    committed = ActionSet(t_s=0.0, motion=TrackSpeedSetpoint(1.23, 251.0))
     committed = planner.plan(0.0, est, guidance.capability(est)).merged_onto(committed)
 
     assert planner.finished
-    assert committed.motion.psi_cmd_rad == 1.23
+    assert committed.motion.psi_g_cmd_rad == 1.23
     assert committed.motion.v_cmd_mps == 251.0
 
 
@@ -211,8 +204,8 @@ def test_steers_at_the_active_waypoint(vehicle, guidance, state):
     est = _estimate(state)
     actions = planner.plan(0.0, est, guidance.capability(est))
 
-    assert isinstance(actions.motion, HeadingSpeedSetpoint)
-    assert actions.motion.psi_cmd_rad == pytest.approx(math.radians(90.0))
+    assert isinstance(actions.motion, TrackSpeedSetpoint)
+    assert actions.motion.psi_g_cmd_rad == pytest.approx(math.radians(90.0))
     assert actions.motion.v_cmd_mps == 300.0
 
 
@@ -324,7 +317,7 @@ def test_flies_the_whole_route(vehicle, guidance, state):
     ]
     planner = WaypointPlanner(route, STANDARD)
 
-    committed = ActionSet(t_s=0.0, motion=HeadingSpeedSetpoint(0.0, 250.0))
+    committed = ActionSet(t_s=0.0, motion=TrackSpeedSetpoint(0.0, 250.0))
     dt, t = 0.05, 0.0
     while t < 900.0 and not planner.finished:
         est = _estimate(state, t)
@@ -342,7 +335,7 @@ def test_holding_pattern_after_the_route_keeps_flying(vehicle, guidance, state):
     caller has no new motion action, keeps the last command, and the vehicle
     carries on rather than stopping or falling out of the sky."""
     planner = WaypointPlanner([Waypoint(4000.0, 0.0, 250.0)], STANDARD)
-    committed = ActionSet(t_s=0.0, motion=HeadingSpeedSetpoint(0.0, 250.0))
+    committed = ActionSet(t_s=0.0, motion=TrackSpeedSetpoint(0.0, 250.0))
 
     dt, t = 0.05, 0.0
     while t < 120.0:

@@ -35,11 +35,14 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+import numpy as np
+
 from ose.equipment.vehicle import Saturation, VehicleCommand
 from ose.interfaces import (
     GuidanceCapability,
     HeadingSpeedSetpoint,
     OwnStateEstimate,
+    TrackSpeedSetpoint,
     TurnRateSpeedSetpoint,
 )
 from ose.subsystem.vehicle_manager import VehicleManager
@@ -54,6 +57,33 @@ class VehicleGuidanceParameters:
 
     heading_gain_per_s: float   # omega_cmd = heading_gain_per_s * heading_error
     speed_gain_per_s: float     # v_dot_cmd = speed_gain_per_s * speed_error
+    track_gain_per_s: float     # omega_cmd = track_gain_per_s * track_error
+
+
+def _track_sigma_rad(own_state: OwnStateEstimate) -> float:
+    """How well a ground track can be held, from the ground-velocity covariance.
+
+    The track angle is atan2(v_y, v_x), so its variance is the ground-velocity
+    covariance projected through that function's gradient:
+
+        J     = [-v_y, v_x] / |v|^2
+        sigma^2 = J P J^T
+
+    Not the heading sigma. A track loop steers on ground velocity, so its floor
+    is the uncertainty in ground velocity; reporting the heading sigma under a
+    track name would be the anti-conservative mislabelling ADR 0016 exists
+    about, and in wind the two are not even close.
+
+    Zero at a standstill, where the angle is undefined and the claim would be
+    meaningless anyway.
+    """
+    v = own_state.ground_velocity_mps
+    speed_squared = float(v[0] ** 2 + v[1] ** 2)
+    if speed_squared < 1.0:
+        return 0.0
+    jacobian = np.array([-v[1], v[0]]) / speed_squared
+    variance = float(jacobian @ own_state.ground_velocity_covariance @ jacobian)
+    return math.sqrt(max(variance, 0.0))
 
 
 class VehicleGuidance:
@@ -111,6 +141,7 @@ class VehicleGuidance:
             max_speed_mps=envelope.max_speed_mps,
             heading_hold_sigma_rad=math.sqrt(max(own_state.covariance[2, 2], 0.0)),
             speed_hold_sigma_mps=math.sqrt(max(own_state.covariance[3, 3], 0.0)),
+            track_hold_sigma_rad=_track_sigma_rad(own_state),
             # Self-describing: a consumer can tell a promised envelope from a
             # best guess without knowing how this component was configured.
             mass_margin_sigma=envelope.mass_margin_sigma,
@@ -125,6 +156,8 @@ class VehicleGuidance:
         """Dispatches on setpoint type. Unknown types raise TypeError."""
         if isinstance(setpoint, HeadingSpeedSetpoint):
             return self._command_heading_speed(setpoint, own_state)
+        if isinstance(setpoint, TrackSpeedSetpoint):
+            return self._command_track_speed(setpoint, own_state)
         if isinstance(setpoint, TurnRateSpeedSetpoint):
             return self._command_turn_rate_speed(setpoint, own_state)
         raise TypeError(f"VehicleGuidance cannot command from {type(setpoint).__name__}")
@@ -184,6 +217,49 @@ class VehicleGuidance:
         unreachable rate saturates against omega_available and stays there,
         which is the whole reason this setpoint type exists."""
         return self._project(own_state, setpoint.omega_cmd_rad_s, setpoint.v_cmd_mps)
+
+    def _command_track_speed(
+        self, setpoint: TrackSpeedSetpoint, own_state: OwnStateEstimate
+    ) -> tuple[VehicleCommand, Saturation]:
+        """Hold a ground track, by closing the loop on ground velocity.
+
+        Structurally the heading law with a different error, and exact for the
+        same reason: the plant integrates omega into psi, so omega settling at
+        zero requires the TRACK error to be zero, whatever the wind is doing.
+        The crab angle is where the heading ends up, not something computed --
+        heading is left free precisely so that it can absorb the wind.
+
+        Which is why there is no crab feedforward from own_state's wind
+        estimate, though one would be easy and the field is otherwise unread.
+        It cannot enter as a rate, so it can only enter as a heading command,
+        and a heading-error term and a track-error term both feeding one rate
+        command balance at a NON-zero equilibrium. Measured on the kinematics
+        with a 30 per cent wind-estimate error: feedback alone holds 0.000
+        degrees, feedback plus feedforward holds 1.03 degrees and never
+        settles. It buys seven seconds of settling in the case that did not
+        need help and a standing error in the case that did, and this
+        platform's wind is only observable after a turn. See ADR 0029.
+
+        The track angle is undefined at zero ground speed. A stationary
+        platform has no track to hold, so the setpoint is refused rather than
+        answered with a fabricated one.
+        """
+        v_ground = own_state.ground_velocity_mps
+        speed = float(math.hypot(v_ground[0], v_ground[1]))
+        if speed < 1.0:
+            raise ValueError(
+                f"ground speed {speed:.3f} m/s is too low for a track to be "
+                "defined; a stationary platform has no track to hold"
+            )
+
+        track = math.atan2(v_ground[1], v_ground[0])
+        track_error = math.remainder(
+            setpoint.psi_g_cmd_rad - track, 2.0 * math.pi
+        )
+        omega_cmd = (
+            self.par.track_gain_per_s * track_error + setpoint.psi_g_rate_cmd_rad_s
+        )
+        return self._project(own_state, omega_cmd, setpoint.v_cmd_mps)
 
     def _command_heading_speed(
         self, setpoint: HeadingSpeedSetpoint, own_state: OwnStateEstimate

@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import dataclasses
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import ClassVar, Protocol, runtime_checkable
 
 import numpy as np
@@ -65,6 +65,20 @@ class OwnStateEstimate:
     wind_estimate_mps: np.ndarray            # [north, east]
     covariance: np.ndarray                   # 4x4, over [p_x, p_y, psi, v_air]
     gnss_available: bool = True
+
+    # 2x2 over ground velocity [north, east]. Separate from `covariance` above
+    # rather than folded into it, because widening a published field is a
+    # breaking change and adding one is not.
+    #
+    # It is here because a ground TRACK claim needs it and the 4x4 cannot
+    # supply one: that covariance is over heading and airspeed, which are
+    # air-relative, and a track is not. Guidance projects this onto the track
+    # angle to state how well it can hold one.
+    #
+    # Zero means certain, which is what a perfect-estimate stub should say.
+    ground_velocity_covariance: np.ndarray = field(
+        default_factory=lambda: np.zeros((2, 2))
+    )
 
     @property
     def position_sigma_m(self) -> float:
@@ -313,6 +327,39 @@ class TurnRateSpeedSetpoint:
     v_cmd_mps: float
 
 
+@dataclass(frozen=True)
+class TrackSpeedSetpoint:
+    """Hold a ground TRACK and a speed.
+
+    The difference from HeadingSpeedSetpoint is the whole point of this type.
+    A heading is air-relative, so holding one in a crosswind flies a ground
+    track arctan(w/v) away from it -- 6.84 degrees at 250 m/s in 30 m/s of
+    crosswind, which is six kilometres of drift over 200 seconds with the
+    heading held perfectly. A track setpoint says where to GO rather than
+    where to POINT, and guidance finds the crab angle by closing the loop
+    rather than by computing it.
+
+    psi_g is the ground-referenced counterpart of psi. It is not written chi,
+    the usual symbol for a course angle, because ADR 0018 already spent chi on
+    the indicator function.
+
+    psi_g_rate_cmd_rad_s is the setpoint's own rate, fed forward for exactly
+    the reason HeadingSpeedSetpoint carries one: a proportional law chasing a
+    ramp settles at rate/gain rather than at zero.
+
+    v_cmd_mps is still AIRSPEED, not ground speed. The vehicle controls
+    airspeed, and a ground-speed command would be a second thing to hold and a
+    different decision -- one that only starts to matter when something needs
+    to arrive at a time, which nothing here does.
+    """
+
+    INTERFACE: ClassVar[str] = "guidance.setpoint.v1"
+
+    psi_g_cmd_rad: float
+    v_cmd_mps: float
+    psi_g_rate_cmd_rad_s: float = 0.0
+
+
 # ---------------------------------------------------------------------------
 # Committed actions -- planning.action.v1
 # ---------------------------------------------------------------------------
@@ -353,7 +400,9 @@ class ActionSet:
     INTERFACE: ClassVar[str] = "planning.action.v1"
 
     t_s: float
-    motion: "HeadingSpeedSetpoint | TurnRateSpeedSetpoint | None" = None
+    motion: (
+        "HeadingSpeedSetpoint | TurnRateSpeedSetpoint | TrackSpeedSetpoint | None"
+    ) = None
     # The propulsion mode being asked for, in whatever type the vehicle model
     # defines. A sibling of motion rather than part of the setpoint, because
     # the two have different lifetimes: a heading may be held for a minute
@@ -548,6 +597,16 @@ class GuidanceCapability:
     # Hold accuracy -- floored by the navigation estimate being steered on.
     heading_hold_sigma_rad: float
     speed_hold_sigma_mps: float
+
+    # How well a ground TRACK can be held, which is a different claim: it is
+    # floored by the uncertainty in ground velocity rather than in heading,
+    # because that is what a track loop steers on. Not derivable from the 4x4
+    # covariance, which is air-relative; it comes from OwnStateEstimate's
+    # ground_velocity_covariance projected onto the track angle.
+    #
+    # Defaulted so that adding it stayed backward compatible. Zero is the
+    # honest value for a perfect estimate.
+    track_hold_sigma_rad: float = 0.0
 
     # How many sigma of mass uncertainty the reachable-setpoint bounds above
     # were widened by before being reported. Zero means they are the point

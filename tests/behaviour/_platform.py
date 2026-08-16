@@ -50,17 +50,32 @@ from ose.subsystem.vehicle_manager import VehicleManager
 DT = 0.05
 
 
-def perfect_estimate(t_s: float, state: VehicleState) -> OwnStateEstimate:
-    """Stands in for navigation, so a failure here is about behaviour."""
-    v = state.v_mps * np.array([math.cos(state.psi_rad), math.sin(state.psi_rad)])
+def perfect_estimate(
+    t_s: float, state: VehicleState, disturbance: Disturbance = NO_DISTURBANCE
+) -> OwnStateEstimate:
+    """Stands in for navigation, so a failure here is about behaviour.
+
+    The wind has to reach it. Ground velocity is air velocity PLUS wind, and a
+    stub that left the wind out would be publishing a ground velocity the
+    platform does not have -- which is not a perfect estimate, it is a wrong
+    one.
+
+    It went unnoticed until the track loop became the first thing to read the
+    field: while ground velocity was published and unconsumed, the omission
+    could not affect anything. The first run of the track-hold behaviour tests
+    showed the bow unchanged at 1 390 m, because guidance was closing a track
+    loop on a track that did not exist.
+    """
+    air = state.v_mps * np.array([math.cos(state.psi_rad), math.sin(state.psi_rad)])
+    wind = np.array([disturbance.wind_x_mps, disturbance.wind_y_mps])
     return OwnStateEstimate(
         t_s=t_s,
         p_x_m=state.p_x_m,
         p_y_m=state.p_y_m,
         psi_rad=state.psi_rad,
         v_air_mps=state.v_mps,
-        ground_velocity_mps=v,
-        wind_estimate_mps=np.zeros(2),
+        ground_velocity_mps=air + wind,
+        wind_estimate_mps=wind,
         covariance=np.zeros((4, 4)),
     )
 
@@ -122,7 +137,7 @@ def fly(setpoint_at, t_end: float, *, route=None, initial: VehicleState | None =
         if gauge.due(t):
             manager.ingest(gauge.sample(t, state))
 
-        estimate = perfect_estimate(t, state)
+        estimate = perfect_estimate(t, state, disturbance)
         capability = guidance.capability(estimate)
 
         if planner is not None:

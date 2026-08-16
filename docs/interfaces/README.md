@@ -34,7 +34,7 @@ the table is incomplete.
 <!-- generated: implemented-interfaces -->
 | Interface | Record(s) | Published by | Consumed by |
 |---|---|---|---|
-| `guidance.setpoint.v1` | `HeadingSpeedSetpoint`, `TurnRateSpeedSetpoint` | `WaypointPlanner` | `VehicleGuidance` |
+| `guidance.setpoint.v1` | `HeadingSpeedSetpoint`, `TrackSpeedSetpoint`, `TurnRateSpeedSetpoint` | `WaypointPlanner` | `VehicleGuidance` |
 | `planning.action.v1` | `ActionSet` | `WaypointPlanner` | -- |
 | `platform.time.v1` | `TimeEstimate` | `NavigationManager` | -- |
 | `platform.time_source.v1` | `TimeEstimate` | `TimeEstimator` | `NavigationManager` |
@@ -104,6 +104,13 @@ platform" a fact about the code rather than a rule to remember. See ADR 0021.
 Exactly one source, never two. The manager does not fuse them: they would be
 alternatives, and merging a fiction with a model would report an estimate
 better than either while looking self-consistent. See ADR 0014.
+
+`ground_velocity_covariance` is a second, 2x2 covariance over ground velocity,
+added rather than folded into the 4x4 because widening a published field is
+breaking and adding one is not. It exists because a ground *track* claim needs
+it and the 4x4 cannot supply one: that covariance is over heading and airspeed,
+both air-relative, and a track is not. Zero means certain, which is what a
+perfect-estimate stub should say.
 
 The covariance is part of the contract, not an optional extra. A consumer that
 ignores it is choosing to, and a producer that supplies an inconsistent one
@@ -279,7 +286,7 @@ is phrased that way and for the three exemptions.
 
 ### `guidance.setpoint.v1`
 
-Two setpoint records, consumed by any component satisfying
+Three setpoint records, consumed by any component satisfying
 `VehicleGuidance`. They began as a stand-in for `planning.action.v1` before
 a single-ship layer existed; now that one does, they are what its `motion`
 field carries rather than a substitute for it.
@@ -287,6 +294,15 @@ field carries rather than a substitute for it.
 `VehicleGuidance` (subsystem layer, `subsystem/vehicle_guidance.py`), whose
 raw command is projected onto the vehicle's admissible sets before
 publication.
+
+`TrackSpeedSetpoint(psi_g_cmd_rad, v_cmd_mps, psi_g_rate_cmd_rad_s=0.0)` holds
+a ground **track** and a speed, which is where the platform is going rather
+than where it is pointing. The two differ by the crab angle whenever there is
+wind, so a heading setpoint held in a 30 m/s crosswind at 250 m/s flies 6.84°
+off the commanded direction. Guidance closes the loop on ground velocity and
+lets the heading settle wherever zero track error requires, which is the crab;
+it never computes one. `WaypointPlanner` commands this, because a bearing to a
+waypoint is a direction over the ground. See ADR 0029.
 
 `HeadingSpeedSetpoint(psi_cmd_rad, v_cmd_mps, psi_rate_cmd_rad_s=0.0)` holds a
 heading and a speed. The rate field is how fast the commanded heading is

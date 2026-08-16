@@ -40,6 +40,7 @@ the full history, so nothing is lost by keeping the working copy accurate.
 | [0026](0026-the-fuel-gauge-reports-mass-above-dry.md) | The fuel gauge reports mass above dry, and the manager reconciles it | accepted, amended by 0027 |
 | [0027](0027-sensing-fuel-v2-renames-the-measured-quantity.md) | `sensing.fuel.v2` names the quantity actually measured | accepted |
 | [0028](0028-tests-are-classified-by-what-a-failure-indicts.md) | Tests are classified by what a failure indicts | accepted |
+| [0029](0029-guidance-holds-a-track.md) | Guidance holds a ground track, by feedback alone | accepted |
 
 ## Template
 

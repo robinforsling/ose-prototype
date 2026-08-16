@@ -26,8 +26,11 @@ Symbols are plain, per ADR 0018, and reuse the vehicle notation so the two
 pages read together — $\omega$, $T$, $v$, $m$, $\psi$, $\lambda$ all mean what
 [`planar_point_mass.md`](../vehicle/planar_point_mass.md) says they mean.
 
-Two are new, and one obvious choice was unavailable: $e$ is already the Oswald
-efficiency factor, so the error terms are written as differences instead.
+Four are new, and two obvious choices were unavailable. $e$ is already the
+Oswald efficiency factor, so the error terms are written as differences. And
+$\chi$, the usual symbol for a course angle, was spent by ADR 0018 on the
+indicator function — hence $\psi_g$, which says what it is without a new
+letter.
 
 | | kind | meaning |
 |---|---|---|
@@ -35,6 +38,9 @@ efficiency factor, so the error terms are written as differences instead.
 | $k_v$ | scalar | speed gain, 1/s |
 | $\Delta\psi$ | scalar | heading error, wrapped to $[-\pi, \pi]$ |
 | $\Delta v$ | scalar | airspeed error |
+| $k_g$ | scalar | track gain, 1/s |
+| $\psi_g$ | scalar | ground track, the ground-referenced counterpart of $\psi$ |
+| $\Delta\psi_g$ | scalar | track error, wrapped to $[-\pi, \pi]$ |
 
 <!-- generated: guidance-gains -->
 | | reference | units |
@@ -61,6 +67,18 @@ $$
 \Delta\psi = \mathrm{wrap}(\psi_{\mathrm{cmd}} - \hat\psi), \qquad
 \omega_{\mathrm{cmd}} = k_\psi \thinspace \Delta\psi + \dot\psi_{\mathrm{cmd}}
 $$
+
+**`TrackSpeedSetpoint`** — hold a ground track, which is where the platform
+is *going* rather than where it is *pointing*:
+
+$$
+\hat\psi_g = \mathrm{atan2}(v_{g,y}, v_{g,x}), \qquad
+\Delta\psi_g = \mathrm{wrap}(\psi_{g,\mathrm{cmd}} - \hat\psi_g), \qquad
+\omega_{\mathrm{cmd}} = k_g \thinspace \Delta\psi_g + \dot\psi_{g,\mathrm{cmd}}
+$$
+
+Structurally the heading law with a different error, and section 6 is about why
+that difference matters and why nothing computes a crab angle.
 
 **`TurnRateSpeedSetpoint`** — turn at a rate, with no heading loop at all:
 
@@ -232,20 +250,17 @@ ADR 0016.
 
 ---
 
-## 6. Wind, and what guidance does about it
-
-Nothing. That is worth stating with numbers rather than leaving to be found.
+## 6. Wind, and holding a track
 
 Wind enters the dynamics in the two position rows only — it moves the platform
 without pushing on it, so airspeed and heading are untouched and
 $T_{\mathrm{req}}$, which is drag at an *airspeed*, is unaffected and correct.
 
-But guidance holds **air-relative** quantities: a heading and an airspeed.
-Neither is a ground track. So a crosswind produces a standing track error that
-the loop is not merely failing to remove — it is not looking at it.
+But a heading is air-relative and a ground track is not, so holding one is not
+holding the other:
 
 <!-- generated: guidance-wind -->
-| crosswind [m/s] | track error, heading held [°] | crab that would hold track [°] |
+| crosswind [m/s] | track error on a heading setpoint [°] | crab a track setpoint settles at [°] |
 |---|---|---|
 | 5 | 1.15 | 1.15 |
 | 10 | 2.29 | 2.29 |
@@ -254,32 +269,43 @@ the loop is not merely failing to remove — it is not looking at it.
 | 50 | 11.31 | 11.54 |
 <!-- end generated: guidance-wind -->
 
-Both columns are the wind triangle: hold a heading in a crosswind and the
-ground track sits $\arctan(w/v)$ off it, while holding the *track* instead
-would need a crab of $\arcsin(w/v)$ into the wind. At 250 m/s a 30 m/s
-crosswind is 6.84° of track error, which over 200 s of straight flight is six
-kilometres of drift with the commanded heading held exactly.
+Both columns are the wind triangle. Hold a *heading* in a crosswind and the
+ground track sits $\arctan(w/v)$ off it — at 250 m/s a 30 m/s crosswind is
+6.84° of track error, which over 200 s of straight flight is six kilometres of
+drift with the commanded heading held to a hundredth of a degree. Hold a
+*track* and the heading instead settles at $\arcsin(w/v)$ into the wind, which
+is the second column and is the crab angle.
 
-A route recovers most of it, because `WaypointPlanner` recomputes the bearing
-to the active waypoint every cycle — that is a pursuit law, and pursuit
-converges. Flown against a 30 km leg with that crosswind it still captures, and
-takes 118 s against 117 s still, but bows about 1.4 km off the direct line on
-the way: the platform is always *pointing* at the waypoint and always *moving*
-somewhere else. Head and tailwinds only change the clock.
+**Guidance finds that crab by closing the loop, not by computing it.** Nothing
+in `_command_track_speed` evaluates an arcsine. The heading is left free, the
+track error is driven to zero, and the place the heading ends up *is* the crab.
+It is exact for the same reason the heading loop is: the plant integrates
+$\omega$ into $\psi$, so $\omega$ settling at zero requires the error it is
+driven by to be zero, whatever the wind is doing.
+
+That exactness is why there is **no crab feedforward from the wind estimate**,
+though `own_state.wind_estimate_mps` carries one and is otherwise unread. A
+crab correction cannot enter as a rate, so it can only enter as a heading
+command — and a heading-error term and a track-error term both feeding one rate
+command balance at a *non-zero* equilibrium. Measured on the kinematics:
+
+| wind estimate | feedback only | feedback + crab feedforward |
+|---|---|---|
+| perfect | 0.000° in 14.0 s | 0.000° in 6.9 s |
+| 30% wrong | **0.000°** in 14.0 s | **1.03°**, never settles |
+
+Seven seconds of settling in the case that did not need help, in exchange for a
+standing error in the case that did — and this platform's wind is only
+observable after a turn, so a poor estimate is the normal condition. See
+ADR 0029.
+
+`WaypointPlanner` commands a track, because a bearing to a waypoint is a
+direction over the ground. On a 30 km leg in that crosswind the flown path used
+to bow 1 390 m off the direct line; it now bows 92 m, and the heading settles
+at −7.09° against a −6.89° crab. The residual is the transient while the loop
+turns onto the leg, not a standing error.
 [`tests/behaviour/test_wind.py`](../../../tests/behaviour/test_wind.py) pins
-all of that.
-
-**The information to do better is already on the wire.** `OwnStateEstimate`
-carries `wind_estimate_mps` and `ground_velocity_mps`; the INS/GNSS filter
-estimates the wind and is tested for it. Guidance references neither, and
-neither does the planner. Setting $\psi_{\mathrm{cmd}}$ to the bearing minus
-$\arcsin(w_{\perp}/v)$ would cancel the crab using data the platform already
-publishes.
-
-That is not a missing line of code, though. It is the question of whether
-guidance should hold a *track* as well as a heading — a third setpoint type and
-a different control objective, which is an architectural decision rather than a
-tweak. See section 9.
+all of it.
 
 ---
 
@@ -296,6 +322,20 @@ $$
 \sigma_{\psi\thinspace \mathrm{hold}} = \sqrt{P_{22}}, \qquad
 \sigma_{v\thinspace \mathrm{hold}} = \sqrt{P_{33}}
 $$
+
+`track_hold_sigma_rad` is a third and is **not** the heading sigma. A track
+loop steers on ground velocity, so its floor is the uncertainty in ground
+velocity, which the 4x4 above cannot supply — it is over heading and airspeed,
+both air-relative. It comes from `OwnStateEstimate.ground_velocity_covariance`
+projected onto the track angle:
+
+$$
+J = \frac{[-v_{g,y}, \thinspace v_{g,x}]}{\lVert v_g \rVert^2}, \qquad
+\sigma_{\psi_g}^2 = J \thinspace P_{v_g} \thinspace J^{\mathsf{T}}
+$$
+
+Reporting the heading sigma under a track name would be the anti-conservative
+mislabelling ADR 0016 exists about, and in wind the two are not close.
 
 Those are floors, not guarantees, and they are navigation's numbers rather
 than guidance's own. The loop drives the *believed* state to the setpoint, so
@@ -323,6 +363,11 @@ outage as it happens where a static claim would not.
 | published capability is the bound, not the estimate | `test_published_capability_is_the_promised_envelope_not_the_estimate` |
 | the control law still uses the point estimate | `test_the_control_law_still_uses_the_point_estimate` |
 | hold accuracy is honest | `test_claimed_hold_accuracy_is_honest` |
+| a track is held through a crosswind | `test_track_setpoint_holds_a_track_through_a_crosswind` |
+| the heading settles at the crab angle | `test_holding_a_track_leaves_the_heading_crabbed` |
+| the track law ignores the wind estimate | `test_the_track_law_does_not_read_the_wind_estimate` |
+| a track cannot be held at a standstill | `test_a_track_cannot_be_held_at_a_standstill` |
+| the track hold claim is the projected ground-velocity sigma | `test_claimed_track_hold_accuracy_is_the_projected_ground_velocity_sigma` |
 | guidance cannot see truth | `conformance/test_truth_boundary.py` |
 
 All in [`tests/integration/test_vehicle_guidance.py`](../../../tests/integration/test_vehicle_guidance.py)
@@ -357,19 +402,6 @@ rather than a field on a record.
 
 **No lateral acceleration or bank command.** The vehicle is a planar point mass
 whose input is a turn rate; there is no roll axis to command.
-
-**No wind correction, and no track hold.** Guidance holds a heading, not a
-ground track, so a crosswind leaves a standing track error it never looks at
-(section 6). The platform publishes everything needed to fix it —
-`wind_estimate_mps` and `ground_velocity_mps` travel on every
-`OwnStateEstimate`, and nothing in the repository consumes either.
-
-What is missing is not the arithmetic but the objective: holding a track is a
-different thing to hold, wanting a third setpoint type and a decision about
-what a planner means when it names a heading. Worth an ADR when it is done,
-and worth knowing about until then, because a route flown in wind looks
-correct — it captures every waypoint — while flying a bowed path nobody asked
-for.
 
 **No mode logic.** Choosing boost is a planning act, published in
 `ActionSet.propulsion`, and guidance never sees that field — engaging boost

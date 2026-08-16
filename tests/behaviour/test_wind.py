@@ -10,11 +10,11 @@ exactly; the vehicle flies what it is told; navigation, here, is perfect. The
 error is emergent, which is why these are behaviour tests: no unit or seam test
 could show it, because nothing is behaving incorrectly.
 
-They exist because the platform publishes everything needed to correct for wind
-— `wind_estimate_mps` and `ground_velocity_mps` travel on every
-`OwnStateEstimate` — and nothing consumes either. Pinning the cost is what
-makes that a known gap rather than a surprise, and what would make a future
-track-hold setpoint show up as these numbers improving.
+Guidance now holds a ground track when asked for one, and the planner asks
+(ADR 0029), so most of the cost is gone: the same 30 km leg that bowed 1 390 m
+off the direct line bows 92 m. What remains is the heading tests below, which
+still describe what a HEADING setpoint does, because that setpoint still
+exists and is still the right thing when what you mean is a heading.
 """
 
 from __future__ import annotations
@@ -89,16 +89,18 @@ def test_the_track_error_is_the_wind_triangle():
 
 
 @pytest.mark.performance
-def test_a_route_still_captures_in_wind_but_bows_off_the_direct_line():
-    """Pursuit converges, which is why the gap is easy to miss.
+def test_a_route_in_wind_stays_near_the_direct_line():
+    """What the planner commanding a TRACK bought.
 
-    The planner recomputes the bearing to the active waypoint every cycle, so a
-    crosswind is corrected continuously and the waypoint is reached. It is
-    reached along a bowed path, because the platform is always pointing at the
-    waypoint and always moving somewhere else.
+    This assertion is the inverse of the one it replaces. Before ADR 0029 the
+    planner commanded the bearing as a HEADING, so the platform pointed at the
+    waypoint and moved somewhere else, bowing 1 390 m off a 30 km leg in this
+    wind; the test asserted the bow was greater than 500 m. It is now 92 m, and
+    the threshold is what a reader should compare against that number.
 
-    A route flown in wind therefore looks correct -- every waypoint captured --
-    while flying a track nobody asked for. That is the shape of the omission.
+    The residual is not an error to be tuned away. A pursuit law steers at
+    where the waypoint is, so a leg begins with a real track error while the
+    loop turns onto it, and that transient is most of what is left.
     """
     route = [Waypoint(LEG_M, 0.0, AIRSPEED_MPS)]
     common = dict(route=route, initial=_initial(), stop_when_route_done=True)
@@ -113,15 +115,33 @@ def test_a_route_still_captures_in_wind_but_bows_off_the_direct_line():
     wind_excursion = float(np.abs(windy.arrays()["p_y"]).max())
 
     assert calm_excursion < 1.0, f"the calm leg was not straight: {calm_excursion:.0f} m"
-    assert wind_excursion > 500.0, (
-        f"only {wind_excursion:.0f} m of excursion -- the bow should be hundreds "
-        "of metres, and if it is not the wind is not reaching the platform"
+    assert wind_excursion < 250.0, (
+        f"{wind_excursion:.0f} m off the direct line -- track hold has stopped "
+        "working, or the estimate has stopped carrying the wind in its ground "
+        "velocity, which is the same failure wearing a different hat"
     )
-    # Bounded as well as present: pursuit does converge, so an unbounded
-    # excursion would mean it had stopped converging rather than merely bowing.
-    assert wind_excursion < 0.1 * LEG_M, (
-        f"{wind_excursion:.0f} m off a {LEG_M:.0f} m leg is not a bow, it is a "
-        "failure to converge"
+
+
+@pytest.mark.performance
+def test_the_heading_settles_at_the_crab_angle():
+    """Holding a track means NOT holding a heading, and the heading says so.
+
+    Guidance never computes arcsin(w/v); the loop leaves the heading wherever
+    zero track error requires it, which is the crab angle. Asserting the closed
+    form is what distinguishes a loop that found the right answer from one that
+    merely stopped moving.
+    """
+    route = [Waypoint(LEG_M, 0.0, AIRSPEED_MPS)]
+    windy, _, _ = fly(
+        None, 400.0, route=route, initial=_initial(), stop_when_route_done=True,
+        disturbance=Disturbance(wind_y_mps=CROSSWIND_MPS),
+    )
+    settled = windy.arrays()["psi"][-1]
+    crab = -math.asin(CROSSWIND_MPS / AIRSPEED_MPS)
+
+    assert abs(settled - crab) < math.radians(0.5), (
+        f"heading settled at {math.degrees(settled):.2f}°, crab angle is "
+        f"{math.degrees(crab):.2f}°"
     )
 
 

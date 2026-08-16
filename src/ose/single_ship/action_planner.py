@@ -18,7 +18,7 @@ which is what `single_ship.planner.<name>` in the composition spec is for.
 Where the layers divide
 -----------------------
 The planner decides WHERE to go; guidance decides HOW to fly there. So
-waypoint steering lives here, converting a position to a heading command,
+waypoint steering lives here, converting a position to a track command,
 and guidance stays an inner loop over heading, speed and turn rate. That is
 the conventional split, and it is why a waypoint setpoint type was never
 needed: the conversion happens a layer up, where the route is known.
@@ -72,8 +72,8 @@ from dataclasses import dataclass
 from ose.interfaces import (
     ActionSet,
     GuidanceCapability,
-    HeadingSpeedSetpoint,
     OwnStateEstimate,
+    TrackSpeedSetpoint,
 )
 
 
@@ -162,7 +162,14 @@ class WaypointPlanner:
         bearing = math.atan2(wp.p_y_m - own_state.p_y_m, wp.p_x_m - own_state.p_x_m)
         return ActionSet(
             t_s=t_s,
+            # A TRACK, not a heading. The bearing to a waypoint is a direction
+            # over the ground, so commanding it as a heading was a category
+            # error that only showed up in wind: the platform pointed at the
+            # waypoint and moved somewhere else, bowing about 1.4 km off a
+            # 30 km leg in a 30 m/s crosswind. Commanding it as a track lets
+            # guidance find the crab. See ADR 0029.
+            #
             # Rate zero: a straight leg has a bearing that barely moves, so
             # there is nothing to feed forward. A curved leg would set this.
-            motion=HeadingSpeedSetpoint(bearing, wp.v_cmd_mps, psi_rate_cmd_rad_s=0.0),
+            motion=TrackSpeedSetpoint(bearing, wp.v_cmd_mps, psi_g_rate_cmd_rad_s=0.0),
         )

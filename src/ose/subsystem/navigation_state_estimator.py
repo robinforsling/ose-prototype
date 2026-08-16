@@ -327,5 +327,9 @@ class InsGnssEstimator:
             ground_velocity_mps=self.v_ground.copy(),
             wind_estimate_mps=self.wind.copy(),
             covariance=cov,
+            # Straight out of the error covariance, no projection: the filter
+            # already carries ground velocity as an error state, so a track
+            # claim needs nothing computed here that was not computed anyway.
+            ground_velocity_covariance=self.P[I_V, I_V].copy(),
             gnss_available=(t_s - self._t_last_gnss_fix) < self.par.gnss_timeout_s,
         )

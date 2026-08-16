@@ -247,7 +247,8 @@ CROSSWINDS_MPS = (5.0, 10.0, 20.0, 30.0, 50.0)
 def guidance_wind_table() -> str:
     """What a crosswind does to a heading-hold law, and what would undo it."""
     rows = [
-        "| crosswind [m/s] | track error, heading held [°] | crab that would hold track [°] |",
+        "| crosswind [m/s] | track error on a heading setpoint [°] "
+        "| crab a track setpoint settles at [°] |",
         "|---|---|---|",
     ]
     for w in CROSSWINDS_MPS:

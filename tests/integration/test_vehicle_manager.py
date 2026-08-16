@@ -31,14 +31,8 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from _truth_boundary import is_truth_package, vehicle_model_names
 
-from _truth_boundary import (
-    is_truth_package,
-    vehicle_model_names,
-    assert_no_truth_parameters,
-    assert_no_truth_types,
-    component_path,
-)
 
 from ose.equipment.fuel_gauge import FuelGauge
 from ose.equipment.reference_configs.reference_fuel_gauge import STANDARD as GAUGE

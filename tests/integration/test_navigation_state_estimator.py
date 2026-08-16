@@ -12,19 +12,12 @@ estimator's signature contains no truth-carrying type, and that it is a pure
 function of the measurement stream it is fed.
 """
 
-import ast
 import math
 from dataclasses import dataclass
-from pathlib import Path
 
 import numpy as np
 import pytest
 
-from _truth_boundary import (
-    assert_no_truth_parameters,
-    assert_no_truth_types,
-    component_path,
-)
 
 from ose.equipment.air_data import AirDataSensor as AirDataSensorImpl
 from ose.equipment.gnss import GnssReceiver
@@ -309,9 +302,57 @@ def test_the_whole_published_estimate_is_consistent(vehicle, seed):
 
 @pytest.mark.parametrize("seed", [0, 1, 2])
 @pytest.mark.performance
+def test_the_published_ground_velocity_covariance_is_consistent(vehicle, seed):
+    """Ground velocity is published now, so its uncertainty is a claim.
+
+    It is the one a ground TRACK claim rests on: the 4x4 above is over heading
+    and airspeed, both air-relative, and a track is not. Guidance projects this
+    2x2 onto the track angle, so an overconfident block here becomes an
+    overconfident hold accuracy two layers up, which is exactly the shape of
+    failure the NEES tests in this repository exist for.
+
+    Checked against the filter's own error block rather than against the
+    published record, because the record carries a copy of it and comparing a
+    copy to itself would prove nothing about the numbers.
+    """
+    _, flight = _fly(vehicle, 200.0, seed=seed, collect_from=130.0)
+    errors = [e[slice(2, 4)] for e, _ in flight.internal]
+    covariances = [P[slice(2, 4), slice(2, 4)] for _, P in flight.internal]
+
+    # Measured across seeds: 0.50 - 2.24 against 2 dof, comparable to the wind
+    # and bias blocks below.
+    anees = _anees(errors, covariances)
+    assert anees < 8.0, f"ground velocity ANEES = {anees:.2f} against 2 dof, overconfident"
+    assert anees > 0.04, (
+        f"ground velocity ANEES = {anees:.2f} against 2 dof, covariance inflated"
+    )
+
+
+def test_the_published_covariance_is_the_filters_own(vehicle):
+    """The record carries the block, not a recomputation of it.
+
+    Cheap, and it is the half the consistency test above cannot see: that test
+    checks the filter's numbers are honest, this checks the published ones are
+    those numbers.
+    """
+    _, flight = _fly(vehicle, 30.0, seed=0)
+    estimator = flight.estimator
+    published = estimator.estimate(30.0).ground_velocity_covariance
+
+    assert published.shape == (2, 2)
+    assert np.allclose(published, estimator.P[slice(2, 4), slice(2, 4)])
+    # A copy, so a consumer holding the record cannot reach into the filter.
+    published[0, 0] = 1.0e9
+    assert estimator.P[2, 2] != 1.0e9
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2])
+@pytest.mark.performance
 def test_the_error_states_no_consumer_reads_are_consistent(vehicle, seed):
     """The IMU biases and the wind never reach a consumer, so no published
     channel moves when they go wrong -- and every test above would still pass.
+    Ground velocity used to be in this set and is now published in its own
+    right; it has its own check above.
 
     They are not inert: the accel bias is subtracted from every specific-force
     sample before mechanisation and the wind sets the airspeed residual, so an
