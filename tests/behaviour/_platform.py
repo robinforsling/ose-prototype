@@ -29,7 +29,8 @@ from ose.equipment.reference_configs.reference_fuel_gauge import (
     STANDARD as FUEL_GAUGE_STANDARD,
 )
 from ose.equipment.reference_configs.vehicle.planar_point_mass import reference_fighter
-from ose.equipment.vehicle import VehicleState
+from ose.equipment.vehicle import Disturbance, VehicleState
+from ose.equipment.vehicle.records import NO_DISTURBANCE
 from ose.integration import step_rk4
 from ose.interfaces import OwnStateEstimate
 from ose.single_ship.action_planner import WaypointPlanner
@@ -87,11 +88,21 @@ class Flight:
         }
 
 
-def fly(setpoint_at, t_end: float, *, route=None, initial: VehicleState | None = None):
+def fly(setpoint_at, t_end: float, *, route=None, initial: VehicleState | None = None,
+        disturbance: Disturbance = NO_DISTURBANCE, stop_when_route_done: bool = False):
     """Compose a platform and run it forward.
 
     `setpoint_at(t, capability)` supplies the motion setpoint, unless `route`
     is given -- then a WaypointPlanner supplies it and captures are recorded.
+
+    `disturbance` reaches the integrator and nothing else, which is the whole
+    point of it: wind enters the position rows only, so the platform drifts
+    without guidance seeing anything change. Navigation here is a perfect
+    estimate, so the drift is real rather than an estimation artefact.
+
+    `stop_when_route_done` ends the run at capture instead of flying on. A
+    measurement taken over the whole window would otherwise include whatever
+    the platform did after the route ran out.
     """
     vehicle = reference_fighter()
     gauge = FuelGauge(
@@ -121,6 +132,8 @@ def fly(setpoint_at, t_end: float, *, route=None, initial: VehicleState | None =
             if planner.index > previous_index:
                 rec.captures.append(t)
                 previous_index = planner.index
+            if stop_when_route_done and planner.finished:
+                break
             setpoint = committed
         else:
             setpoint = setpoint_at(t, capability)
@@ -145,7 +158,7 @@ def fly(setpoint_at, t_end: float, *, route=None, initial: VehicleState | None =
         rec.omega_clipped.append(saturation.omega_clipped)
 
         manager.predict(t + DT, command.thrust_N, BELIEVED_TSFC_KG_PER_N_S)
-        state = step_rk4(vehicle, state, command, DT)
+        state = step_rk4(vehicle, state, command, DT, disturbance)
         t += DT
 
     return rec, vehicle, planner

@@ -114,7 +114,7 @@ different kinds:
 | $T_{\mathrm{req}}$ | plant-model feedforward | supplies the steady-state thrust, so the speed loop only trims (section 3) |
 
 Remove either and a worse controller remains. Remove the feedback and nothing
-useful is left — and section 6's claim that steady-state accuracy equals the
+useful is left — and section 7's claim that steady-state accuracy equals the
 navigation sigma one for one is only true *because* the loop is closed on the
 estimate.
 
@@ -232,7 +232,58 @@ ADR 0016.
 
 ---
 
-## 6. What it publishes
+## 6. Wind, and what guidance does about it
+
+Nothing. That is worth stating with numbers rather than leaving to be found.
+
+Wind enters the dynamics in the two position rows only — it moves the platform
+without pushing on it, so airspeed and heading are untouched and
+$T_{\mathrm{req}}$, which is drag at an *airspeed*, is unaffected and correct.
+
+But guidance holds **air-relative** quantities: a heading and an airspeed.
+Neither is a ground track. So a crosswind produces a standing track error that
+the loop is not merely failing to remove — it is not looking at it.
+
+<!-- generated: guidance-wind -->
+| crosswind [m/s] | track error, heading held [°] | crab that would hold track [°] |
+|---|---|---|
+| 5 | 1.15 | 1.15 |
+| 10 | 2.29 | 2.29 |
+| 20 | 4.57 | 4.59 |
+| 30 | 6.84 | 6.89 |
+| 50 | 11.31 | 11.54 |
+<!-- end generated: guidance-wind -->
+
+Both columns are the wind triangle: hold a heading in a crosswind and the
+ground track sits $\arctan(w/v)$ off it, while holding the *track* instead
+would need a crab of $\arcsin(w/v)$ into the wind. At 250 m/s a 30 m/s
+crosswind is 6.84° of track error, which over 200 s of straight flight is six
+kilometres of drift with the commanded heading held exactly.
+
+A route recovers most of it, because `WaypointPlanner` recomputes the bearing
+to the active waypoint every cycle — that is a pursuit law, and pursuit
+converges. Flown against a 30 km leg with that crosswind it still captures, and
+takes 118 s against 117 s still, but bows about 1.4 km off the direct line on
+the way: the platform is always *pointing* at the waypoint and always *moving*
+somewhere else. Head and tailwinds only change the clock.
+[`tests/behaviour/test_wind.py`](../../../tests/behaviour/test_wind.py) pins
+all of that.
+
+**The information to do better is already on the wire.** `OwnStateEstimate`
+carries `wind_estimate_mps` and `ground_velocity_mps`; the INS/GNSS filter
+estimates the wind and is tested for it. Guidance references neither, and
+neither does the planner. Setting $\psi_{\mathrm{cmd}}$ to the bearing minus
+$\arcsin(w_{\perp}/v)$ would cancel the crab using data the platform already
+publishes.
+
+That is not a missing line of code, though. It is the question of whether
+guidance should hold a *track* as well as a heading — a third setpoint type and
+a different control objective, which is an architectural decision rather than a
+tweak. See section 9.
+
+---
+
+## 7. What it publishes
 
 `GuidanceCapability`, composed from two layers because a control loop is
 bounded by both and they bound different things (ADR 0013).
@@ -259,7 +310,7 @@ outage as it happens where a static claim would not.
 
 ---
 
-## 7. Verification
+## 8. Verification
 
 | Claim | Test |
 |---|---|
@@ -281,7 +332,7 @@ corner-speed sweep, an unsustainable turn bleeding speed — are in
 
 ---
 
-## 8. Deliberate omissions
+## 9. Deliberate omissions
 
 **No integral term.** Nothing here corrects a standing bias, and with a
 feedforward-declared setpoint there is none to correct. An integral term would
@@ -306,6 +357,19 @@ rather than a field on a record.
 
 **No lateral acceleration or bank command.** The vehicle is a planar point mass
 whose input is a turn rate; there is no roll axis to command.
+
+**No wind correction, and no track hold.** Guidance holds a heading, not a
+ground track, so a crosswind leaves a standing track error it never looks at
+(section 6). The platform publishes everything needed to fix it —
+`wind_estimate_mps` and `ground_velocity_mps` travel on every
+`OwnStateEstimate`, and nothing in the repository consumes either.
+
+What is missing is not the arithmetic but the objective: holding a track is a
+different thing to hold, wanting a third setpoint type and a decision about
+what a planner means when it names a heading. Worth an ADR when it is done,
+and worth knowing about until then, because a route flown in wind looks
+correct — it captures every waypoint — while flying a bowed path nobody asked
+for.
 
 **No mode logic.** Choosing boost is a planning act, published in
 `ActionSet.propulsion`, and guidance never sees that field — engaging boost

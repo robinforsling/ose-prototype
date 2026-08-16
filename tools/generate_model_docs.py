@@ -239,6 +239,24 @@ def guidance_ramp_lag_table() -> str:
     return "\n".join(rows)
 
 
+# Crosswind speeds for the wind table. Closed form -- no simulation here; the
+# flown consequence is pinned by tests/behaviour/test_wind.py instead.
+CROSSWINDS_MPS = (5.0, 10.0, 20.0, 30.0, 50.0)
+
+
+def guidance_wind_table() -> str:
+    """What a crosswind does to a heading-hold law, and what would undo it."""
+    rows = [
+        "| crosswind [m/s] | track error, heading held [°] | crab that would hold track [°] |",
+        "|---|---|---|",
+    ]
+    for w in CROSSWINDS_MPS:
+        held = math.degrees(math.atan2(w, GUIDANCE_SPEED_MPS))
+        crab = math.degrees(math.asin(min(w / GUIDANCE_SPEED_MPS, 1.0)))
+        rows.append(f"| {w:.0f} | {held:.2f} | {crab:.2f} |")
+    return "\n".join(rows)
+
+
 def guidance_feedforward_table() -> str:
     """What the feedforward would demand at the requested rate, against what it
     demands at the achievable one."""
@@ -333,6 +351,7 @@ BLOCKS = {
         "guidance-gains": guidance_gains_table,
         "guidance-ramp-lag": guidance_ramp_lag_table,
         "guidance-feedforward": guidance_feedforward_table,
+        "guidance-wind": guidance_wind_table,
     },
 }
 
